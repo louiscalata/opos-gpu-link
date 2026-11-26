@@ -63,6 +63,14 @@ class ComputerNounTest(NoNetwork):
             for none in (None, "", "   ", 7):
                 self.assertEqual(gpu_link.computer_noun(none), "computer")
 
+    def test_saved_answer_noun(self):
+        with mock.patch.dict(os.environ, DISPLAY):
+            self.assertEqual(gpu_link.answer_noun("RTX 5080 PC", "M5 Pro PC"), "PC")
+            self.assertEqual(gpu_link.answer_noun("M5 Pro PC", "RTX 5080 PC"), "MacBook")
+            for empty in (None, "", "  ", "on the PC's GPU", " on the PC's GPU "):
+                self.assertEqual(gpu_link.answer_noun(empty, "M5 Pro PC"), "MacBook")
+                self.assertEqual(gpu_link.answer_noun(empty, None), "computer")
+
     def test_title(self):
         self.assertEqual([gpu_link.computer_title(n) for n in ("computer", "MacBook", "Mac", "PC", "")],
                          ["Computer", "MacBook", "Mac", "PC", "Computer"])

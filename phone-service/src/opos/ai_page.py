@@ -25,7 +25,7 @@ except ImportError:
     gpu_link_server = None
 
 try:
-    from opos.gpu_link import computer_noun, computer_title
+    from opos.gpu_link import answer_noun, computer_noun, computer_title
     from opos.gpu_link import display_label as _pc_display
 except ImportError:
     def _pc_display(label: Any) -> Any:
@@ -36,6 +36,9 @@ except ImportError:
 
     def computer_title(noun: str) -> str:
         return noun[:1].upper() + noun[1:] if noun else "Computer"
+
+    def answer_noun(where: Any, pc_label: Any) -> str:
+        return "computer"
 
 # The placeholder place for a computer lane. The snapshot keeps it exactly, because the Android app
 # matches it (PaneKeys.shownWhere); the page script words it for the paired computer.
@@ -490,7 +493,7 @@ class PageState:
                            (not gpu["where"] or _pc_display(gpu["where"]) == pc["label"])))
             pc_models = list((pc or {}).get("models") or [])
             visible = {item.get("pane") for item in pc_models}
-            pc_models.extend({"pane": pane, "id": "", "label": (answer["model"] or f"{computer_title(computer_noun(answer.get('where') or (pc or {}).get('label')))} {pane}"),
+            pc_models.extend({"pane": pane, "id": "", "label": (answer["model"] or f"{computer_title(answer_noun(answer.get('where'), (pc or {}).get('label')))} {pane}"),
                               "maker": "", "live": False, "live_speed": None}
                              for pane, answer in extra.items() if answer is not None and pane not in visible)
             body = {
@@ -847,7 +850,7 @@ function nounOf(label){
 }
 function noun(){var l=current&&current.gpu&&current.gpu.link;return nounOf(l&&l.pc&&l.pc.label)}
 // A saved answer names the computer that wrote it (its where), not whichever one is paired now.
-function answerNoun(a){return a&&typeof a.where==='string'&&a.where.trim()&&a.where!=="on the PC's GPU"?nounOf(a.where):noun()}
+function answerNoun(a){var w=a&&typeof a.where==='string'?a.where.trim():'';return w&&w!=="on the PC's GPU"?nounOf(w):noun()}
 function Noun(){var n=noun();return n.charAt(0).toUpperCase()+n.slice(1)}
 function whereWords(w){return w==="on the PC's GPU"?"on the "+noun()+"'s GPU":w}
 var pane=new URLSearchParams(location.search).get('pane');

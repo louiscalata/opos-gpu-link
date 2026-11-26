@@ -29,7 +29,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 from opos import ai_answers, gpu_link_server, secure
-from opos.gpu_link import computer_noun, computer_title
+from opos.gpu_link import answer_noun, computer_title
 
 APPEND_INTERVAL = 0.25
 BODY_LIMIT = 6 * ai_answers.MAX_QUESTION_BYTES + 256
@@ -297,7 +297,7 @@ class LinkApi:
                                                and (not gpu["where"] or gpu["where"] == pc["label"]))))
             pc_models = list((pc or {}).get("models") or [])
             shown = {item.get("pane") for item in pc_models}
-            pc_models.extend({"pane": pane, "id": "", "label": answer["model"] or f"{computer_title(computer_noun(answer.get('where') or (pc or {}).get('label')))} {pane}",
+            pc_models.extend({"pane": pane, "id": "", "label": answer["model"] or f"{computer_title(answer_noun(answer.get('where'), (pc or {}).get('label')))} {pane}",
                               "maker": "",
                               "live": False, "live_speed": None}
                              for pane, answer in extra.items() if answer is not None and pane not in shown)

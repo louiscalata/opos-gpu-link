@@ -70,6 +70,14 @@ def computer_noun(pc_label: object) -> str:
     return "PC"
 
 
+def answer_noun(where: object, pc_label: object) -> str:
+    """The noun for a saved answer: the computer that wrote it (its where), else the paired one.
+    The placeholder place "on the PC's GPU" names no computer."""
+    if isinstance(where, str) and where.strip() and where.strip() != "on the PC's GPU":
+        return computer_noun(where.strip())
+    return computer_noun(pc_label)
+
+
 def computer_title(noun: str) -> str:
     """The noun as a standalone label: "Computer", "MacBook", "Mac" or "PC"."""
     return noun[:1].upper() + noun[1:] if noun else "Computer"
