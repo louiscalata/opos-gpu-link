@@ -142,6 +142,20 @@ final class NewspaperSummary {
         return String.join("\n", rows);
     }
 
+    /**
+     * The latest finish among the included lanes, measured from the question; null if any
+     * included lane has no finish time, so the caller falls back to its own clock.
+     */
+    static Long lastFinish(List<Lane> lanes) {
+        Long latest = null;
+        for (Lane lane : lanes) {
+            if (!lane.included) continue;
+            if (lane.finishedAtMs == null) return null;
+            if (latest == null || lane.finishedAtMs > latest) latest = lane.finishedAtMs;
+        }
+        return latest;
+    }
+
     static String report(List<Lane> lanes) {
         StringBuilder result = new StringBuilder();
         Lane fastest = null;
