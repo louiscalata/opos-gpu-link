@@ -99,6 +99,7 @@ public final class MainActivity extends Activity {
     private final Runnable poll = this::refresh;
     private final Runnable coverResultsCheck = this::ensureCoverResultsArea;
     private final Map<String, Long> answerStarts = new HashMap<>();
+    private long lastAskTapMs = -1;
     private final Map<TextView, String> pcLabelledViews = new java.util.WeakHashMap<>();
     private Typography typography;
     private UiSettings uiSettings;
@@ -358,7 +359,11 @@ public final class MainActivity extends Activity {
         applyInsets();
         applyUi();
         send.setOnClickListener(view -> askModels());
-        stop.setOnClickListener(view -> stopAnswers());
+        stop.setOnClickListener(view -> {
+            // Stop takes Send's place, so a double tap on Send would land on Stop.
+            if (StopTapGuard.ignore(SystemClock.uptimeMillis(), lastAskTapMs)) return;
+            stopAnswers();
+        });
         retry.setOnClickListener(view -> retryFailed());
         reconnect.setOnClickListener(view -> {
             setIfChanged(error, "");
@@ -3232,6 +3237,7 @@ public final class MainActivity extends Activity {
     }
 
     private void askModels() {
+        lastAskTapMs = SystemClock.uptimeMillis();
         // A bare "again" or "retry" would reach the models with no history; send the real question.
         sendQuestion(FollowUpPolicy.resolve(prompt.getText().toString(), lastSubmittedQuestion), false);
     }
