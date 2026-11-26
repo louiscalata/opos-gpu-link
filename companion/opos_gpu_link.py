@@ -1225,6 +1225,7 @@ class Companion:
             # returned true or false. Blame the link, not the model route.
             self._link_lost_while_warming()
             return
+        self.preflight_link_losses = 0  # only consecutive link losses back off
         self.status.set("Local model or chat route failed its one-token check; check --server and --model; retrying")
         self._schedule_retry()
 
@@ -1262,6 +1263,7 @@ class Companion:
                 self.session_pc = None
                 self.bridge.remove_own_forward()
                 # Also cover the warming window, when self.online is still False.
+                self.preflight_link_losses = 0  # a replug must feel instant again
                 self.status.set("Phone disconnected; waiting to reconnect")
                 self.next_try = self.clock() + 1
                 self.retry_delay = 3

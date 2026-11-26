@@ -1074,6 +1074,62 @@ class CompanionTests(unittest.TestCase):
                 self.assertTrue(app.online)
                 self.assertEqual(app.preflight_link_losses, 0)
 
+    def test_forward_lost_while_warming_is_counted_once_per_blip(self):
+        # tick() notices the lost forward before the warm-up finishes; the same blip
+        # must not also be counted by _finish_preflight, so the retry is still 1 s.
+        with tempfile.TemporaryDirectory() as directory:
+            fake = FakeAdb()
+            fake.state = "device"
+            fake.assigned = [18767, 18768]
+            now = [100.0]
+            app = app_fixture(directory, fake, now)
+            app.keys.save_first_allow(bytes(range(32)))
+            gate = threading.Event()
+
+            def slow_preflight(*_args, **_kwargs):
+                gate.wait(5)
+                return True
+
+            with patch.object(link, "PC", FakePC), \
+                    patch.object(link, "authenticated_idle", return_value=True), \
+                    patch.object(link, "model_server_listening", return_value=True), \
+                    patch.object(link, "model_server_preflight", side_effect=slow_preflight):
+                app.tick()
+                self.assertEqual(app.lines[-1], "Warming model")
+                fake.forwards.clear()
+                app.tick()
+                self.assertEqual(app.lines[-1], "Phone link interrupted; reconnecting")
+                gate.set()
+                finish_preflight(app)
+                self.assertEqual(app.preflight_link_losses, 1)
+                self.assertEqual(app.next_try, 101.0)
+
+    def test_link_loss_count_resets_after_a_model_failure_or_unplug(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fake = FakeAdb()
+            fake.state = "device"
+            fake.assigned = [18767, 18768, 18769, 18770]
+            now = [100.0]
+            app = app_fixture(directory, fake, now)
+            app.keys.save_first_allow(bytes(range(32)))
+            with patch.object(link, "PC", FakePC), \
+                    patch.object(link, "authenticated_idle", return_value=True), \
+                    patch.object(link, "model_server_listening", return_value=True), \
+                    patch.object(link, "model_server_preflight", return_value=False):
+                app.tick()
+                fake.forwards.clear()
+                finish_preflight(app)
+                self.assertEqual(app.preflight_link_losses, 1)
+                now[0] = app.next_try
+                app.tick()
+                finish_preflight(app)  # forward intact, model check fails
+                self.assertIn("one-token check", app.lines[-1])
+                self.assertEqual(app.preflight_link_losses, 0)
+            app.preflight_link_losses = 2
+            fake.state = "unauthorized"
+            app.tick()
+            self.assertEqual(app.preflight_link_losses, 0)
+
     def test_failed_preflight_with_lost_forward_does_not_blame_the_model(self):
         with tempfile.TemporaryDirectory() as directory:
             fake = FakeAdb()
