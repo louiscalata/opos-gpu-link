@@ -8,9 +8,15 @@ import java.util.Map;
 final class AnswerStarts {
     private AnswerStarts() {}
 
-    /** Only stamps from this boot are usable: elapsedRealtime restarts at zero after a reboot. */
-    static Map<String, Long> sameBoot(Map<String, Long> saved, long nowElapsedMs) {
+    /**
+     * Only stamps from this boot are usable: elapsedRealtime restarts at zero after a reboot.
+     * The boot counter must match (a stale stamp can be smaller than the new uptime); the
+     * {@code <= now} check is only a sanity bound. Unknown boot counts drop everything.
+     */
+    static Map<String, Long> sameBoot(Map<String, Long> saved, int savedBootCount,
+                                      int currentBootCount, long nowElapsedMs) {
         Map<String, Long> kept = new HashMap<>();
+        if (saved == null || savedBootCount < 0 || savedBootCount != currentBootCount) return kept;
         for (Map.Entry<String, Long> entry : saved.entrySet()) {
             Long value = entry.getValue();
             if (entry.getKey() != null && !entry.getKey().isEmpty()
@@ -24,6 +30,7 @@ final class AnswerStarts {
     /** Save only the starts of the answers the current question is following. */
     static Map<String, Long> toSave(Map<String, Long> starts, Collection<String> currentIds) {
         Map<String, Long> kept = new HashMap<>();
+        if (starts == null || currentIds == null) return kept;
         for (Map.Entry<String, Long> entry : starts.entrySet()) {
             if (entry.getKey() != null && entry.getValue() != null
                     && currentIds.contains(entry.getKey())) {

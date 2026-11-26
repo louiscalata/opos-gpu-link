@@ -1997,9 +1997,14 @@ public final class MainActivity extends Activity {
         loadTimingMap(preferences.getString("answer_durations", ""), answerDurations);
         // Start stamps are elapsedRealtime: keep only ones from this boot, so an activity
         // recreated mid-question (fold, unfold, rotation, Termux in front) still times its lanes.
-        java.util.Map<String, Long> savedStarts = new HashMap<>();
+        Map<String, Long> savedStarts = new HashMap<>();
         loadTimingMap(preferences.getString("answer_starts", ""), savedStarts);
-        answerStarts.putAll(AnswerStarts.sameBoot(savedStarts, SystemClock.elapsedRealtime()));
+        Map<String, Long> restoredStarts = AnswerStarts.toSave(AnswerStarts.sameBoot(savedStarts,
+                preferences.getInt("answer_starts_boot", -1), bootCount(),
+                SystemClock.elapsedRealtime()), latestRequestIds.values());
+        for (Map.Entry<String, Long> entry : restoredStarts.entrySet()) {
+            answerStarts.putIfAbsent(entry.getKey(), entry.getValue());
+        }
         loadTimingMap(preferences.getString("answer_finished_at", ""), answerFinishedAt);
         java.util.Map<String, Long> pauseTotals = new HashMap<>();
         java.util.Map<String, Long> pauseStarts = new HashMap<>();
@@ -2019,6 +2024,16 @@ public final class MainActivity extends Activity {
         if (!latestRequestedPanes.isEmpty()) {
             displayedPanes.addAll(latestRequestedPanes);
             displayPinned = true;
+        }
+    }
+
+    /** Settings.Global.BOOT_COUNT, or -1 when unavailable (restored starts are then dropped). */
+    private int bootCount() {
+        try {
+            return android.provider.Settings.Global.getInt(getContentResolver(),
+                    android.provider.Settings.Global.BOOT_COUNT, -1);
+        } catch (RuntimeException ignored) {
+            return -1;
         }
     }
 
@@ -2072,6 +2087,7 @@ public final class MainActivity extends Activity {
                 answerStartStamps.put(entry.getKey(), entry.getValue().longValue());
             }
             editor.putString("answer_starts", answerStartStamps.toString());
+            editor.putInt("answer_starts_boot", bootCount());
             JSONObject pauses = new JSONObject();
             for (Map.Entry<String, Long> entry : answerTiming.pauseTotals().entrySet()) {
                 if (entry.getKey() != null && entry.getValue() != null) {
