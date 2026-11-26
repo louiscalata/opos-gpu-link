@@ -3026,7 +3026,8 @@ public final class MainActivity extends Activity {
                 return model.has("live") ? model.optBoolean("live") : null;
             }
         }
-        return null;
+        // A current service lists every advertised extra lane; one that is missing is not live.
+        return pc.has("main_live") ? Boolean.FALSE : null;
     }
 
     private boolean gpuCanQueue(JSONObject gpu) {
