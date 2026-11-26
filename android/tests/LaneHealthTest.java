@@ -217,6 +217,30 @@ public final class LaneHealthTest {
         garbled(h.observe("phone", "backend", "failed", "garbled", 0,
                 Q, true, 2), true);
 
+        // Readiness is tracked per lane: another lane in the same fan-out that is not ready
+        // (an extra MacBook lane still warming) must not keep restarting this lane's grace clock.
+        h = new LaneHealth();
+        h.observeCable(true, 0);
+        LaneHealth.Verdict q = null;
+        for (long at = 1_000; at <= 40_000; at += 1_000) {
+            h.observe("g1", "w1", "queued", null, 0, Q, false, at);
+            q = h.observe("gpu", "q1", "queued", null, 0, Q, true, at);
+        }
+        check(q.status == LaneHealth.Status.STUCK && q.retryVisible);
+        // And a lane that was waiting while others ran gets its full grace once it is ready.
+        h = new LaneHealth();
+        h.observeCable(true, 0);
+        for (long at = 1_000; at <= 40_000; at += 1_000) {
+            h.observe("gpu", "r1", "answering", null, at, Q, true, at);
+            h.observe("g2", "q2", "queued", null, 0, Q, false, at);
+        }
+        LaneHealth.Verdict fresh = h.observe("g2", "q2", "queued", null, 0, Q, true, 41_000);
+        check(fresh.status != LaneHealth.Status.STUCK);
+        fresh = h.observe("g2", "q2", "queued", null, 0, Q, true, 41_000 + LaneHealth.PC_QUEUED_WITH_CABLE_MS - 1);
+        check(fresh.status != LaneHealth.Status.STUCK);
+        fresh = h.observe("g2", "q2", "queued", null, 0, Q, true, 41_000 + LaneHealth.PC_QUEUED_WITH_CABLE_MS);
+        check(fresh.status == LaneHealth.Status.STUCK && fresh.retryVisible);
+
         System.out.println("LaneHealthTest: OK");
     }
 

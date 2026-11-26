@@ -63,8 +63,9 @@ final class LaneHealth {
     private final Set<String> autoSpent = new HashSet<>();
     private Boolean lastCable;
     private long cableSinceMs;
-    private Boolean lastReady;
-    private long readySinceMs;
+    /** Readiness is per lane: each PC lane's companion worker comes back on its own. */
+    private final Map<String, Boolean> lastReady = new HashMap<>();
+    private final Map<String, Long> readySinceMs = new HashMap<>();
 
     /** Errors that a second try can plausibly fix. Others (too long, low memory) are left alone. */
     static boolean transientError(String error) {
@@ -89,6 +90,8 @@ final class LaneHealth {
                     String text, String question, boolean laneReady, long nowMs) {
         if (id == null || id.isEmpty() || state == null || state.isEmpty()) {
             seen.remove(pane);
+            lastReady.remove(pane);
+            readySinceMs.remove(pane);
             return new Verdict(Status.IDLE, false, false);
         }
         Seen previous = seen.get(pane);
@@ -110,13 +113,16 @@ final class LaneHealth {
         // that is known to be connected; an unknown cable only ever offers the manual button.
         boolean autoLeft = !autoSpent.contains(key) && laneReady
                 && (!pc || Boolean.TRUE.equals(lastCable));
-        if (!java.util.Objects.equals(lastReady, laneReady) || nowMs < readySinceMs) {
-            readySinceMs = nowMs;
+        Long readySince = readySinceMs.get(pane);
+        if (readySince == null || !java.util.Objects.equals(lastReady.get(pane), laneReady)
+                || nowMs < readySince) {
+            readySince = nowMs;
+            readySinceMs.put(pane, readySince);
         }
-        lastReady = laneReady;
+        lastReady.put(pane, laneReady);
         // Stuck grace for a paused lease starts when the cable is back AND the
         // companion is ready, so a ~50 s warmup does not already consume it.
-        long readyQuiet = laneReady ? Math.max(0, nowMs - readySinceMs) : 0;
+        long readyQuiet = laneReady ? Math.max(0, nowMs - readySince) : 0;
         long graceQuiet = Math.min(cableQuiet, readyQuiet);
         // Stop wins over the garble latch: a cancelled answer must never be re-asked automatically.
         if ("cancelled".equals(state)) {
@@ -181,8 +187,8 @@ final class LaneHealth {
         seen.clear();
         autoSpent.clear();
         lastCable = null;
-        lastReady = null;
+        lastReady.clear();
         cableSinceMs = 0;
-        readySinceMs = 0;
+        readySinceMs.clear();
     }
 }
