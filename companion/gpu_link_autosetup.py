@@ -1800,14 +1800,90 @@ def adb_candidates(home=None, which=shutil.which):
     return paths
 
 
-def ensure_adb(runtime_dir: Path, explicit=None, allow_download=True, system=None):
+
+def running_adb_server_executable(runner=subprocess.run):
+    """Return the adb binary that owns the already-running adb server, or None.
+
+    A PATH or Homebrew adb can talk to a server started by a different install.
+    Forwards created that way are owned by the server binary, so a later owner
+    check against the selected executable fails and the phone's PC lane stays
+    queued with no useful error. Prefer the live server's own binary.
+    """
+    try:
+        listen = runner(
+            ["lsof", "-nP", "-iTCP:5037", "-sTCP:LISTEN", "-Fpn"],
+            capture_output=True, timeout=5, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if listen.returncode != 0:
+        return None
+    owners = set()
+    pid = None
+    stdout = listen.stdout.decode("utf-8", "replace") if isinstance(listen.stdout, (bytes, bytearray)) else (listen.stdout or "")
+    for line in stdout.splitlines():
+        if line.startswith("p") and line[1:].isdigit():
+            pid = line[1:]
+        elif line.startswith("n") and pid is not None:
+            address = line[1:].rsplit(":", 1)[0]
+            if address not in ("127.0.0.1", "[::1]"):
+                return None
+            owners.add(pid)
+    if len(owners) != 1:
+        return None
+    owner = next(iter(owners))
+    try:
+        binary = runner(
+            ["lsof", "-nP", "-a", "-p", owner, "-d", "txt", "-Fn"],
+            capture_output=True, timeout=5, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if binary.returncode != 0:
+        return None
+    b_out = binary.stdout.decode("utf-8", "replace") if isinstance(binary.stdout, (bytes, bytearray)) else (binary.stdout or "")
+    for line in b_out.splitlines():
+        if not line.startswith("n"):
+            continue
+        path = Path(line[1:])
+        if path.name in ("adb", "adb.exe") and path.is_file():
+            try:
+                return path.resolve()
+            except OSError:
+                return path
+    return None
+
+
+def prefer_running_adb_server(selected: Path, runner=subprocess.run, announce=None):
+    """If an adb server is already running, use its executable so forwards pass the owner check."""
+    server = running_adb_server_executable(runner=runner)
+    if server is None:
+        return Path(selected)
+    try:
+        chosen = Path(selected).resolve()
+        live = Path(server).resolve()
+    except OSError:
+        return Path(selected)
+    if chosen == live:
+        return chosen
+    msg = ("Using the already-running adb server's executable instead of "
+           f"{chosen} so USB forwards belong to the same binary ({live}).")
+    if announce is not None:
+        announce(msg)
+    else:
+        say(msg)
+    return live
+
+
+def ensure_adb(runtime_dir: Path, explicit=None, allow_download=True, system=None, runner=subprocess.run):
     if explicit:
-        return Path(explicit)
+        selected = Path(explicit)
+        return prefer_running_adb_server(selected, runner=runner)
     for path in adb_candidates():
         if path.is_file():
             if RESOURCES in path.parents:
                 ensure_exec(path)
-            return path
+            return prefer_running_adb_server(path, runner=runner)
     if not allow_download:
         raise RuntimeError("adb not found and downloads are disabled. Install Google's Android SDK "
                            "Platform-Tools (https://developer.android.com/tools/releases/platform-tools), "
@@ -1823,7 +1899,7 @@ def ensure_adb(runtime_dir: Path, explicit=None, allow_download=True, system=Non
     adb = runtime_dir / "platform-tools" / _exe("adb")
     if not adb.is_file():
         raise RuntimeError("platform-tools download did not contain adb")
-    return adb
+    return prefer_running_adb_server(adb, runner=runner)
 
 
 PHONE_TEXT = {

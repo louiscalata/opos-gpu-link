@@ -318,7 +318,13 @@ class AdbBridge:
                         raise RetryLater("Waiting to clean up a reserved PC port")
                     continue
                 if not self.owner_checker(port, self.adb):
-                    raise CompanionError("PC forward listener is not the selected adb executable")
+                    raise CompanionError(
+                        "PC forward listener is not the selected adb executable. "
+                        "The computer lane will not start until GPU Link uses the same adb "
+                        "binary as the already-running adb server (pass matching --adb, or "
+                        "let GPU Link detect the server). This is a visible setup failure, "
+                        "not a queued computer answer."
+                    )
                 self.port, self.provisional_port = port, None
                 return port
             except CompanionError:

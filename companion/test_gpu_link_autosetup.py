@@ -341,11 +341,89 @@ class PhoneDetection(unittest.TestCase):
         with tempfile.TemporaryDirectory() as d:
             fake = Path(d) / "adb"
             fake.write_text("")
+            quiet = _adb_lsof_runner(returncode=1)
             with patch.object(a, "adb_candidates", return_value=[Path(d) / "nope", fake]):
-                self.assertEqual(a.ensure_adb(Path(d), allow_download=False), fake)
+                self.assertEqual(a.ensure_adb(Path(d), allow_download=False, runner=quiet), fake)
             with patch.object(a, "adb_candidates", return_value=[]):
                 with self.assertRaises(RuntimeError):
-                    a.ensure_adb(Path(d), allow_download=False)
+                    a.ensure_adb(Path(d), allow_download=False, runner=quiet)
+
+
+def _adb_lsof_runner(*, listen="", txt="", returncode=0):
+    def run(cmd, **kwargs):
+        joined = " ".join(cmd)
+        if cmd and cmd[0] == "lsof" and "-iTCP:5037" in joined:
+            rc = 0 if listen else returncode
+            return SimpleNamespace(returncode=rc, stdout=listen.encode())
+        if cmd and cmd[0] == "lsof" and "-p" in cmd:
+            return SimpleNamespace(returncode=0 if txt else 1, stdout=txt.encode())
+        return SimpleNamespace(returncode=1, stdout=b"")
+    return run
+
+
+class AdbServerBinary(unittest.TestCase):
+    def _two_adbs(self, root: Path):
+        path_adb = root / "path" / "adb"
+        server_adb = root / "server" / "adb"
+        path_adb.parent.mkdir()
+        server_adb.parent.mkdir()
+        path_adb.write_text("")
+        server_adb.write_text("")
+        path_adb.chmod(0o755)
+        server_adb.chmod(0o755)
+        return path_adb, server_adb
+
+    def test_prefers_running_server_binary_over_path(self):
+        with tempfile.TemporaryDirectory() as d:
+            path_adb, server_adb = self._two_adbs(Path(d))
+            runner = _adb_lsof_runner(
+                listen="p4242\nn127.0.0.1:5037\n",
+                txt="n%s\n" % server_adb,
+            )
+            notes = []
+            got = a.prefer_running_adb_server(path_adb, runner=runner, announce=notes.append)
+            self.assertEqual(got, server_adb.resolve())
+            self.assertTrue(notes)
+            self.assertIn("already-running adb server", notes[0])
+
+    def test_keeps_selected_when_no_server(self):
+        with tempfile.TemporaryDirectory() as d:
+            path_adb, _server = self._two_adbs(Path(d))
+            got = a.prefer_running_adb_server(
+                path_adb, runner=_adb_lsof_runner(returncode=1), announce=lambda *_: None)
+            self.assertEqual(got, path_adb)
+
+    def test_keeps_selected_when_it_is_the_server(self):
+        with tempfile.TemporaryDirectory() as d:
+            path_adb, _server = self._two_adbs(Path(d))
+            runner = _adb_lsof_runner(
+                listen="p7\nn127.0.0.1:5037\n",
+                txt="n%s\n" % path_adb,
+            )
+            notes = []
+            got = a.prefer_running_adb_server(path_adb, runner=runner, announce=notes.append)
+            self.assertEqual(got, path_adb.resolve())
+            self.assertEqual(notes, [])
+
+    def test_ensure_adb_explicit_follows_the_running_server(self):
+        with tempfile.TemporaryDirectory() as d:
+            path_adb, server_adb = self._two_adbs(Path(d))
+            runner = _adb_lsof_runner(
+                listen="p4242\nn127.0.0.1:5037\n",
+                txt="n%s\n" % server_adb,
+            )
+            got = a.ensure_adb(Path(d), explicit=str(path_adb), allow_download=False, runner=runner)
+            self.assertEqual(got, server_adb.resolve())
+
+    def test_refuses_non_loopback_adb_server(self):
+        with tempfile.TemporaryDirectory() as d:
+            path_adb, server_adb = self._two_adbs(Path(d))
+            runner = _adb_lsof_runner(
+                listen="p4242\nn192.0.2.5:5037\n",
+                txt="n%s\n" % server_adb,
+            )
+            got = a.prefer_running_adb_server(path_adb, runner=runner, announce=lambda *_: None)
+            self.assertEqual(got, path_adb)
 
 
 class Labels(unittest.TestCase):
