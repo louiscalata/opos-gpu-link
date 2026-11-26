@@ -159,6 +159,8 @@ public final class MainActivity extends Activity {
     private LinearLayout columns;
     private LinearLayout timingCard, notesCard, notesDock, notesTab, bottomDock;
     private List<NewspaperSummary.Lane> tonightLanes;
+    /** Race headline under the TONIGHT rows ("Fastest so far: MacBook · 28.4 s"). */
+    private TextView tonightLeader;
     private TextView notesTabLabel;
     private NotesSheet.State notesSheetState = NotesSheet.State.COLLAPSED;
     private ValueAnimator notesSheetAnimator;
@@ -850,6 +852,11 @@ public final class MainActivity extends Activity {
         tonightRows.setPadding(0, dp(6), 0, 0);
         timingCard.addView(tonightRows, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        tonightLeader = newspaperText("", 21, true, false);
+        typography.tabular(tonightLeader);
+        tonightLeader.setPadding(0, dp(6), 0, 0);
+        tonightLeader.setVisibility(View.GONE);
+        timingCard.addView(tonightLeader);
         setTonightTiming(ComputerWords.apply("PC\u00a0waiting\nPhone\u00a0waiting"));
         notesCard = box();
         notes = new LinedNotesEditText(this);
@@ -1149,26 +1156,30 @@ public final class MainActivity extends Activity {
             pinSummaryBar();
         } else {
             columns.addView(leftColumn, new LinearLayout.LayoutParams(0,
-                    LinearLayout.LayoutParams.WRAP_CONTENT, 0.42f));
+                    LinearLayout.LayoutParams.WRAP_CONTENT, 0.5f));
             LinearLayout.LayoutParams rightParams = new LinearLayout.LayoutParams(0,
-                    LinearLayout.LayoutParams.WRAP_CONTENT, 0.58f);
+                    LinearLayout.LayoutParams.WRAP_CONTENT, 0.5f);
             rightParams.leftMargin = dp(LaneCardLayout.CARD_GAP_DP);
             columns.addView(rightColumn, rightParams);
-            answers.addView(columns);
-            putWrapCard(leftColumn, timingCard, 96, 0);
-            // Side-by-side columns stay; each lane grows with its own answer.
-            if (paneOrder.contains("phone")) {
-                typography.body(paneViews.get("phone").answer,
-                        typography.bodySp());
-                putWrapCard(rightColumn, paneViews.get("phone").card,
-                        LaneCardLayout.MIN_LANE_DP, 0);
-            }
+            // TONIGHT is the race: full width on top, then the computer and the phone side by
+            // side so the two answers can be compared from the stage. Each lane grows with
+            // its own answer.
+            putWrapCard(answers, timingCard, 96, 0);
+            LinearLayout.LayoutParams columnsParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            columnsParams.topMargin = dp(LaneCardLayout.CARD_GAP_DP);
+            answers.addView(columns, columnsParams);
             if (paneOrder.contains("gpu")) {
                 typography.body(paneViews.get("gpu").answer,
                         typography.bodySp());
-                putWrapCard(rightColumn, paneViews.get("gpu").card,
-                        LaneCardLayout.MIN_LANE_DP,
-                        paneOrder.contains("phone") ? LaneCardLayout.CARD_GAP_DP : 0);
+                putWrapCard(leftColumn, paneViews.get("gpu").card,
+                        LaneCardLayout.MIN_LANE_DP, 0);
+            }
+            if (paneOrder.contains("phone")) {
+                typography.body(paneViews.get("phone").answer,
+                        typography.bodySp());
+                putWrapCard(paneOrder.contains("gpu") ? rightColumn : leftColumn,
+                        paneViews.get("phone").card, LaneCardLayout.MIN_LANE_DP, 0);
             }
             int extraIndex = 0;
             for (String pane : paneOrder) {
@@ -2967,6 +2978,13 @@ public final class MainActivity extends Activity {
     private void fillTonightRows(LinearLayout container, String timing,
                                  List<NewspaperSummary.Lane> lanes) {
         container.removeAllViews();
+        int maxWords = RaceLine.maxWords(lanes);
+        if (tonightLeader != null) {
+            String leader = lanes == null ? "" : RaceLine.leader(lanes);
+            setIfChanged(tonightLeader, leader);
+            tonightLeader.setVisibility(leader.isEmpty() ? View.GONE : View.VISIBLE);
+            tonightLeader.setTextColor(parseHex(palette.ok()));
+        }
         for (TonightRows.Row row : TonightRows.parse(timing)) {
             if (row.note()) {
                 TextView note = newspaperText(row.label, 12, false, false);
@@ -3000,7 +3018,31 @@ public final class MainActivity extends Activity {
             line.addView(value, valueParams);
             container.addView(line, new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+            NewspaperSummary.Lane lane = tonightLane(row, lanes);
+            if (lane != null && lane.included && maxWords > 0) {
+                // Words so far against the longest lane: the race at a glance from the stage.
+                TextView bar = new TextView(this);
+                bar.setTypeface(typography.jetbrainsMonoMedium);
+                bar.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+                bar.setIncludeFontPadding(false);
+                bar.setSingleLine(true);
+                bar.setText(RaceLine.bar(lane.words, maxWords, RaceLine.CELLS));
+                bar.setTextColor(color);
+                bar.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+                container.addView(bar, new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT));
+            }
         }
+    }
+
+    private static NewspaperSummary.Lane tonightLane(TonightRows.Row row,
+                                                     List<NewspaperSummary.Lane> lanes) {
+        if (lanes == null) return null;
+        for (NewspaperSummary.Lane lane : lanes) {
+            if (row.label.equals(lane.label)) return lane;
+        }
+        return null;
     }
 
     private static String tonightToneSource(TonightRows.Row row,
