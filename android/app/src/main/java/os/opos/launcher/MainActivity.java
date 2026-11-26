@@ -3494,15 +3494,18 @@ public final class MainActivity extends Activity {
                         getPreferences(MODE_PRIVATE).edit()
                                 .putBoolean(PREF_UNRESOLVED_ASK, false).apply();
                     }
-                    if (!visible) return;
-                    reachable = true;
-                    if (sentQuestion != null && !updated.optBoolean("locked")) {
+                    // Bind the new answer IDs even when folded or in the background, so the
+                    // answers this Send started are not shown as "Not asked this time" later.
+                    boolean bound = sentQuestion != null && !updated.optBoolean("locked");
+                    if (bound) {
                         lastSubmittedQuestion = sentQuestion;
                         rememberStarts(updated, body.optJSONArray("panes"), sentQuestion,
                                 startedAtMs, submittedAtWallMs, retrying, submitted.before,
                                 null);
                         clearDraftIfUntouched(draftAtSubmission, submittedRevision);
                     }
+                    if (!visible) return;
+                    reachable = true;
                     showSnapshot(updated);
                     schedule(0);
                 });
