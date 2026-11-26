@@ -12,7 +12,7 @@ public final class TonightRowsTest {
         equal(3, rows.size());
         row(rows.get(0), "PC", "3.3\u00a0s");
         row(rows.get(1), "MacBook gemma", "12.0\u00a0s");
-        row(rows.get(2), "Phone", "waiting");
+        row(rows.get(2), "Phone", "thinking");
         // Every row has a label and a value, so the two columns line up.
         for (TonightRows.Row row : rows) check(!row.note());
         List<TonightRows.Row> markers = TonightRows.parse("PC\u00a0paused\nPhone\u00a01.0\u00a0s");

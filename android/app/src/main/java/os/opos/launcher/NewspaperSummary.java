@@ -120,9 +120,24 @@ final class NewspaperSummary {
             if (result.length() > 0) result.append('\n');
             result.append(timingRow(lane.label, lane.timingMarker != null ? lane.timingMarker
                     : lane.elapsedMs != null ? seconds(lane.elapsedMs)
-                    : lane.pending ? "waiting" : "—"));
+                    : lane.pending ? pendingWord(lane.state) : "—"));
         }
         return result.toString();
+    }
+
+    /**
+     * The TONIGHT value for a lane that has no time yet. It names what the lane card already
+     * says, so a streaming lane never reads "waiting" next to a card that says "Streaming…".
+     * Unknown states keep the old "waiting".
+     */
+    static String pendingWord(String state) {
+        String lower = state == null ? "" : state.trim().toLowerCase(Locale.US);
+        if (lower.startsWith("streaming")) return "streaming";
+        if (lower.startsWith("thinking")) return "thinking";
+        if (lower.startsWith("paused")) return "paused";
+        if (lower.startsWith("retrying")) return "retrying";
+        if (lower.startsWith("waiting for its turn") || lower.startsWith("queued")) return "queued";
+        return "waiting";
     }
 
     static String timingRow(String label, String value) {
