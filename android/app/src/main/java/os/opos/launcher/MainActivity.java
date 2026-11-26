@@ -4752,6 +4752,7 @@ public final class MainActivity extends Activity {
     /** What a status view looked like before it became a paused chip. */
     private static final class PausedChip {
         final int left, top, right, bottom;
+        /** Status lines have no background of their own today; any other is kept as is. */
         final android.graphics.drawable.Drawable background;
 
         PausedChip(TextView view) {
@@ -4763,8 +4764,9 @@ public final class MainActivity extends Activity {
         }
 
         void restore(TextView view) {
-            view.setPadding(left, top, right, bottom);
+            // Background first: a drawable with its own padding would overwrite ours.
             view.setBackground(background);
+            view.setPadding(left, top, right, bottom);
         }
     }
 
