@@ -4728,18 +4728,44 @@ public final class MainActivity extends Activity {
         if (view == null) return;
         UiPalette.Tone tone = UiPalette.tone(view.getText());
         boolean paused = tone == UiPalette.Tone.PAUSED;
-        boolean wasChip = Boolean.TRUE.equals(view.getTag(R.id.paused_chip));
-        if (paused != wasChip) {
+        Object saved = view.getTag(R.id.paused_chip);
+        if (paused && !(saved instanceof PausedChip)) {
             // A paused line is an inverted chip (paper on ink), readable from the back row.
-            // Only views that were ever paused have their background or padding touched.
-            int delta = paused ? dp(6) : -dp(6);
-            view.setPadding(view.getPaddingLeft() + delta, view.getPaddingTop(),
-                    view.getPaddingRight() + delta, view.getPaddingBottom());
-            if (!paused) view.setBackgroundColor(Color.TRANSPARENT);
-            view.setTag(R.id.paused_chip, paused);
+            // The view's own padding and background come back when the pause ends.
+            view.setTag(R.id.paused_chip, new PausedChip(view));
+            view.setPadding(view.getPaddingLeft() + dp(6), view.getPaddingTop(),
+                    view.getPaddingRight() + dp(6), view.getPaddingBottom());
+        } else if (!paused && saved instanceof PausedChip) {
+            ((PausedChip) saved).restore(view);
+            view.setTag(R.id.paused_chip, null);
         }
-        if (paused) view.setBackgroundColor(parseHex(palette.ink()));
+        if (paused) {
+            int ink = parseHex(palette.ink());
+            if (!(view.getBackground() instanceof android.graphics.drawable.ColorDrawable)
+                    || ((android.graphics.drawable.ColorDrawable) view.getBackground()).getColor() != ink) {
+                view.setBackgroundColor(ink);
+            }
+        }
         view.setTextColor(parseHex(paused ? palette.paper() : palette.colorForTone(tone)));
+    }
+
+    /** What a status view looked like before it became a paused chip. */
+    private static final class PausedChip {
+        final int left, top, right, bottom;
+        final android.graphics.drawable.Drawable background;
+
+        PausedChip(TextView view) {
+            left = view.getPaddingLeft();
+            top = view.getPaddingTop();
+            right = view.getPaddingRight();
+            bottom = view.getPaddingBottom();
+            background = view.getBackground();
+        }
+
+        void restore(TextView view) {
+            view.setPadding(left, top, right, bottom);
+            view.setBackground(background);
+        }
     }
 
     private void applyErrorView() {

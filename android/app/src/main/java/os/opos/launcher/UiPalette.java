@@ -83,8 +83,8 @@ final class UiPalette {
         if (text == null) return Tone.NEUTRAL;
         String lower = text.toString().trim().toLowerCase(Locale.US);
         if (lower.isEmpty()) return Tone.NEUTRAL;
-        if (lower.startsWith("paused")) return Tone.PAUSED;
-        if (containsAny(lower, "garbled", "stuck", "failed", "failure", "paused",
+        // Hard errors first, so "Paused — stuck" stays red; a plain pause is ink.
+        if (containsAny(lower, "garbled", "stuck", "failed", "failure",
                 "disconnected", "unreachable", "not connected", "unavailable",
                 "validator", "invalid", "stale snapshot", "expired", "could not",
                 "stopped early", "not enough free memory")
@@ -92,6 +92,7 @@ final class UiPalette {
             return Tone.ERROR;
         }
         if (lower.contains("error")) return Tone.ERROR;
+        if (hasWord(lower, "paused")) return Tone.PAUSED;
         if (lower.contains("getting ready") || lower.contains("getting the pc")) {
             return Tone.NEUTRAL;
         }

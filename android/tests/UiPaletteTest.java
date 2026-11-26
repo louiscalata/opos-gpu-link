@@ -40,7 +40,7 @@ public final class UiPaletteTest {
         equal(UiPalette.Tone.ERROR, UiPalette.tone("Failed"));
         equal(UiPalette.Tone.ERROR, UiPalette.tone("Garbled — Retry"));
         equal(UiPalette.Tone.ERROR, UiPalette.tone("Stuck — Retry"));
-        equal(UiPalette.Tone.PAUSED, UiPalette.tone("Paused — will continue when the PC is back"));
+        equal(UiPalette.Tone.PAUSED, UiPalette.tone("Paused — will continue when the Mac is back"));
         equal(UiPalette.Tone.ERROR, UiPalette.tone("USB cable disconnected · Waiting for the PC"));
         equal(UiPalette.Tone.ERROR, UiPalette.tone("Not connected"));
         equal(UiPalette.Tone.ERROR, UiPalette.tone("validator rejected the answer"));
@@ -64,6 +64,11 @@ public final class UiPaletteTest {
             check(!UiPalette.CHROMATIC.contains(p.colorForTone(UiPalette.Tone.PAUSED)), "pause is not a colour");
         }
         check(!ErrorCopy.errorLine("Paused — plug the cable back in"), "pause is not an error line");
+        equal(UiPalette.Tone.PAUSED, UiPalette.tone("MacBook · Paused"));
+        equal(UiPalette.Tone.NEUTRAL, UiPalette.tone("Unpaused"));
+        equal(UiPalette.Tone.ERROR, UiPalette.tone("Paused — stuck"));
+        equal(UiPalette.Tone.ERROR, UiPalette.tone("Paused — garbled"));
+        check(ErrorCopy.errorLine("Stuck — paused although the cable is back"), "stuck stays an error line");
         // A stuck lane that mentions a pause is still an error.
         equal(UiPalette.Tone.ERROR, UiPalette.tone("Stuck — paused although the cable is back"));
         equal(UiPalette.Tone.OK, UiPalette.tone("Done · 7.9 s"));
