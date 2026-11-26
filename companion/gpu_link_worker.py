@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
-"""Play the PC side of GPU Link through an existing loopback port forward.
+"""Play the computer side of GPU Link through an existing loopback port forward.
 
 Enrol through the owner's developer command, then approve the code on the phone:
   python3 -B tools/gpu-link-standin-pc.py --key-file ./pc.key --enrol-request | <phone enrolment command>
@@ -21,7 +21,7 @@ Use the full endpoint URL. HTTP and HTTPS loopback literals or localhost only;
 no proxies, redirects or compressed replies. Keys are raw 32-byte mode-0600 files.
 Questions and answers stay out of event lines unless --show-text is supplied.
 Ctrl-C stops the tool and closes its current stream. Physical phone checks remain
-NOT_RUN. The lead lane needs a ready phone model file; extra PC model lanes use
+NOT_RUN. The lead lane needs a ready phone model file; extra computer model lanes use
 their advertised model IDs through the same signed link.
 """
 
@@ -112,7 +112,7 @@ class GuardRetryBudget:
 
 
 PRACTICE = (
-    "Practice text from a stand-in PC. This is simulated text, with no model or GPU work.\n"
+    "Practice text from a stand-in computer. This is simulated text, with no model or GPU work.\n"
     + "A shared library starts with a room, a shelf and a list. Neighbours bring things and borrow them.\n" * 8
 )
 ENROL_REFUSED = "Enrolment request refused: stdout must be a pipe or socket to the phone enrolment command"
@@ -477,11 +477,11 @@ class PC:
 
 
 class LanePC(PC):
-    """Independent signed connection state for one additional PC answer lane."""
+    """Independent signed connection state for one additional computer answer lane."""
 
     def __init__(self, phone, key, label, pane, request_limit=1):
         if pane not in ("g1", "g2", "g3"):
-            raise ToolError("invalid PC pane")
+            raise ToolError("invalid computer pane")
         super().__init__(phone, key, label, request_limit)
         self.pane = pane
 
@@ -1100,4 +1100,4 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    raise SystemExit("Start opos_gpu_link.py so PC permission and protected key storage are enforced.")
+    raise SystemExit("Start opos_gpu_link.py so the computer's permission and protected key storage are enforced.")

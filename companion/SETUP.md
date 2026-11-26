@@ -21,7 +21,7 @@ The launchers pass `--headless --always-allow`. Linux runs directly in the termi
 
 Use `--lm-url http://127.0.0.1:8000/v1` to pin a backend, or pass the full chat-completions route with `--server`. If both are omitted, the companion uses the single discovered backend when it is on an unprotected port. In other cases it keeps the existing 1235 default. Continue to pass `--model` or set `OPOS_GPU_LINK_MODEL`.
 
-On first pairing, compare the six-digit codes and approve **Allow this PC** on the phone. The launcher keeps its running trust grant across replug. Press Ctrl-C to stop the launcher and let it remove its own forward.
+On first pairing, compare the six-digit codes and tap **Allow** on the phone. The launcher keeps its running trust grant across replug. Press Ctrl-C to stop the launcher and let it remove its own forward.
 
 ## Discover backends
 
@@ -37,7 +37,7 @@ Ports 1234, 1236, 8080, 8081, 8765, 8767, 11434, 11435 and 4173 require both an 
 
 ## Models and memory
 
-Keep the lead PC model in `--model`. Add up to three more models from the same OpenAI-compatible chat endpoint with repeatable `--extra-model ID:LABEL:MAKER` flags. Quote an entry when its label or maker contains spaces. Model IDs may contain slashes. All three launchers forward the flags unchanged:
+Keep the lead computer model in `--model`. Add up to three more models from the same OpenAI-compatible chat endpoint with repeatable `--extra-model ID:LABEL:MAKER` flags. Quote an entry when its label or maker contains spaces. Model IDs may contain slashes. All three launchers forward the flags unchanged:
 
 ```sh
 ./run-linux.sh --model main-model \
@@ -51,7 +51,7 @@ On macOS use `./run-mac.sh` with the same arguments. On Windows PowerShell use `
 {"models":[{"id":"qwen/qwen3-4b","label":"Qwen 3 4B","maker":"Qwen"},{"id":"lfm3-1.7b","label":"LFM 3","maker":"Liquid AI"}]}
 ```
 
-The optional `gpu` field on each JSON model can describe its PC GPU with `name` (up to 64 printable characters), `memory_mb` (nonnegative integer), and `driver` (up to 32 printable characters). The list is limited to three unique IDs, distinct from the lead model ID, and a 2,048-byte JSON file. The phone shows these models as `g1`–`g3` next to the lead `gpu` lane. A single question can start the lead, all ready extra PC lanes, and the phone lanes together. Each PC lane owns its stream and saved byte offset; the companion sends at most one text post per second per lane when fan-out is enabled, keeping the phone's existing four-posts-per-second limit.
+The optional `gpu` field on each JSON model can describe its computer GPU with `name` (up to 64 printable characters), `memory_mb` (nonnegative integer), and `driver` (up to 32 printable characters). The list is limited to three unique IDs, distinct from the lead model ID, and a 2,048-byte JSON file. The phone shows these models as `g1`–`g3` next to the lead `gpu` lane. A single question can start the lead, all ready extra computer lanes, and the phone lanes together. Each computer lane owns its stream and saved byte offset; the companion sends at most one text post per second per lane when fan-out is enabled, keeping the phone's existing four-posts-per-second limit.
 
 The lead model still passes its existing model-file check. Extra model IDs are served by the existing `--lm-url` or `--server` endpoint; the companion never calls a load or unload API. Each extra model runs its one-token SSE check only on first use. While an initial JIT load is slow, its lane shows **Warming model**. If an extra model fails that check or its stream, only that lane fails with the safe `server` code. `OPOS_GPU_LINK_REASONING_EFFORT` applies to every stream and preflight request; its default is `none`. Set it to `default` to omit the field.
 
@@ -70,19 +70,19 @@ Include weights, KV cache, and runtime buffers for every model that may be resid
 
 ## Unplugging and troubleshooting
 
-When USB disconnects, every open PC lane changes to **paused** after the link timeout and keeps its acknowledged partial text. The on-device lanes continue. On replug, the companion re-establishes its own forward and restarts the PC workers using the saved pairing. Each PC lane receives a new lease with its own saved partial and resumes from that byte offset. A new generation uses the partial answer as context, so continuation can differ from an uninterrupted stream. If no extra models are configured, the original single-lane protocol remains in use. A companion configured with extras falls back to the lead lane when an older phone refuses the extension.
+When USB disconnects, every open computer lane changes to **paused** after the link timeout and keeps its acknowledged partial text. The on-device lanes continue. On replug, the companion re-establishes its own forward and restarts the computer workers using the saved pairing. Each computer lane receives a new lease with its own saved partial and resumes from that byte offset. A new generation uses the partial answer as context, so continuation can differ from an uninterrupted stream. If no extra models are configured, the original single-lane protocol remains in use. A companion configured with extras falls back to the lead lane when an older phone refuses the extension.
 
 - **Waiting for a phone** — check the cable and USB debugging approval. If multiple devices are authorized, use the intended USB serial explicitly.
 - **Cannot verify a forward** — check that `lsof` is on `PATH` on macOS/Linux, or that Windows PowerShell can inspect local listener owners. Use the same adb executable that owns the listener.
 - **No backend found** — confirm the running server's bind address and port and add its URL with `--probe-url`. Discovery expects an unauthenticated OpenAI-compatible models response. Check the port restrictions above.
 - **Warming model** — compare the reported ID with `--model`. Check whether the backend can serve streaming chat and has memory to load the model.
-- **Replug doesn't continue the answer** — confirm that the companion is still running and that the phone retained the paused turn. See [PC companion pairing and recovery](README.md#run) for pairing rejection.
+- **Replug doesn't continue the answer** — confirm that the companion is still running and that the phone retained the paused turn. See [companion pairing and recovery](README.md#run) for pairing rejection.
 
 ## Verification for this delivery
 
 See `../delivery/RECEIPT.md` for the exact test results and remaining native checks. The fake LM Studio HTTP test binds an ephemeral loopback port when the host permits it. The Windows test run, USB unplug/replug, real LM Studio loading, and device rendering remain operator checks.
 
-## LM Studio note: preload extra PC models
+## LM Studio note: preload extra computer models
 LM Studio's just-in-time loading keeps only one auto-loaded model at a time. If two extra models (for example `qwen/qwen3-4b` and `lfm3-1.7b`) are both cold when a question arrives, loading one can evict the other and one lane fails. Before a demo load them explicitly (`lms load qwen/qwen3-4b`, `lms load lfm3-1.7b`); explicitly loaded models stay resident next to the lead model. Check with `lms ps`.
 
 ## Show-day guards

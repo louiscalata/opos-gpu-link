@@ -2112,11 +2112,24 @@ def wait_for_phone(adb: Path, runner=subprocess.run, sleep=time.sleep, timeout=N
 # ---------------------------------------------------------------- main ----
 
 def safe_label(gpu) -> str:
+    """The pairing label on the wire. Kept as "<GPU> PC" even on a Mac: the phone's saved
+    pairing is bound to it, so renaming it would force owner recovery. Screens show the
+    phone's display name for it instead (OPOS_GPU_LINK_PC_DISPLAY on the phone)."""
     name = re.sub(r"(?i)nvidia|geforce|apple|\(r\)|\(tm\)|corporation", "", gpu.get("name") or "")
     name = re.sub(r"[^A-Za-z0-9 -]", " ", name)
     name = re.sub(r"\s+", " ", name).strip()
     label = (name + " PC").strip() if name else "GPU PC"
     return label[:24].strip() or "GPU PC"
+
+
+def ready_lines(gpu_name, lanes, noun):
+    """The "ready" banner, naming this computer by noun ("MacBook", "Mac" or "PC")."""
+    return ["GPU Link is ready.", f"Computer GPU: {gpu_name}",
+            f"{noun} answer lanes: {len(lanes)} ({', '.join(l['label'] for l in lanes)})",
+            "Open GPU Link on the phone and ask a question.",
+            "First time only: compare the 6-digit code and tap Allow on the phone.",
+            "Unplugging pauses the computer answers; plugging back in resumes them.",
+            "Press Ctrl-C here to stop."]
 
 
 def protected_flags(chat_url: str):
@@ -2267,7 +2280,7 @@ def arguments(argv=None):
                    help="use only this GPU vendor and hide the others (default auto, or $" + GPU_ENV + "); "
                         "'amd'/'intel' take the Vulkan path even when an NVIDIA card is present")
     p.add_argument("--extras", type=int, default=MAX_EXTRAS, choices=(0, 1, 2),
-                   help="how many smaller extra PC lanes to add automatically (default 2)")
+                   help="how many smaller extra computer lanes to add automatically (default 2)")
     p.add_argument("--no-extras", action="store_true", help="same as --extras 0")
     p.add_argument("--no-download", action="store_true",
                    help="do not download llama.cpp, adb or models; fail if they are missing")
@@ -2864,13 +2877,7 @@ def run(args) -> int:
         say(f"adb: {adb}")
         serial = args.serial or wait_for_phone(adb)
         import opos_gpu_link
-        lanes = len(rt.lanes)
-        banner(["GPU Link is ready.", f"Computer GPU: {info['gpu']['name']}",
-                f"PC answer lanes: {lanes} ({', '.join(l['label'] for l in rt.lanes)})",
-                "Open GPU Link on the phone and ask a question.",
-                "First time only: compare the 6-digit code and tap Allow this PC on the phone.",
-                "Unplugging pauses the computer answers; plugging back in resumes them.",
-                "Press Ctrl-C here to stop."])
+        banner(ready_lines(info["gpu"]["name"], rt.lanes, opos_gpu_link.computer_noun()))
         return opos_gpu_link.main(companion_args(args, rt, info, adb, serial), runtime=rt)
     except KeyboardInterrupt:
         return 130
