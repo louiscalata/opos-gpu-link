@@ -70,6 +70,11 @@ public final class RaceLineTest {
                 new NewspaperSummary.Lane("C", "ans", "Done", 1L, null, true, 684, false, null, false)
         )) == 684, "maxWords should ignore not included lanes");
 
+        // A later lane that is faster wins; a tie keeps the first lane.
+        equal("Fastest: Phone · 9.1 s", RaceLine.leader(List.of(macBook,
+                new NewspaperSummary.Lane("Phone", "ans", "Done", 9100L))));
+        equal("Fastest: MacBook · 28.4 s", RaceLine.leader(List.of(macBook,
+                new NewspaperSummary.Lane("Phone", "ans", "Done", 28400L))));
         System.out.println("RaceLineTest: OK");
     }
 

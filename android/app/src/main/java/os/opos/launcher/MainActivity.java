@@ -1155,41 +1155,41 @@ public final class MainActivity extends Activity {
             putWrapCard(answers, timingCard, 96, LaneCardLayout.CARD_GAP_DP);
             pinSummaryBar();
         } else {
-            columns.addView(leftColumn, new LinearLayout.LayoutParams(0,
-                    LinearLayout.LayoutParams.WRAP_CONTENT, 0.5f));
-            LinearLayout.LayoutParams rightParams = new LinearLayout.LayoutParams(0,
-                    LinearLayout.LayoutParams.WRAP_CONTENT, 0.5f);
-            rightParams.leftMargin = dp(LaneCardLayout.CARD_GAP_DP);
-            columns.addView(rightColumn, rightParams);
             // TONIGHT is the race: full width on top, then the computer and the phone side by
             // side so the two answers can be compared from the stage. Each lane grows with
-            // its own answer.
+            // its own answer; extra lanes go to the shorter column.
             putWrapCard(answers, timingCard, 96, 0);
+            List<View> cards = new ArrayList<>();
+            if (paneOrder.contains("gpu")) cards.add(paneViews.get("gpu").card);
+            if (paneOrder.contains("phone")) cards.add(paneViews.get("phone").card);
+            for (String pane : paneOrder) {
+                if (PaneKeys.extra(pane)) cards.add(paneViews.get(pane).card);
+            }
+            for (String pane : paneOrder) {
+                typography.body(paneViews.get(pane).answer, typography.bodySp());
+            }
             LinearLayout.LayoutParams columnsParams = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
             columnsParams.topMargin = dp(LaneCardLayout.CARD_GAP_DP);
-            answers.addView(columns, columnsParams);
-            if (paneOrder.contains("gpu")) {
-                typography.body(paneViews.get("gpu").answer,
-                        typography.bodySp());
-                putWrapCard(leftColumn, paneViews.get("gpu").card,
-                        LaneCardLayout.MIN_LANE_DP, 0);
-            }
-            if (paneOrder.contains("phone")) {
-                typography.body(paneViews.get("phone").answer,
-                        typography.bodySp());
-                putWrapCard(paneOrder.contains("gpu") ? rightColumn : leftColumn,
-                        paneViews.get("phone").card, LaneCardLayout.MIN_LANE_DP, 0);
-            }
-            int extraIndex = 0;
-            for (String pane : paneOrder) {
-                if (!PaneKeys.extra(pane)) continue;
-                LinearLayout target = extraIndex % 2 == 0 ? leftColumn : rightColumn;
-                typography.body(paneViews.get(pane).answer,
-                        typography.bodySp());
-                putWrapCard(target, paneViews.get(pane).card, LaneCardLayout.MIN_LANE_DP,
+            if (cards.size() == 1) {
+                // One lane uses the whole width instead of half a row.
+                putWrapCard(answers, cards.get(0), LaneCardLayout.MIN_LANE_DP,
                         LaneCardLayout.CARD_GAP_DP);
-                extraIndex++;
+            } else if (!cards.isEmpty()) {
+                columns.addView(leftColumn, new LinearLayout.LayoutParams(0,
+                        LinearLayout.LayoutParams.WRAP_CONTENT, 0.5f));
+                LinearLayout.LayoutParams rightParams = new LinearLayout.LayoutParams(0,
+                        LinearLayout.LayoutParams.WRAP_CONTENT, 0.5f);
+                rightParams.leftMargin = dp(LaneCardLayout.CARD_GAP_DP);
+                columns.addView(rightColumn, rightParams);
+                answers.addView(columns, columnsParams);
+                for (int i = 0; i < cards.size(); i++) {
+                    LinearLayout target = i < 2 ? (i == 0 ? leftColumn : rightColumn)
+                            : leftColumn.getChildCount() <= rightColumn.getChildCount()
+                            ? leftColumn : rightColumn;
+                    putWrapCard(target, cards.get(i), LaneCardLayout.MIN_LANE_DP,
+                            target.getChildCount() == 0 ? 0 : LaneCardLayout.CARD_GAP_DP);
+                }
             }
             pinSummaryBar();
         }
@@ -3023,9 +3023,12 @@ public final class MainActivity extends Activity {
                 // Words so far against the longest lane: the race at a glance from the stage.
                 TextView bar = new TextView(this);
                 bar.setTypeface(typography.jetbrainsMonoMedium);
-                bar.setTextSize(TypedValue.COMPLEX_UNIT_SP, 11);
+                // dp, not sp: the bar is decorative (hidden from TalkBack) and must stay one
+                // line at large font scales; the row above it carries the words.
+                bar.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 11);
                 bar.setIncludeFontPadding(false);
-                bar.setSingleLine(true);
+                bar.setMaxLines(1);
+                bar.setPadding(0, 0, 0, dp(2));
                 bar.setText(RaceLine.bar(lane.words, maxWords, RaceLine.CELLS));
                 bar.setTextColor(color);
                 bar.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
@@ -3038,9 +3041,9 @@ public final class MainActivity extends Activity {
 
     private static NewspaperSummary.Lane tonightLane(TonightRows.Row row,
                                                      List<NewspaperSummary.Lane> lanes) {
-        if (lanes == null) return null;
+        if (lanes == null || row == null) return null;
         for (NewspaperSummary.Lane lane : lanes) {
-            if (row.label.equals(lane.label)) return lane;
+            if (lane != null && row.label.equals(lane.label)) return lane;
         }
         return null;
     }
