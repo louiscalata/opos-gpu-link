@@ -24,6 +24,12 @@ try:
 except ImportError:
     gpu_link_server = None
 
+try:
+    from opos.gpu_link import display_label as _pc_display
+except ImportError:
+    def _pc_display(label: Any) -> Any:
+        return label
+
 QUESTIONS = (
     "Explain why the sky looks blue in words a ten-year-old would understand.",
     "Suggest five things neighbours can do together to make a small public garden welcoming.",
@@ -461,7 +467,7 @@ class PageState:
             lead_label = (pc or {}).get("lead_label")
             same_pc = bool(pc and (not gpu or
                            gpu["state"] not in ai_answers.FINAL and
-                           (not gpu["where"] or gpu["where"] == pc["label"])))
+                           (not gpu["where"] or _pc_display(gpu["where"]) == pc["label"])))
             pc_models = list((pc or {}).get("models") or [])
             visible = {item.get("pane") for item in pc_models}
             pc_models.extend({"pane": pane, "id": "", "label": (answer["model"] or f"PC {pane}"),
@@ -482,7 +488,7 @@ class PageState:
                 "gpu": {
                     **({"lead_label": lead_label} if lead_label is not None else {}),
                     "model": (lead_label if same_pc else None) or (gpu["model"] if gpu else "") or (gpu_model["name"] if gpu_model else ""),
-                    "where": (gpu["where"] if gpu else "") or "on the PC's GPU",
+                    "where": _pc_display((gpu["where"] if gpu else "") or "on the PC's GPU"),
                     "ready": bool(
                         gpu_model
                         and gpu_model["state"] == "ready"

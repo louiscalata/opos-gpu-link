@@ -32,6 +32,22 @@ from opos import ai_answers as answers_api
 from opos import gpu_link_proto as proto
 from opos.store import DurabilityError, Store
 
+
+def display_label(label: object) -> object:
+    """Screen name for a paired PC; the saved pairing label itself never changes.
+
+    OPOS_GPU_LINK_PC_DISPLAY maps saved labels to what the phone shows, for example
+    "M5 Pro PC=M5 Pro MacBook Pro" (pairs separated by ";"). Renaming the saved label
+    would force owner recovery, so only the screen text is mapped.
+    """
+    if not isinstance(label, str):
+        return label
+    for item in os.environ.get("OPOS_GPU_LINK_PC_DISPLAY", "").split(";"):
+        saved, sep, shown = item.partition("=")
+        if sep and saved.strip() == label and proto.valid_label(shown.strip()):
+            return shown.strip()
+    return label
+
 HISTORY_LIMIT = 64
 LINK_SECONDS = 2.5
 HASH_RETRY_SECONDS = 5.0
@@ -577,7 +593,7 @@ class LinkService:
                         else:
                             self._extra_speeds[pane] = speed
                     values.update(model=(status.get("lead_label") or self._model["name"]) if pane == "gpu" else self._advertised[pane]["label"],
-                                  where=self._pc[0])
+                                  where=display_label(self._pc[0]))
                     speed["values"].update(values)
                     self._note_speed(live["answer"], pane=pane)
             elif live["sent"] is not None:
@@ -602,7 +618,7 @@ class LinkService:
             # This is volatile display metadata, scoped to the enrolled PC.
             self._lead_label = status.get("lead_label")
             if live is not None and self._speed is not None and self._speed["answer"] == live["answer"]:
-                self._speed["values"].update(model=self._lead_label or self._model["name"], where=self._pc[0])
+                self._speed["values"].update(model=self._lead_label or self._model["name"], where=display_label(self._pc[0]))
                 self._note_speed(live["answer"])
         cancel = status["lease"] if history is not None and history[0] == "cancelled" else None
         return Reply(200, (), proto.status_reply(cancel, proto_version=proto_version))
@@ -688,7 +704,7 @@ class LinkService:
             else:
                 self._extra_speeds[pane] = speed
         speed["values"].update(model=(self._lead_label or self._model["name"]) if pane == "gpu" else self._advertised[pane]["label"],
-                               where=self._pc[0])
+                               where=display_label(self._pc[0]))
         self._note_speed(answer["id"], pane=pane)
         return self._work_reply(body, pane)
 
@@ -817,7 +833,7 @@ class LinkService:
             if self._pending is not None:
                 label, key, since = self._pending
                 pending = {
-                    "label": label,
+                    "label": display_label(label),
                     "code": proto.code(label, key),
                     "seconds": max(0, math.ceil(60 - (self._clock() - since))),
                 }
@@ -842,7 +858,7 @@ class LinkService:
                     models[-1]["live_speed"] = lane_status.get("tps")
                 pc.update(
                     id=proto.pc_id(self._pc[1]),
-                    label=self._pc[0],
+                    label=display_label(self._pc[0]),
                     main_live=self._last_status is not None and now - self._last_status < LINK_SECONDS,
                     live=(self._last_status is not None and now - self._last_status < LINK_SECONDS)
                     or any(now - when < LINK_SECONDS for when in self._extra_last_status.values()),
