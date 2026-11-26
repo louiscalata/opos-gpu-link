@@ -90,6 +90,8 @@ final class LaneHealth {
                     String text, String question, boolean laneReady, long nowMs) {
         if (id == null || id.isEmpty() || state == null || state.isEmpty()) {
             seen.remove(pane);
+            lastReady.remove(pane);
+            readySinceMs.remove(pane);
             return new Verdict(Status.IDLE, false, false);
         }
         Seen previous = seen.get(pane);

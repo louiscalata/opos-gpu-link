@@ -227,11 +227,19 @@ public final class LaneHealthTest {
             q = h.observe("gpu", "q1", "queued", null, 0, Q, true, at);
         }
         check(q.status == LaneHealth.Status.STUCK && q.retryVisible);
-        // And a lane that only just became ready still gets its full grace.
-        h.observe("g2", "q2", "queued", null, 0, Q, false, 40_000);
+        // And a lane that was waiting while others ran gets its full grace once it is ready.
+        h = new LaneHealth();
+        h.observeCable(true, 0);
+        for (long at = 1_000; at <= 40_000; at += 1_000) {
+            h.observe("gpu", "r1", "answering", null, at, Q, true, at);
+            h.observe("g2", "q2", "queued", null, 0, Q, false, at);
+        }
         LaneHealth.Verdict fresh = h.observe("g2", "q2", "queued", null, 0, Q, true, 41_000);
-        check(fresh.status == LaneHealth.Status.WORKING || fresh.status == LaneHealth.Status.PAUSED);
         check(fresh.status != LaneHealth.Status.STUCK);
+        fresh = h.observe("g2", "q2", "queued", null, 0, Q, true, 41_000 + LaneHealth.PC_QUEUED_WITH_CABLE_MS - 1);
+        check(fresh.status != LaneHealth.Status.STUCK);
+        fresh = h.observe("g2", "q2", "queued", null, 0, Q, true, 41_000 + LaneHealth.PC_QUEUED_WITH_CABLE_MS);
+        check(fresh.status == LaneHealth.Status.STUCK && fresh.retryVisible);
 
         System.out.println("LaneHealthTest: OK");
     }
