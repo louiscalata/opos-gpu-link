@@ -817,6 +817,7 @@ class StandIn:
             if error and not draining:
                 self._send_status(self.job["lease"], error=code)
                 self.emit("Answer stopped: chat-completions server error")
+                self.recovery = None  # the answer has ended; a new run gets a fresh budget
                 self.close()
                 return
             if tokens is not None:

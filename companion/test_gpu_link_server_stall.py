@@ -176,6 +176,15 @@ class HoldBookkeepingTests(unittest.TestCase):
         reactor._status()
         self.assertIsNone(reactor.recovery)
 
+    def test_a_final_error_resets_the_budget(self):
+        reactor = worker.StandIn(Phone(), emit=lambda _line: None, clock=lambda: 0.0)
+        reactor.job = {"lease": "2" * 32, "question": "Q", "partial": ""}
+        failed = Source("", error=True)
+        failed.error_code = "model"
+        reactor.source, reactor.recovery = failed, ("Q", 1, 0)
+        reactor._status()
+        self.assertIsNone(reactor.recovery)
+
 
 class ServerAnswersTests(unittest.TestCase):
     def fake(self, behaviour):
