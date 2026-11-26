@@ -116,7 +116,9 @@ public final class LaneHealthTest {
         LaneHealth stopped = new LaneHealth();
         stopped.observeCable(true, 0);
         String noise = "asks8alion".repeat(8);
-        stopped.observe("gpu", "s-1", "answering", null, noise.length(), noise, Q, true, 0);
+        LaneHealth.Verdict before = stopped.observe("gpu", "s-1", "answering", null,
+                noise.length(), noise, Q, true, 0);
+        check(before.status == LaneHealth.Status.FAILED && before.garbled);
         LaneHealth.Verdict cancelled = stopped.observe("gpu", "s-1", "cancelled", null,
                 noise.length(), noise, Q, true, 500);
         check(cancelled.status == LaneHealth.Status.CANCELLED);
