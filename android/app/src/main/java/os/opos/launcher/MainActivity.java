@@ -1584,6 +1584,21 @@ public final class MainActivity extends Activity {
                 || "loading".equals(state) || "answering".equals(state);
     }
 
+    /**
+     * When this answer's latest state really happened on the elapsed clock: the service's
+     * finish stamp for a final answer the app saw late, otherwise now. Pause timing and the
+     * lane duration both use it, so a pause closed late cannot eat the duration.
+     */
+    private long observedAt(JSONObject answer) {
+        long now = SystemClock.elapsedRealtime();
+        String state = answer.optString("state");
+        Long started = answerStarts.get(answer.optString("id"));
+        if (started == null || !("done".equals(state) || "failed".equals(state)
+                || "cancelled".equals(state))) return now;
+        return AnswerFinish.elapsedAt(now, System.currentTimeMillis(),
+                answer.optLong("ended_ms", 0), started);
+    }
+
     private static boolean open(JSONObject answer) {
         return progressing(answer) || (answer != null && "paused".equals(answer.optString("state")));
     }
@@ -1754,7 +1769,7 @@ public final class MainActivity extends Activity {
             if (!PaneKeys.pc(pane)) continue;
             JSONObject work = answerOf(data, pane);
             if (work != null) answerTiming.observe(pane, work.optString("state"),
-                    work.optString("id"), cableConnected, SystemClock.elapsedRealtime());
+                    work.optString("id"), cableConnected, observedAt(work));
             if (work == null || !"paused".equals(work.optString("state"))) continue;
             pausedAfterFreshSnapshot = true;
         }
@@ -2394,9 +2409,7 @@ public final class MainActivity extends Activity {
         if (("done".equals(state) || "failed".equals(state) || "cancelled".equals(state))
                 && answerStarts.containsKey(id)
                 && !answerDurations.containsKey(id)) {
-            long finishedAt = AnswerFinish.elapsedAt(SystemClock.elapsedRealtime(),
-                    System.currentTimeMillis(), answer.optLong("ended_ms", 0),
-                    answerStarts.get(id));
+            long finishedAt = observedAt(answer);
             answerDurations.put(id, Math.max(0, finishedAt - answerStarts.get(id)));
             answerFinishedAt.put(id, finishedAt);
             saveLatestRequest();

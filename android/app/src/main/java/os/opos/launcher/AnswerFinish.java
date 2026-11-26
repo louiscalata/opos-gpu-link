@@ -6,10 +6,13 @@ package os.opos.launcher;
  * The phone service stamps {@code ended_ms} (wall clock) once, when an answer
  * becomes done, failed or cancelled. The app only sees that on its next poll,
  * which can be seconds later after Home, the cover screen or screen off.
+ * Both clocks are the phone's own: the service runs on the same device.
  */
 final class AnswerFinish {
     /** Larger gaps than this are treated as a clock change, not a late poll. */
     static final long MAX_LAG_MS = 6L * 60L * 60L * 1000L;
+    /** A finish this close before the recorded start is the ask round trip, not a clock jump. */
+    static final long START_SLACK_MS = 5_000L;
 
     private AnswerFinish() {}
 
@@ -19,7 +22,9 @@ final class AnswerFinish {
         long lag = nowWallMs - endedWallMs;
         if (lag < 0 || lag > MAX_LAG_MS) return nowElapsedMs;
         long finished = nowElapsedMs - lag;
-        // A finish before the ask means the wall clock moved; keep the observed time.
-        return finished < startedElapsedMs ? nowElapsedMs : finished;
+        if (finished >= startedElapsedMs) return finished;
+        // The start is recorded after the ask round trip, so a fast stop or failure can land
+        // just before it. Further back means the wall clock moved; keep the observed time.
+        return startedElapsedMs - finished <= START_SLACK_MS ? startedElapsedMs : nowElapsedMs;
     }
 }

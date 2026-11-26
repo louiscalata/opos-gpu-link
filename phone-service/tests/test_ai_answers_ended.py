@@ -52,6 +52,57 @@ class EndedStamp(unittest.TestCase):
         self.assertEqual(shown["state"], "cancelled")
         self.assertGreaterEqual(shown["ended_ms"], before)
 
+    def test_failed_is_stamped(self):
+        row = self._start("phone")
+        with mock.patch.object(ai_answers.time, "time", return_value=1_795_724_010.0):
+            self.answers.fail(row["id"], "restart")
+        self.assertEqual(self.answers.get(row["id"])["ended_ms"], 1_795_724_010_000)
+
+    def test_later_saves_keep_the_first_stamp(self):
+        row = self._start()
+        with mock.patch.object(ai_answers.time, "time", return_value=1_795_724_000.0):
+            self.answers.append(row["id"], 0, b"A monitor shows pictures.", done=True, finish="stop")
+        with mock.patch.object(ai_answers.time, "time", return_value=1_795_724_500.0):
+            self.answers.note(row["id"], tokens=5, tps=12.5)
+        shown = self.answers.get(row["id"])
+        self.assertEqual(shown["tokens"], 5)
+        self.assertEqual(shown["ended_ms"], 1_795_724_000_000)
+
+    def _rewrite(self, ident, **changes):
+        import json
+        path = self.root / f"ai-answer-{ident}.json"
+        record = json.loads(path.read_text())
+        for key, value in changes.items():
+            if value is None:
+                record["answer"].pop(key, None)
+            else:
+                record["answer"][key] = value
+        path.write_text(json.dumps(record))
+
+    def test_older_final_record_is_not_stamped_later(self):
+        row = self._start()
+        self.answers.append(row["id"], 0, b"A monitor shows pictures.", done=True, finish="stop")
+        self._rewrite(row["id"], ended_ms=None)
+        reloaded = ai_answers.AnswerStore(Store(self.root))
+        reloaded.note(row["id"], tokens=5)
+        self.assertNotIn("ended_ms", reloaded.get(row["id"]))
+
+    def test_bad_stamps_on_disk_are_dropped_not_trusted(self):
+        done = self._start()
+        self.answers.append(done["id"], 0, b"A monitor shows pictures.", done=True, finish="stop")
+        self._rewrite(done["id"], ended_ms="soon")
+        reloaded = ai_answers.AnswerStore(Store(self.root))
+        shown = reloaded.get(done["id"])
+        self.assertEqual(shown["state"], "done")
+        self.assertNotIn("ended_ms", shown)
+
+    def test_stamp_on_an_open_record_is_dropped(self):
+        row = self._start("m1")
+        self.answers.append(row["id"], 0, b"A monitor", done=False)
+        self._rewrite(row["id"], ended_ms=1)
+        reloaded = ai_answers.AnswerStore(Store(self.root))
+        self.assertNotIn("ended_ms", reloaded.get(row["id"]))
+
 
 if __name__ == "__main__":
     unittest.main()
