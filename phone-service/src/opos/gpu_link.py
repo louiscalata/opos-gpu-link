@@ -598,9 +598,14 @@ class LinkService:
         if status["lease"] is not None and history is None and (live is None or status["lease"] != live["id"]):
             return _error(404, "lease")
         if pane == "gpu":
-            # Omission is an old/restarted companion and clears obsolete labels.
+            # A legacy (v1) companion never sends the field, so its omission clears an
+            # obsolete label. A v2 companion omits it only on the first status after each
+            # hello, before this reply confirms support, and sends it (or an explicit null)
+            # one second later. Keep the label across that gap so the PC card never blinks
+            # to a bare connection line on every replug or companion restart.
             # This is volatile display metadata, scoped to the enrolled PC.
-            self._lead_label = status.get("lead_label")
+            if "lead_label" in status or proto_version < 2:
+                self._lead_label = status.get("lead_label")
             if live is not None and self._speed is not None and self._speed["answer"] == live["answer"]:
                 self._speed["values"].update(model=self._lead_label or self._model["name"], where=self._pc[0])
                 self._note_speed(live["answer"])
