@@ -1959,10 +1959,9 @@ public final class MainActivity extends Activity {
         String answered = answer == null || answer.isNull("model") ? "" : answer.optString("model", "").trim();
         // An answer the card hides must not name the card; the service's model then reads as
         // that answer's, so fall back to the place alone rather than show a stale model.
-        String model = answer != null && !answerShown("phone", answer) && reported.trim().equals(answered)
-                ? "" : reported;
         String where = phone == null || phone.isNull("where") ? "" : phone.optString("where", "");
-        setIfChanged(view.byline, PhoneByline.text(model, PaneKeys.shownWhere("phone", where)));
+        setIfChanged(view.byline, PhoneByline.forCard(reported, answered, answer != null,
+                answer != null && answerShown("phone", answer), PaneKeys.shownWhere("phone", where)));
     }
 
     private void reconcileLatestRequest(JSONObject data) {
@@ -2669,7 +2668,8 @@ public final class MainActivity extends Activity {
             if (PaneKeys.extra(pane)) {
                 label = AnsweredModel.label(label, answer.isNull("model") ? "" : answer.optString("model"));
             }
-            String where = PaneKeys.shownWhere(pane, model == null ? "" : model.optString("where"));
+            String where = PaneKeys.shownWhere(pane,
+                    model == null || model.isNull("where") ? "" : model.optString("where"));
             boolean interrupted = PaneKeys.pc(pane) && answerTiming.interrupted(expectedId);
             anyInterrupted |= interrupted;
             long pauseMs = PaneKeys.pc(pane)
