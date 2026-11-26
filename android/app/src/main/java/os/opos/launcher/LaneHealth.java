@@ -63,8 +63,8 @@ final class LaneHealth {
     private final Set<String> autoSpent = new HashSet<>();
     private Boolean lastCable;
     private long cableSinceMs;
-    private Boolean lastCompanion;
-    private long companionSinceMs;
+    private final Map<String, Boolean> companionLive = new HashMap<>();
+    private final Map<String, Long> companionSinceMs = new HashMap<>();
 
     /** Errors that a second try can plausibly fix. Others (too long, low memory) are left alone. */
     static boolean transientError(String error) {
@@ -84,13 +84,23 @@ final class LaneHealth {
      * Whether the computer's companion is talking to the phone right now (its status is fresh).
      * After a replug it can spend a minute warming its model before it can take the paused
      * answer back, so a paused PC lane counts its grace period from here, not from the cable.
+     * Per lane: the main PC lane and each extra PC lane post their own status.
      * Null means unknown and keeps the cable-only clock.
      */
-    void observeCompanion(Boolean companionLive, long nowMs) {
-        if (!java.util.Objects.equals(lastCompanion, companionLive)) {
-            companionSinceMs = nowMs;
+    void observeCompanion(String pane, Boolean live, long nowMs) {
+        if (!companionLive.containsKey(pane)
+                || !java.util.Objects.equals(companionLive.get(pane), live)) {
+            companionSinceMs.put(pane, nowMs);
         }
-        lastCompanion = companionLive;
+        companionLive.put(pane, live);
+    }
+
+    /** Quiet time counted from the later of the replug and the companion coming back. */
+    private long companionQuiet(String pane, long cableQuiet, long nowMs) {
+        Boolean live = companionLive.get(pane);
+        Long since = companionSinceMs.get(pane);
+        if (live == null || since == null) return cableQuiet;
+        return Math.min(cableQuiet, Math.max(0, nowMs - since));
     }
 
     Verdict observe(String pane, String id, String state, String error, long size,
@@ -145,18 +155,23 @@ final class LaneHealth {
                     return new Verdict(quiet >= PAUSED_WITH_CABLE_MS ? Status.STUCK : Status.WORKING,
                             quiet >= PAUSED_WITH_CABLE_MS, false);
                 }
-                if (Boolean.FALSE.equals(lastCompanion)) {
+                if (Boolean.FALSE.equals(companionLive.get(pane))) {
                     // Cable back but the computer is still warming up: the paused answer will
                     // resume from its saved text. A retry now would throw that text away.
                     return new Verdict(Status.PAUSED, true, false);
                 }
-                long companionQuiet = lastCompanion == null ? cableQuiet
-                        : Math.min(cableQuiet, Math.max(0, nowMs - companionSinceMs));
-                return stuckVerdict(companionQuiet, PAUSED_WITH_CABLE_MS, autoLeft);
+                return stuckVerdict(companionQuiet(pane, cableQuiet, nowMs),
+                        PAUSED_WITH_CABLE_MS, autoLeft);
             case "queued":
             case "waiting":
-                if (!pc || !cableBack || !laneReady) return new Verdict(Status.WORKING, false, false);
-                return stuckVerdict(cableQuiet, PC_QUEUED_WITH_CABLE_MS, autoLeft);
+                if (!pc || !cableBack || !laneReady
+                        || Boolean.FALSE.equals(companionLive.get(pane))) {
+                    // A question asked while the computer warms up waits; re-queueing it would
+                    // only spend the single automatic retry.
+                    return new Verdict(Status.WORKING, false, false);
+                }
+                return stuckVerdict(companionQuiet(pane, cableQuiet, nowMs),
+                        PC_QUEUED_WITH_CABLE_MS, autoLeft);
             case "loading":
                 return stuckVerdict(pc ? cableQuiet : quiet, STALL_LOADING_MS, pc && autoLeft);
             case "answering":

@@ -55,14 +55,14 @@ public final class LaneHealthTest {
         h = new LaneHealth();
         t = 5_000;
         h.observeCable(false, t);
-        h.observeCompanion(false, t);
+        h.observeCompanion("gpu", false, t);
         h.observe("gpu", "w1", "paused", null, 500, Q, true, t + 1_000);
         h.observeCable(true, t + 10_000);
         for (long at = t + 10_000; at <= t + 70_000; at += 5_000) {
             v = h.observe("gpu", "w1", "paused", null, 500, Q, true, at);
             check(v.status == LaneHealth.Status.PAUSED && !v.autoRetryDue);
         }
-        h.observeCompanion(true, t + 70_000);
+        h.observeCompanion("gpu", true, t + 70_000);
         v = h.observe("gpu", "w1", "paused", null, 500, Q, true, t + 80_000);
         check(v.status == LaneHealth.Status.WORKING && !v.retryVisible && !v.autoRetryDue);
         v = h.observe("gpu", "w1", "answering", null, 640, Q, true, t + 82_000);
@@ -70,7 +70,7 @@ public final class LaneHealthTest {
         // A companion that is live but never takes the answer back still gets the stuck path.
         h = new LaneHealth();
         h.observeCable(true, 0);
-        h.observeCompanion(true, 0);
+        h.observeCompanion("gpu", true, 0);
         h.observe("gpu", "w2", "paused", null, 500, Q, true, 0);
         v = h.observe("gpu", "w2", "paused", null, 500, Q, true, 21_000);
         check(v.status == LaneHealth.Status.STUCK && !v.autoRetryDue);
@@ -79,9 +79,28 @@ public final class LaneHealthTest {
         // A companion that never comes back keeps the manual Retry, never an automatic one.
         h = new LaneHealth();
         h.observeCable(true, 0);
-        h.observeCompanion(false, 0);
+        h.observeCompanion("gpu", false, 0);
         v = h.observe("gpu", "w3", "paused", null, 500, Q, true, 600_000);
         check(v.status == LaneHealth.Status.PAUSED && v.retryVisible && !v.autoRetryDue);
+        // Liveness is per lane: a live extra lane does not start the lead lane's clock.
+        h = new LaneHealth();
+        h.observeCable(true, 0);
+        h.observeCompanion("gpu", false, 0);
+        h.observeCompanion("g1", true, 0);
+        v = h.observe("gpu", "w4", "paused", null, 500, Q, true, 120_000);
+        check(v.status == LaneHealth.Status.PAUSED && !v.autoRetryDue);
+        // A PC question asked while the companion warms up waits instead of being re-queued.
+        h = new LaneHealth();
+        h.observeCable(true, 0);
+        h.observeCompanion("gpu", false, 0);
+        h.observe("gpu", "q1", "queued", null, 0, Q, true, 0);
+        v = h.observe("gpu", "q1", "queued", null, 0, Q, true, 90_000);
+        check(v.status == LaneHealth.Status.WORKING && !v.retryVisible && !v.autoRetryDue);
+        h.observeCompanion("gpu", true, 90_000);
+        v = h.observe("gpu", "q1", "queued", null, 0, Q, true, 100_000);
+        check(v.status == LaneHealth.Status.WORKING);
+        v = h.observe("gpu", "q1", "queued", null, 0, Q, true, 121_000);
+        check(v.status == LaneHealth.Status.STUCK && !v.autoRetryDue);
 
         // Cable state unknown: Retry is offered but never fires by itself.
         h = new LaneHealth();

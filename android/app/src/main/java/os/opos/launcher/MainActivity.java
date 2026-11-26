@@ -3006,12 +3006,27 @@ public final class MainActivity extends Activity {
         }
     }
 
-    /** True while the paired computer's status is fresh, false when it went quiet, null if unpaired. */
-    private static Boolean companionLive(JSONObject data) {
+    /**
+     * Whether this PC lane's companion status is fresh: main_live for the lead lane, the
+     * model's own live flag for an extra lane. Null when unpaired or the field is absent.
+     */
+    private static Boolean companionLive(JSONObject data, String pane) {
         JSONObject gpu = data == null ? null : data.optJSONObject("gpu");
         JSONObject link = gpu == null ? null : gpu.optJSONObject("link");
         JSONObject pc = link == null ? null : link.optJSONObject("pc");
-        return pc == null ? null : pc.optBoolean("live");
+        if (pc == null) return null;
+        if ("gpu".equals(pane)) {
+            String key = pc.has("main_live") ? "main_live" : "live";
+            return pc.has(key) ? pc.optBoolean(key) : null;
+        }
+        JSONArray models = pc.optJSONArray("models");
+        for (int i = 0; models != null && i < models.length(); i++) {
+            JSONObject model = models.optJSONObject(i);
+            if (model != null && pane.equals(model.optString("pane"))) {
+                return model.has("live") ? model.optBoolean("live") : null;
+            }
+        }
+        return null;
     }
 
     private boolean gpuCanQueue(JSONObject gpu) {
@@ -3150,7 +3165,6 @@ public final class MainActivity extends Activity {
     private void updateLaneRetry(JSONObject data) {
         long now = SystemClock.elapsedRealtime();
         laneHealth.observeCable(cableConnected, now);
-        laneHealth.observeCompanion(companionLive(data), now);
         Map<String, Boolean> ready = readyPanes(data);
         String autoPane = null;
         String autoQuestion = "";
@@ -3169,6 +3183,7 @@ public final class MainActivity extends Activity {
                 continue;
             }
             boolean laneReady = Boolean.TRUE.equals(ready.get(pane));
+            if (PaneKeys.pc(pane)) laneHealth.observeCompanion(pane, companionLive(data, pane), now);
             String question = answer.optString("question");
             LaneHealth.Verdict verdict = laneHealth.observe(pane, id, answer.optString("state"),
                     answer.optString("error"), answer.optLong("bytes", answer.optString("text").length()),
