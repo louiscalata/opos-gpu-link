@@ -567,6 +567,12 @@ class LinkService:
                 raise
             self._changed.notify_all()
 
+    def _status_lead_label(self, status: dict, proto_version: int) -> str | None:
+        """The lead label this status leaves in force (see _record_status)."""
+        if "lead_label" in status or proto_version < 2:
+            return status.get("lead_label")
+        return self._lead_label
+
     def _record_status(self, status: dict, pane: str = "gpu", *, proto_version: int = 1) -> Reply:
         if pane != "gpu" and pane not in self._advertised:
             return _error(400, "request")
@@ -592,7 +598,8 @@ class LinkService:
                             self._speed = speed
                         else:
                             self._extra_speeds[pane] = speed
-                    values.update(model=(status.get("lead_label") or self._model["name"]) if pane == "gpu" else self._advertised[pane]["label"],
+                    values.update(model=(self._status_lead_label(status, proto_version) or self._model["name"])
+                                  if pane == "gpu" else self._advertised[pane]["label"],
                                   where=self._pc[0])
                     speed["values"].update(values)
                     self._note_speed(live["answer"], pane=pane)
@@ -614,9 +621,13 @@ class LinkService:
         if status["lease"] is not None and history is None and (live is None or status["lease"] != live["id"]):
             return _error(404, "lease")
         if pane == "gpu":
-            # Omission is an old/restarted companion and clears obsolete labels.
+            # A legacy (v1) companion never sends the field, so its omission clears an
+            # obsolete label. A v2 companion omits it only on the first status after each
+            # hello, before this reply confirms support, and sends it (or an explicit null)
+            # one second later. Keep the label across that gap so the PC card never blinks
+            # to a bare connection line on every replug or companion restart.
             # This is volatile display metadata, scoped to the enrolled PC.
-            self._lead_label = status.get("lead_label")
+            self._lead_label = self._status_lead_label(status, proto_version)
             if live is not None and self._speed is not None and self._speed["answer"] == live["answer"]:
                 self._speed["values"].update(model=self._lead_label or self._model["name"], where=self._pc[0])
                 self._note_speed(live["answer"])
