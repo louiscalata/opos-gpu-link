@@ -59,6 +59,8 @@ final class NewspaperSummary {
         final int words;
         final boolean pending;
         final String timingMarker;
+        /** The cable was pulled during this answer, so its finish time includes the pause. */
+        final boolean includesPause;
 
         Lane(String label, String answer, String state, Long elapsedMs) {
             this(label, answer, state, elapsedMs, elapsedMs, true);
@@ -92,6 +94,14 @@ final class NewspaperSummary {
         Lane(String label, String answer, String state, Long elapsedMs,
              Long finishedAtMs, boolean included, int words, boolean pending,
              String timingMarker) {
+            this(label, answer, state, elapsedMs, finishedAtMs, included, words,
+                    pending, timingMarker, false);
+        }
+
+        Lane(String label, String answer, String state, Long elapsedMs,
+             Long finishedAtMs, boolean included, int words, boolean pending,
+             String timingMarker, boolean includesPause) {
+            this.includesPause = includesPause;
             this.label = label;
             this.answer = answer;
             this.state = state;
@@ -190,6 +200,8 @@ final class NewspaperSummary {
             } else {
                 result.append(first.label).append(" finished first by ").append(seconds(margin));
             }
+            // The margin is wall time; after a cable pull it must say so.
+            if (first.includesPause || second.includesPause) result.append(" · includes pause");
         }
         else if (allDone && includedCount >= 2) {
             result.append('\n').append("Finish order unavailable");
