@@ -118,6 +118,13 @@ class ScreenWordsTest(NoNetwork):
                     found.append(f"{path.name}:{line}: {hits} in {value[:50]!r}")
         self.assertEqual(found, [])
 
+    def test_page_script_uses_the_same_mac_patterns_as_the_service(self):
+        """nounOf in the page mirrors computer_noun; keep the two from drifting apart."""
+        script = _constants(PAGE, "_SCRIPT")[0][1]
+        found = re.findall(r"/(\\b\(\?:[^/]*)/i\.test\(label\)", script)
+        self.assertEqual(found, [gpu_link._MACBOOK.pattern, gpu_link._MAC.pattern])
+        self.assertTrue(gpu_link._MACBOOK.flags & re.I and gpu_link._MAC.flags & re.I)
+
     def test_placeholder_place_is_unchanged_in_the_api(self):
         self.assertIn(f'PC_WHERE = "{self.PLACEHOLDER}"', PAGE.read_text(encoding="utf-8"))
         self.assertEqual(LINK_API.read_text(encoding="utf-8").count(f'"{self.PLACEHOLDER}"'), 2)
