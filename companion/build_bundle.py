@@ -5,6 +5,8 @@
                                     # and Windows/Linux carry pinned CUDA + Vulkan archives
   python build_bundle.py --with-llama   # also extract llama.cpp for this OS/GPU into bundled/llama
                                     # (large for CUDA; Windows/Linux already pack archives)
+  python build_bundle.py --no-adb   # leave adb out; the app then uses the adb the user installed
+                                    # (Google's Android SDK Platform-Tools), as for public releases
 
 adb (and llama.cpp) are fetched from the pinned, SHA-256-checked URLs in gpu_link_pins.
 macOS: the result is ad-hoc signed only (no Developer ID, no notarization).
@@ -22,20 +24,8 @@ sys.path.insert(0, str(HERE))
 import gpu_link_autosetup as a  # noqa: E402
 
 
-def main():
-    p = argparse.ArgumentParser()
-    p.add_argument("--with-llama", action="store_true")
-    p.add_argument("--noavx-vulkan", type=Path,
-                   help="Darwin x86_64 only: the pinned no-AVX Vulkan/MoltenVK llama.cpp .tar.gz made by "
-                        "pack_noavx_vulkan.py (default: build-cache/<pinned name>)")
-    p.add_argument("--out", type=Path, default=HERE.parent / "bundles")
-    p.add_argument("--name", default="opos-gpu-link")
-    args = p.parse_args()
-    system, machine = platform.system(), platform.machine()
-    work = HERE.parent / "build-work" / f"{system}-{machine}"
-    shutil.rmtree(work, ignore_errors=True)
-    stage = work / "bundled"
-    cache = HERE.parent / "build-cache"
+def stage_adb(system, cache, work, stage):
+    """Copy the pinned platform-tools adb (plus the Windows DLLs) into stage/adb."""
     os_name = {"Darwin": "darwin", "Linux": "linux", "Windows": "windows"}[system]
     pin = a.pins.PLATFORM_TOOLS[os_name]
     zip_path = a.download(pin["url"], cache / f"platform-tools-{os_name}.zip", "platform-tools", pin["sha256"], pin["size"])
@@ -47,6 +37,29 @@ def main():
     if system == "Windows":
         for dll in ("AdbWinApi.dll", "AdbWinUsbApi.dll"):
             shutil.copy2(tools / "platform-tools" / dll, stage / "adb" / dll)
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser()
+    p.add_argument("--with-llama", action="store_true")
+    p.add_argument("--no-adb", action="store_true",
+                   help="do not pack adb; users install Google's Android SDK Platform-Tools themselves")
+    p.add_argument("--noavx-vulkan", type=Path,
+                   help="Darwin x86_64 only: the pinned no-AVX Vulkan/MoltenVK llama.cpp .tar.gz made by "
+                        "pack_noavx_vulkan.py (default: build-cache/<pinned name>)")
+    p.add_argument("--out", type=Path, default=HERE.parent / "bundles")
+    p.add_argument("--name", default="opos-gpu-link")
+    args = p.parse_args(argv)
+    system, machine = platform.system(), platform.machine()
+    work = HERE.parent / "build-work" / f"{system}-{machine}"
+    shutil.rmtree(work, ignore_errors=True)
+    stage = work / "bundled"
+    cache = HERE.parent / "build-cache"
+    stage.mkdir(parents=True)
+    if args.no_adb:
+        print("adb: not bundled (--no-adb)")
+    else:
+        stage_adb(system, cache, work, stage)
     if args.with_llama or (system == "Darwin" and machine == "arm64"):
         gpu = a.detect_gpu()
         suffix, cudart = a.llama_asset(system, machine, gpu)
