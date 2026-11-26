@@ -272,7 +272,7 @@ public final class MainActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-        ComputerWords.set(getPreferences(MODE_PRIVATE).getString("computer_noun", ComputerWords.PC));
+        ComputerWords.set(getPreferences(MODE_PRIVATE).getString("computer_noun", ComputerWords.COMPUTER));
         setContentView(R.layout.models);
         SharedPreferences preferences = getPreferences(MODE_PRIVATE);
         pcLabelStatic(findViewById(android.R.id.content), new int[][]{
@@ -2146,9 +2146,10 @@ public final class MainActivity extends Activity {
         pairingPending = pending != null;
         applyComposerState();
         if (pending != null) {
-            String label = pending.optString("label", getString(R.string.pc));
+            String named = pending.optString("label", "").trim();
             // The pending computer may not be the one already paired: name it by its own label.
-            String pendingNoun = ComputerWords.noun(label);
+            String pendingNoun = ComputerWords.noun(named);
+            String label = named.isEmpty() ? "the " + pendingNoun : named;
             setIfChanged(findViewById(R.id.pairing_header),
                     ComputerWords.apply(getString(R.string.pairing_title), pendingNoun));
             TextView allow = findViewById(R.id.allow_pc);
@@ -2498,7 +2499,7 @@ public final class MainActivity extends Activity {
             PaneViews article = paneViews.get(pane);
             JSONObject answer = answerOf(snapshot, pane);
             String id = answer == null ? "" : answer.optString("id");
-            String shortLabel = "gpu".equals(pane) ? ComputerWords.current() : "phone".equals(pane)
+            String shortLabel = "gpu".equals(pane) ? ComputerWords.title(ComputerWords.current()) : "phone".equals(pane)
                     ? "Phone" : article.heading.getText().toString();
             boolean included = latestRequestedPanes.isEmpty()
                     ? answer != null && !latestQuestion.isEmpty()
@@ -2875,11 +2876,11 @@ public final class MainActivity extends Activity {
 
     /**
      * Follow the paired computer. A snapshot that confirms no PC is paired (and none pending)
-     * resets the noun to "PC"; a transient connection loss keeps it.
+     * resets the noun to the neutral "computer"; a transient connection loss keeps it.
      */
     private void observeComputer(String label, JSONObject link, JSONObject pc) {
         boolean changed = link != null && pc == null && link.optJSONObject("pending") == null
-                ? ComputerWords.set(ComputerWords.PC) : ComputerWords.observe(label);
+                ? ComputerWords.set(ComputerWords.COMPUTER) : ComputerWords.observe(label);
         if (!changed) return;
         getPreferences(MODE_PRIVATE).edit().putString("computer_noun", ComputerWords.current()).apply();
         for (Map.Entry<TextView, String> entry : pcLabelledViews.entrySet()) {

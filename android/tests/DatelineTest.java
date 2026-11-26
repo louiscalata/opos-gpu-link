@@ -4,9 +4,9 @@ import java.time.LocalDate;
 
 public final class DatelineTest {
     public static void main(String[] args) {
-        equal("WED 25 NOV 2026 \u00b7 PHONE + PC GPU EDITION",
+        equal("WED 25 NOV 2026 \u00b7 PHONE + COMPUTER GPU EDITION",
                 Dateline.format(LocalDate.of(2026, 11, 25)));
-        equal("FRI 2 JAN 2026 \u00b7 PHONE + PC GPU EDITION",
+        equal("FRI 2 JAN 2026 \u00b7 PHONE + COMPUTER GPU EDITION",
                 Dateline.format(LocalDate.of(2026, 1, 2)));
         System.out.println("DatelineTest: OK");
     }

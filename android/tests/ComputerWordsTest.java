@@ -8,7 +8,17 @@ public final class ComputerWordsTest {
         equal("PC", ComputerWords.noun("M5 Pro PC"));
         equal("PC", ComputerWords.noun("RTX 5080 PC"));
         equal("PC", ComputerWords.noun("Macro PC")); // whole words only
-        equal("PC", ComputerWords.noun(null));
+        equal("computer", ComputerWords.noun(null));
+        equal("computer", ComputerWords.noun("  "));
+        equal("Computer GPU", ComputerWords.apply("PC GPU", "computer"));
+        equal("Waiting for a computer pairing or connection",
+                ComputerWords.apply("Waiting for a PC pairing or connection", "computer"));
+        equal("Computer\u00a0waiting\nPhone\u00a0waiting",
+                ComputerWords.apply("PC\u00a0waiting\nPhone\u00a0waiting", "computer"));
+        equal("Done. Computer's GPU is next.", ComputerWords.apply("Done. PC's GPU is next.", "computer"));
+        equal(" · PHONE + COMPUTER GPU EDITION", ComputerWords.apply(" · PHONE + PC GPU EDITION", "computer"));
+        equal("Computer", ComputerWords.title("computer"));
+        equal("MacBook", ComputerWords.title("MacBook"));
 
         equal("MacBook GPU", ComputerWords.apply("PC GPU", "MacBook"));
         equal("on the MacBook's GPU", ComputerWords.apply("on the PC's GPU", "MacBook"));
@@ -41,6 +51,9 @@ public final class ComputerWordsTest {
         check(Dateline.format(java.time.LocalDate.of(2026, 12, 10), "PC").endsWith("PHONE + PC GPU EDITION"));
         check(Dateline.format(java.time.LocalDate.of(2026, 12, 10)).endsWith("PHONE + MACBOOK GPU EDITION"));
         ComputerWords.set("bogus");
+        equal("computer", ComputerWords.current());
+        equal("Computer GPU", PaneKeys.kicker("gpu"));
+        check(ComputerWords.set("PC"));
         equal("PC", ComputerWords.current());
         System.out.println("ComputerWordsTest: OK");
     }

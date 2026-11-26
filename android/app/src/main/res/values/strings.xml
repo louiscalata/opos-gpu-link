@@ -27,6 +27,7 @@
     <string name="pairing_title">Pair this PC?</string>
     <string name="pairing_request">Compare this code with %1$s before you allow.</string>
     <string name="pairing_notification_title">Pair with %1$s?</string>
+    <string name="pairing_notification_title_unnamed">Pair with this computer?</string>
     <string name="pairing_notification_text">Compare code %1$s. Tap for Allow / Not now.</string>
     <string name="pairing_code_label">Pairing code</string>
     <string name="pairing_disclosure">If allowed, this PC can see what you ask the GPU model and keeps a copy of the model file.</string>
@@ -78,7 +79,7 @@
     <string name="cable_channel">GPU Link cable</string>
     <string name="link_title">OPOS GPU Link</string>
     <string name="link_notification">A computer is connected. Tap to open GPU Link.</string>
-    <string name="link_question">Open OPOS GPU Link to use models on this phone and a connected PC?</string>
+    <string name="link_question">Open OPOS GPU Link to use models on this phone and a connected computer?</string>
     <string name="open_link">Open GPU Link</string>
     <string name="later">Not now</string>
     <string name="info">Info</string>
