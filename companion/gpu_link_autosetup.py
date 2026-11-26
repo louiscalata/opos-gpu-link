@@ -81,7 +81,9 @@ MAX_EXTRAS = 2
 # when more memory is free (OPOS_GPU_LINK_MAX_MODEL_MB or --budget-mb changes it).
 DEMO_MAX_MB = int(os.environ.get("OPOS_GPU_LINK_MAX_MODEL_MB", "10000"))
 
-MAKERS = (("gemma", "Google"), ("qwen", "Qwen"), ("llama", "Meta"), ("mistral", "Mistral AI"),
+# NVIDIA first: "Llama-3.1-Nemotron" and "Nemotron-3.5-Bolt" (post-trained from Gemma 4) are NVIDIA models.
+MAKERS = (("nemotron", "NVIDIA"), ("aceinstruct", "NVIDIA"), ("minitron", "NVIDIA"),
+          ("gemma", "Google"), ("qwen", "Qwen"), ("llama", "Meta"), ("mistral", "Mistral AI"),
           ("phi", "Microsoft"), ("lfm", "Liquid AI"), ("smollm", "Hugging Face"),
           ("granite", "IBM"), ("deepseek", "DeepSeek"), ("glm", "Z.ai"))
 SKIP_GGUF = re.compile(r"(mmproj|embed|rerank|vocab|clip|whisper|-0000[2-9]-of-|dflash|draft|eagle|speculat)", re.I)

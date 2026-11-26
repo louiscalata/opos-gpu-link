@@ -961,6 +961,11 @@ class DataDirAndBundle(unittest.TestCase):
     def test_maker_and_label_guessing(self):
         self.assertEqual(a.maker_of("Qwen3.6-35B-A3B-UD-Q4_K_M.gguf"), "Qwen")
         self.assertEqual(a.maker_of("mystery.gguf"), "Local")
+        self.assertEqual(a.maker_of("Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf"), "NVIDIA")
+        self.assertEqual(a.maker_of("NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf"), "NVIDIA")
+        self.assertEqual(a.maker_of("nvidia_Llama-3.1-Nemotron-Nano-4B-v1.1-Q4_K_M.gguf"), "NVIDIA")
+        self.assertEqual(a.maker_of("nvidia_AceInstruct-1.5B-Q4_K_M.gguf"), "NVIDIA")
+        self.assertEqual(a.label_of("Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf"), "Nemotron-3.5-Bolt-E4B")
         self.assertEqual(a.label_of("Qwen3.8-27B-UD-Q6_K.gguf"), "Qwen3.8-27B")
 
 
