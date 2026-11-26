@@ -1915,8 +1915,7 @@ public final class MainActivity extends Activity {
                 ? null : leadModel.optString("lead_label", "");
         setIfChanged(paneViews.get("gpu").byline,
                 LeadModelByline.text(pc, leadLabel, pcWords(R.string.pc)));
-        setIfChanged(paneViews.get("phone").byline,
-                "AceInstruct 1.5B · NVIDIA · on this phone");
+        namePhoneLane(paneViews.get("phone"), data.optJSONObject("phone"));
         for (String pane : available) {
             if (!PaneKeys.extra(pane)) continue;
             JSONObject model = paneOf(data, pane);
@@ -1946,6 +1945,23 @@ public final class MainActivity extends Activity {
         String where = PaneKeys.shownWhere(pane, model == null ? "" : model.optString("where"));
         setIfChanged(view.heading, label);
         setIfChanged(view.byline, label + (maker.isEmpty() ? "" : " · " + maker) + " · " + where);
+    }
+
+    /**
+     * Byline of the phone's lead lane: the model the service reports for it. That is the model
+     * that wrote the answer on screen, else the running model; a hidden older answer's model is
+     * not used. Called again from renderAnswers once the snapshot's request state is final.
+     */
+    private void namePhoneLane(PaneViews view, JSONObject phone) {
+        if (view == null) return;
+        JSONObject answer = phone == null ? null : phone.optJSONObject("answer");
+        String reported = phone == null || phone.isNull("model") ? "" : phone.optString("model", "");
+        String answered = answer == null || answer.isNull("model") ? "" : answer.optString("model", "").trim();
+        // An answer the card hides must not name the card; the service's model then reads as
+        // that answer's, so fall back to the place alone rather than show a stale model.
+        String where = phone == null || phone.isNull("where") ? "" : phone.optString("where", "");
+        setIfChanged(view.byline, PhoneByline.forCard(reported, answered, answer != null,
+                answer != null && answerShown("phone", answer), PaneKeys.shownWhere("phone", where)));
     }
 
     private void reconcileLatestRequest(JSONObject data) {
@@ -2219,6 +2235,7 @@ public final class MainActivity extends Activity {
             PaneViews article = paneViews.get(pane);
             if (view != null && article != null) {
                 if (PaneKeys.extra(pane)) nameExtraLane(article, pane, view);
+                if ("phone".equals(pane)) namePhoneLane(article, view);
                 renderPane(article, view, PaneKeys.pc(pane)
                         ? gpu.optJSONObject("link") : null);
             }
@@ -2644,11 +2661,15 @@ public final class MainActivity extends Activity {
                     ? AnsweredModel.maker(model == null || model.isNull("label") ? "" : model.optString("label"),
                             model == null || model.isNull("maker") ? "" : model.optString("maker"), answer.isNull("model")
                                     ? "" : answer.optString("model"))
+                    : "phone".equals(pane)
+                    // The phone lane's History byline keeps the model that wrote the answer.
+                    ? PhoneByline.modelAndMaker(answer.isNull("model") ? "" : answer.optString("model"))
                     : model == null ? "" : model.optString("maker");
             if (PaneKeys.extra(pane)) {
                 label = AnsweredModel.label(label, answer.isNull("model") ? "" : answer.optString("model"));
             }
-            String where = PaneKeys.shownWhere(pane, model == null ? "" : model.optString("where"));
+            String where = PaneKeys.shownWhere(pane,
+                    model == null || model.isNull("where") ? "" : model.optString("where"));
             boolean interrupted = PaneKeys.pc(pane) && answerTiming.interrupted(expectedId);
             anyInterrupted |= interrupted;
             long pauseMs = PaneKeys.pc(pane)
