@@ -319,12 +319,12 @@ class AdbBridge:
                     continue
                 if not self.owner_checker(port, self.adb):
                     raise CompanionError(
-                        "PC forward listener is not the selected adb executable. "
+                        "Could not verify that the PC forward is a loopback listener "
+                        "owned by the selected adb executable. "
                         "This is a visible setup failure, not a queued computer answer. "
-                        "The USB forward must be a loopback listener owned by the same adb "
-                        "binary GPU Link is using. If an adb server is already running, "
-                        "start GPU Link again so it can detect that server's executable, "
-                        "or pass --adb pointing at it."
+                        "If an adb server is already running, start GPU Link again so "
+                        "it can detect that server's executable, or pass --adb pointing "
+                        "at it. If inspection tools are unavailable, install them and retry."
                     )
                 self.port, self.provisional_port = port, None
                 return port
@@ -1439,7 +1439,7 @@ def arguments(argv=None):
     return args
 
 
-def resolve_launch_adb(adb: str, runner=subprocess.run) -> str:
+def resolve_launch_adb(adb: str, runner=subprocess.run, system=None) -> str:
     """Use the running adb server's executable when one is already listening.
 
     Direct entry points (opos_gpu_link.py, run-mac.sh, run-linux.sh,
@@ -1450,12 +1450,16 @@ def resolve_launch_adb(adb: str, runner=subprocess.run) -> str:
     try:
         import gpu_link_autosetup as setup
     except ImportError as error:
-        found = shutil.which(adb) if Path(adb).name == adb else None
+        found = shutil.which(adb)
         if found:
             return found
+        path = Path(adb)
+        if path.is_file():
+            return str(path)
         raise CompanionError("adb is unavailable; install or select Android platform tools") from error
     try:
-        return str(setup.ensure_adb(Path("."), explicit=adb, allow_download=False, runner=runner))
+        return str(setup.ensure_adb(Path("."), explicit=adb, allow_download=False,
+                                    runner=runner, system=system))
     except RuntimeError as error:
         raise CompanionError(str(error)) from error
 

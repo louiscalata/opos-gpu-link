@@ -180,8 +180,26 @@ class CompanionTests(unittest.TestCase):
                 listen="p4242\nn127.0.0.1:5037\n",
                 txt="n%s\n" % server_adb,
             )
-            got = link.resolve_launch_adb(str(path_adb), runner=runner)
+            got = link.resolve_launch_adb(str(path_adb), runner=runner, system="linux")
             self.assertEqual(Path(got).resolve(), server_adb.resolve())
+
+    def test_resolve_launch_adb_import_error_keeps_an_explicit_path(self):
+        with tempfile.TemporaryDirectory() as d:
+            adb = Path(d) / "sdk" / "adb"
+            adb.parent.mkdir()
+            adb.write_text("")
+            adb.chmod(0o755)
+            with patch.dict("sys.modules", {"gpu_link_autosetup": None}):
+                # Force ImportError for gpu_link_autosetup
+                import builtins
+                real_import = builtins.__import__
+                def fake_import(name, *args, **kwargs):
+                    if name == "gpu_link_autosetup":
+                        raise ImportError("forced")
+                    return real_import(name, *args, **kwargs)
+                with patch("builtins.__import__", fake_import):
+                    got = link.resolve_launch_adb(str(adb))
+            self.assertEqual(Path(got), adb)
 
     def test_pairing_key_saves_only_when_called_and_is_private(self):
         with tempfile.TemporaryDirectory() as directory:

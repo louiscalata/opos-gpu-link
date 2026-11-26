@@ -1816,20 +1816,40 @@ def _usable_adb_binary(path: Path):
         resolved = path.resolve()
     except OSError:
         resolved = path
-    if path.name not in ("adb", "adb.exe") and resolved.name not in ("adb", "adb.exe"):
+    names = {path.name.lower(), resolved.name.lower()}
+    if "adb" not in names and "adb.exe" not in names:
         return None
     return resolved
 
 
-def resolve_adb_path(selected) -> Path:
-    """Resolve a user or PATH adb name without treating a bare name as cwd/adb."""
+def is_bare_command(selected) -> bool:
+    """True for a command name such as adb, not a relative or absolute path."""
     text = str(selected)
-    candidate = Path(text)
-    if candidate.name == text:
+    return text == Path(text).name and not text.startswith(".")
+
+
+def resolve_adb_path(selected):
+    """Resolve an adb name or path. Bare names use PATH only, never the cwd.
+
+    Explicit relative paths such as ./adb are returned as absolute paths so
+    later subprocess calls do not treat them as a bare PATH command.
+    """
+    text = str(selected)
+    if is_bare_command(text):
         found = shutil.which(text)
-        if found:
+        if not found:
+            return None
+        try:
+            return Path(found).resolve()
+        except OSError:
             return Path(found)
-    return candidate
+    path = Path(text)
+    if not path.is_file():
+        return None
+    try:
+        return path.resolve()
+    except OSError:
+        return path
 
 
 def running_adb_server_executable(runner=subprocess.run, system=None):
@@ -1940,15 +1960,16 @@ def prefer_running_adb_server(selected: Path, runner=subprocess.run, announce=No
     server = running_adb_server_executable(runner=runner, system=system)
     chosen = resolve_adb_path(selected)
     if server is None:
-        return chosen
+        return chosen if chosen is not None else Path(str(selected))
     try:
         live = Path(server).resolve()
     except OSError:
-        return chosen
-    if chosen.is_file() and _same_adb(chosen, live):
+        return chosen if chosen is not None else Path(str(selected))
+    if chosen is not None and _same_adb(chosen, live):
         return live
+    label = chosen if chosen is not None else selected
     msg = ("Using the already-running adb server's executable instead of "
-           f"{chosen} so USB forwards belong to the same binary ({live}).")
+           f"{label} so USB forwards belong to the same binary ({live}).")
     if announce is not None:
         announce(msg)
     else:
@@ -1956,14 +1977,32 @@ def prefer_running_adb_server(selected: Path, runner=subprocess.run, announce=No
     return live
 
 
+def _adb_missing_error(explicit=None) -> RuntimeError:
+    if explicit and not is_bare_command(explicit):
+        where = "at %s" % explicit
+    else:
+        where = "on PATH"
+    return RuntimeError("adb not found %s. Install Google's Android SDK "
+                        "Platform-Tools (https://developer.android.com/tools/releases/platform-tools), "
+                        "put adb on PATH or pass --adb PATH, or run once with --prefetch" % where)
+
+
 def ensure_adb(runtime_dir: Path, explicit=None, allow_download=True, system=None, runner=subprocess.run):
     if explicit:
+        chosen = resolve_adb_path(explicit)
+        if chosen is None:
+            # Bare names may still adopt a live server. An explicit missing path
+            # is a typo and must not be silently replaced.
+            if is_bare_command(explicit):
+                live = running_adb_server_executable(runner=runner, system=system)
+                if live is not None:
+                    say("Using the already-running adb server's executable (%s)." % live)
+                    return live
+            raise _adb_missing_error(explicit)
         selected = prefer_running_adb_server(explicit, runner=runner, system=system)
         if selected.is_file():
             return selected
-        raise RuntimeError("adb not found at %s. Install Google's Android SDK "
-                           "Platform-Tools (https://developer.android.com/tools/releases/platform-tools), "
-                           "put adb on PATH, or pass --adb PATH" % explicit)
+        raise _adb_missing_error(explicit)
     for path in adb_candidates():
         if path.is_file():
             if RESOURCES in path.parents:
