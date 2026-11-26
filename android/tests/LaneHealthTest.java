@@ -35,8 +35,10 @@ public final class LaneHealthTest {
         h.observeCable(false, t);
         v = h.observe("gpu", "b1", "paused", null, 500, Q, false, t + 600_000);
         check(v.status == LaneHealth.Status.PAUSED && v.retryVisible && !v.autoRetryDue);
-        // Replugged: it gets 20 s from the replug (not from the pull) before it counts as stuck.
+        // Replugged and already ready: 20 s grace from the replug (not from the pull).
         h.observeCable(true, t + 600_000);
+        v = h.observe("gpu", "b1", "paused", null, 500, Q, true, t + 600_000);
+        check(v.status == LaneHealth.Status.WORKING && !v.retryVisible);
         v = h.observe("gpu", "b1", "paused", null, 500, Q, true, t + 610_000);
         check(v.status == LaneHealth.Status.WORKING && !v.retryVisible);
         v = h.observe("gpu", "b1", "paused", null, 500, Q, true, t + 621_000);
@@ -44,7 +46,8 @@ public final class LaneHealthTest {
         v = h.observe("gpu", "b1", "paused", null, 500, Q, true, t + 640_000);
         check(v.retryVisible && !v.autoRetryDue);
         v = h.observe("gpu", "b1", "paused", null, 500, Q, true, t + 660_000);
-        check(v.autoRetryDue);
+        // A resumable pause never auto-retries; Retry stays manual so the partial is kept.
+        check(v.status == LaneHealth.Status.STUCK && v.retryVisible && !v.autoRetryDue);
         // It resumes by itself: bytes move, back to WORKING.
         v = h.observe("gpu", "b1", "answering", null, 700, Q, true, t + 661_000);
         check(v.status == LaneHealth.Status.WORKING && !v.retryVisible);
@@ -64,10 +67,10 @@ public final class LaneHealthTest {
         h.observe("g2", "c2", "queued", null, 0, Q, true, 0);
         v = h.observe("g2", "c2", "queued", null, 0, Q, true, 31_000);
         check(v.status == LaneHealth.Status.STUCK && v.retryVisible);
-        // ...but not while the PC itself is not ready.
+        // While the companion is warming, a queued computer lane stays Paused with manual Retry.
         h.observe("g1", "c3", "queued", null, 0, Q, false, 0);
         v = h.observe("g1", "c3", "queued", null, 0, Q, false, 100_000);
-        check(v.status == LaneHealth.Status.WORKING);
+        check(v.status == LaneHealth.Status.PAUSED && v.retryVisible && !v.autoRetryDue);
         // Slow prompt processing (loading) gets 90 s.
         h.observe("m1", "c4", "loading", null, 0, Q, true, 0);
         check(h.observe("m1", "c4", "loading", null, 0, Q, true, 80_000).status
@@ -111,6 +114,45 @@ public final class LaneHealthTest {
         h.observe("g1", "k1", "answering", null, 5, Q, true, 1_000_000);
         check(h.observe("g1", "k1", "answering", null, 5, Q, true, 10).status
                 == LaneHealth.Status.WORKING);
+
+        // Unplugged PC work is Paused with Retry, never auto, for every open state.
+        for (String open : new String[]{"queued", "waiting", "loading", "answering", "paused"}) {
+            h = new LaneHealth();
+            t = 1_000;
+            h.observeCable(false, t);
+            v = h.observe("gpu", "u-" + open, open, null, 40, Q, false, t + 600_000);
+            check(v.status == LaneHealth.Status.PAUSED && v.retryVisible && !v.autoRetryDue);
+            // A stale ready flag after a yank must still pause, never auto-retry.
+            h = new LaneHealth();
+            h.observeCable(false, t);
+            v = h.observe("gpu", "u-" + open + "-ready", open, null, 40, Q, true, t + 600_000);
+            check(v.status == LaneHealth.Status.PAUSED && v.retryVisible && !v.autoRetryDue);
+        }
+        // Replug while the companion is still warming: stay Paused, Retry visible, no auto-retry.
+        h = new LaneHealth();
+        t = 2_000;
+        h.observeCable(false, t);
+        h.observe("gpu", "warm-1", "paused", null, 80, Q, false, t + 1_000);
+        h.observeCable(true, t + 2_000);
+        v = h.observe("gpu", "warm-1", "paused", null, 80, Q, false, t + 3_000);
+        check(v.status == LaneHealth.Status.PAUSED && v.retryVisible && !v.autoRetryDue);
+        v = h.observe("gpu", "warm-1", "paused", null, 80, Q, false, t + 90_000);
+        check(v.status == LaneHealth.Status.PAUSED && v.retryVisible && !v.autoRetryDue);
+        // When the companion becomes ready after a long warmup, grace starts now, not at the cable.
+        v = h.observe("gpu", "warm-1", "paused", null, 80, Q, true, t + 91_000);
+        check(v.status == LaneHealth.Status.WORKING && !v.autoRetryDue);
+        v = h.observe("gpu", "warm-1", "paused", null, 80, Q, true, t + 112_000);
+        check(v.status == LaneHealth.Status.STUCK && v.retryVisible && !v.autoRetryDue);
+        // loading/answering after a replug while still warming also stay Paused.
+        for (String open : new String[]{"loading", "answering"}) {
+            h = new LaneHealth();
+            t = 3_000;
+            h.observeCable(false, t);
+            h.observe("gpu", "warm-" + open, open, null, 80, Q, false, t + 1_000);
+            h.observeCable(true, t + 2_000);
+            v = h.observe("gpu", "warm-" + open, open, null, 80, Q, false, t + 90_000);
+            check(v.status == LaneHealth.Status.PAUSED && v.retryVisible && !v.autoRetryDue);
+        }
 
         // Stop on an answer whose text already tripped the garble guard: cancelled, no re-ask.
         LaneHealth stopped = new LaneHealth();

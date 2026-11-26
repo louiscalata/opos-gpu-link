@@ -15,13 +15,51 @@ final class AnswerTimingPolicy {
     private final Set<String> interruptedIds = new HashSet<>();
     private final Map<String, Long> pauseMs = new HashMap<>();
     private final Map<String, Long> pauseStartedAt = new HashMap<>();
+    /** IDs whose cable-only pause was confirmed by a later still-open snapshot. */
+    private final Set<String> confirmedOpenAfterPause = new HashSet<>();
 
     void observe(String pane, String state, String id, Boolean cableConnected, long nowMs) {
+        observe(pane, state, id, cableConnected, nowMs, null);
+    }
+
+    /**
+     * {@code finishedAtMs} clamps a closing pause to the answer's finish when known.
+     * A cable-only pause stays provisional until a later snapshot shows the same
+     * answer still open; a Done snapshot that arrives first does not count as a pause.
+     */
+    void observe(String pane, String state, String id, Boolean cableConnected, long nowMs,
+                 Long finishedAtMs) {
         if (id == null || id.isEmpty()) return;
-        boolean paused = PcPausePolicy.paused(pane, state, cableConnected);
+        boolean terminal = "done".equals(state) || "failed".equals(state)
+                || "cancelled".equals(state);
+        boolean stillWaiting = "waiting".equals(state) || "queued".equals(state);
+        boolean paused = PcPausePolicy.paused(pane, state, cableConnected)
+                || (pauseStartedAt.containsKey(id) && stillWaiting);
+        if (terminal) {
+            Long started = pauseStartedAt.remove(id);
+            if (started != null && confirmedOpenAfterPause.contains(id)) {
+                long end = nowMs;
+                if (finishedAtMs != null) end = Math.min(end, finishedAtMs);
+                if (end > started) {
+                    pauseMs.put(id, pauseMs.getOrDefault(id, 0L) + (end - started));
+                }
+            }
+            // Phantom: unplug observed after the backend had already finished,
+            // or a confirmed close whose finish stamp is not after the pause start.
+            if (started != null && !pauseMs.containsKey(id)) {
+                interruptedIds.remove(id);
+            }
+            confirmedOpenAfterPause.remove(id);
+            return;
+        }
         if (paused) {
             interruptedIds.add(id);
-            if (!pauseStartedAt.containsKey(id)) pauseStartedAt.put(id, nowMs);
+            if (!pauseStartedAt.containsKey(id)) {
+                pauseStartedAt.put(id, nowMs);
+            } else if (nowMs > pauseStartedAt.get(id)) {
+                // Confirm only on a later observation, not the same tick or a replayed stamp.
+                confirmedOpenAfterPause.add(id);
+            }
             return;
         }
         Long started = pauseStartedAt.remove(id);
@@ -29,6 +67,7 @@ final class AnswerTimingPolicy {
             long added = Math.max(0, nowMs - started);
             pauseMs.put(id, pauseMs.getOrDefault(id, 0L) + added);
         }
+        confirmedOpenAfterPause.remove(id);
     }
 
     boolean interrupted(String id) {
@@ -78,12 +117,18 @@ final class AnswerTimingPolicy {
                 }
             }
         }
+        // Restored in-flight pauses stay provisional. Confirming them here would
+        // charge a phantom pause if the next snapshot is already Done (Activity
+        // recreation after the first unplug observation). A later still-open
+        // snapshot will confirm them again.
+        confirmedOpenAfterPause.clear();
     }
 
     void clear() {
         interruptedIds.clear();
         pauseMs.clear();
         pauseStartedAt.clear();
+        confirmedOpenAfterPause.clear();
     }
 
     static Long modelDuration(Long wallDurationMs, long pauseMs) {
