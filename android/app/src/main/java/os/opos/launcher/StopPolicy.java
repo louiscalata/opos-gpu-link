@@ -12,7 +12,7 @@ final class StopPolicy {
      * nothing is left running and the error line would be wrong.
      */
     static boolean stillRunning(Collection<String> targeted, Collection<String> openAfter) {
-        if (targeted == null || openAfter == null) return true;
+        if (targeted == null || targeted.isEmpty() || openAfter == null) return true;
         for (String id : targeted) {
             if (openAfter.contains(id)) return true;
         }

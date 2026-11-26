@@ -13,6 +13,8 @@ public final class StopPolicyTest {
         check(StopPolicy.stillRunning(Arrays.asList("pc1", "phone1"), Arrays.asList("phone1")));
         // No fresh snapshot: we cannot tell, so keep the line.
         check(StopPolicy.stillRunning(Arrays.asList("pc1"), null));
+        // Nothing targeted is never proof that a Stop worked.
+        check(StopPolicy.stillRunning(Collections.emptyList(), Collections.emptyList()));
         System.out.println("StopPolicyTest: OK");
     }
 
