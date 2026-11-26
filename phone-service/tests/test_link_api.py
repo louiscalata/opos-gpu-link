@@ -193,7 +193,7 @@ class ActionTests(Base):
             ({"action": "retry", "pane": "gpu"}, "There is no answer to retry."),
             ({"action": "allow", "code": "000000"}, "That request is no longer waiting."),
             ({"action": "deny", "code": "000000"}, "That request is no longer waiting."),
-            ({"action": "forget"}, "There is no PC request to change."),
+            ({"action": "forget"}, "There is no computer request to change."),
         ]
         for body, error in cases:
             with self.subTest(body=body):
@@ -235,7 +235,7 @@ class ActionTests(Base):
         status, data = api.post({"action": "allow", "code": self.pc.code})
         self.assertEqual((status, data["gpu"]["link"]["pc"]["label"]), (200, "Test PC"))
         self.assertEqual(api.post({"action": "forget", "expect": "wrong"}),
-                         (400, {"error": "That is a different PC now."}))
+                         (400, {"error": "That is a different computer now."}))
         status, data = api.post({"action": "forget", "expect": data["gpu"]["link"]["pc"]["id"]})
         self.assertEqual((status, data["gpu"]["link"]["pc"]), (200, None))
         for _ in range(3):

@@ -56,6 +56,33 @@ _MACBOOK = re.compile(r"\b(?:MacBook|MBP(?![A-Za-z]))", re.I)
 _MAC = re.compile(r"\b(?:iMac|Mac(?:intosh|mini|Studio|Pro)?)(?![A-Za-z])", re.I)
 
 
+def computer_noun(pc_label: object) -> str:
+    """Screen noun for the paired computer, matching the app: "MacBook" or "Mac" when its display
+    name is a Mac, "PC" for any other paired computer, and "computer" when none is paired.
+    The saved pairing label is only read, never changed."""
+    shown = display_label(pc_label)
+    if not isinstance(shown, str) or not shown.strip():
+        return "computer"
+    if _MACBOOK.search(shown):
+        return "MacBook"
+    if _MAC.search(shown):
+        return "Mac"
+    return "PC"
+
+
+def answer_noun(where: object, pc_label: object) -> str:
+    """The noun for a saved answer: the computer that wrote it (its where), else the paired one.
+    The placeholder place "on the PC's GPU" names no computer."""
+    if isinstance(where, str) and where.strip() and where.strip() != "on the PC's GPU":
+        return computer_noun(where.strip())
+    return computer_noun(pc_label)
+
+
+def computer_title(noun: str) -> str:
+    """The noun as a standalone label: "Computer", "MacBook", "Mac" or "PC"."""
+    return noun[:1].upper() + noun[1:] if noun else "Computer"
+
+
 def fallback_model_name(name: str, pc_label: object) -> str:
     """Lead model name when the companion has not published one.
 
