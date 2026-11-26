@@ -63,6 +63,8 @@ final class LaneHealth {
     private final Set<String> autoSpent = new HashSet<>();
     private Boolean lastCable;
     private long cableSinceMs;
+    private Boolean lastReady;
+    private long readySinceMs;
 
     /** Errors that a second try can plausibly fix. Others (too long, low memory) are left alone. */
     static boolean transientError(String error) {
@@ -108,6 +110,14 @@ final class LaneHealth {
         // that is known to be connected; an unknown cable only ever offers the manual button.
         boolean autoLeft = !autoSpent.contains(key) && laneReady
                 && (!pc || Boolean.TRUE.equals(lastCable));
+        if (!java.util.Objects.equals(lastReady, laneReady) || nowMs < readySinceMs) {
+            readySinceMs = nowMs;
+        }
+        lastReady = laneReady;
+        // Stuck grace for a paused lease starts when the cable is back AND the
+        // companion is ready, so a ~50 s warmup does not already consume it.
+        long readyQuiet = laneReady ? Math.max(0, nowMs - readySinceMs) : 0;
+        long graceQuiet = Math.min(cableQuiet, readyQuiet);
         // Stop wins over the garble latch: a cancelled answer must never be re-asked automatically.
         if ("cancelled".equals(state)) {
             return new Verdict(Status.CANCELLED, true, false);
@@ -131,19 +141,17 @@ final class LaneHealth {
                 // Warming after a replug: stay Paused with Retry visible, never auto-retry
                 // a resumable lease (Retry would discard the saved partial).
                 if (!laneReady) return new Verdict(Status.PAUSED, true, false);
-                return stuckVerdict(cableQuiet, PAUSED_WITH_CABLE_MS, false);
+                return stuckVerdict(graceQuiet, PAUSED_WITH_CABLE_MS, false);
             case "queued":
             case "waiting":
                 if (!pc) return new Verdict(Status.WORKING, false, false);
-                if (!cableBack) return new Verdict(Status.PAUSED, true, false);
-                // Still surface a manual Retry after the queued grace, even while the
-                // companion is warming; auto-retry stays gated on laneReady.
-                return stuckVerdict(cableQuiet, PC_QUEUED_WITH_CABLE_MS, autoLeft);
+                if (!cableBack || !laneReady) return new Verdict(Status.PAUSED, true, false);
+                return stuckVerdict(graceQuiet, PC_QUEUED_WITH_CABLE_MS, autoLeft);
             case "loading":
-                if (pc && !cableBack) return new Verdict(Status.PAUSED, true, false);
+                if (pc && (!cableBack || !laneReady)) return new Verdict(Status.PAUSED, true, false);
                 return stuckVerdict(pc ? cableQuiet : quiet, STALL_LOADING_MS, pc && autoLeft);
             case "answering":
-                if (pc && !cableBack) return new Verdict(Status.PAUSED, true, false);
+                if (pc && (!cableBack || !laneReady)) return new Verdict(Status.PAUSED, true, false);
                 return stuckVerdict(pc ? cableQuiet : quiet, STALL_ANSWERING_MS, pc && autoLeft);
             default:
                 return new Verdict(Status.WORKING, false, false);
@@ -172,5 +180,9 @@ final class LaneHealth {
     void reset() {
         seen.clear();
         autoSpent.clear();
+        lastCable = null;
+        lastReady = null;
+        cableSinceMs = 0;
+        readySinceMs = 0;
     }
 }
