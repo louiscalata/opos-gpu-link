@@ -77,8 +77,10 @@ final class UiPalette {
         String lower = text.toString().trim().toLowerCase(Locale.US);
         if (lower.isEmpty()) return Tone.NEUTRAL;
         if (containsAny(lower, "garbled", "stuck", "failed", "failure", "paused",
-                "disconnected", "unreachable", "not connected", "validator",
-                "invalid", "stale snapshot", "expired", "could not")) {
+                "disconnected", "unreachable", "not connected", "unavailable",
+                "validator", "invalid", "stale snapshot", "expired", "could not",
+                "stopped early", "not enough free memory")
+                || hasWord(lower, "stopped")) {
             return Tone.ERROR;
         }
         if (lower.contains("error")) return Tone.ERROR;

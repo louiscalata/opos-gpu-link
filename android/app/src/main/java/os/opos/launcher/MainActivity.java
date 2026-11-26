@@ -1638,7 +1638,7 @@ public final class MainActivity extends Activity {
     private void showOffline(Exception failure) {
         offline = true;
         boolean pcPaused = Boolean.FALSE.equals(cableConnected) && hasVisiblePcWork();
-        setMainStatus(getString(pcPaused ? R.string.gpu_paused : R.string.phone_unreachable));
+        setMainStatus(getString(pcPaused ? R.string.paused_plug_cable : R.string.phone_unreachable));
         updateModelSelectionRows();
         if (infoDialog != null && infoDialog.isShowing()) {
             setIfChanged(infoDialog.findViewById(R.id.info_pc_status),
@@ -2593,7 +2593,7 @@ public final class MainActivity extends Activity {
         Connection connection = pcConnection(gpu);
         String line;
         if (Boolean.FALSE.equals(cableConnected)) {
-            line = pcOpen || hasVisiblePcWork() ? getString(R.string.gpu_paused)
+            line = pcOpen || hasVisiblePcWork() ? getString(R.string.paused_plug_cable)
                     : getString(R.string.info_usb_disconnected);
         } else if (awaitingReplugSnapshot) {
             line = getString(R.string.cable_checking);
