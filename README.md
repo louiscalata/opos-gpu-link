@@ -16,7 +16,7 @@ flowchart LR
 ## Quick start
 
 1. **adb.** Install Google's [Android SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools) for `adb`.
-2. **PC.** Install Python 3.10+ and follow [`companion/SETUP.md`](companion/SETUP.md) to start the companion against a local model server. One-file PC apps for macOS, Windows and Linux are coming to [Releases](../../releases).
+2. **PC.** Download the app for your computer from [Releases](../../releases) and check it against `SHA256SUMS`. The first time, run it with `--prefetch` to download a model that fits your GPU. After that, run it plainly: it finds your GPU, uses the model on disk and starts a local model server. To run from source instead, see [`companion/SETUP.md`](companion/SETUP.md).
 3. **Phone.** Turn on USB debugging, plug in the cable, accept the computer's prompt, and install the APK from [Releases](../../releases).
 4. **Pair.** Compare the six-digit code on both screens and tap **Allow this PC** on the phone. Later plugs reuse that pairing.
 5. **Ask.**
@@ -54,7 +54,7 @@ Early demo build.
 
 - The APK is a debug build signed with a throwaway key. It is not on Google Play.
 - The phone side of the link runs on its own with `phone-service/run_link.py`. The `/api/ai` endpoint the app reads still needs a host app that is not published yet.
-- The one-file PC apps are held back for now while `adb` is taken out of them.
+- The macOS apps are ad-hoc signed, not notarized, so macOS asks before the first run.
 - USB is the only link today. A wireless version is in the works.
 
 OPOS GPU Link is part of the early Old Phone OS project, coming soon.

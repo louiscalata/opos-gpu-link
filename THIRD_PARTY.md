@@ -7,7 +7,7 @@ Some files and the release downloads include work by others under their own term
 
 - **Fonts** in `android/app/src/main/res/font/`: Source Serif 4 (Adobe), Inter (The Inter Project Authors), Newsreader and JetBrains Mono, all under the SIL Open Font License 1.1. License texts and sources are in `android/third_party/fonts/`.
 
-## In the one-file PC apps (when released)
+## In the one-file PC apps
 
 They are built with PyInstaller and carry:
 
