@@ -67,6 +67,9 @@ class CompleteSentences(unittest.TestCase):
             "A GPU has stages. Overview:\n3.1. Battery and": "A GPU has stages.",
             "How does a GPU work?\n\nI. Parallel processing and": "How does a GPU work?",
             "Which option is fastest here?\nB. The second one and": "Which option is fastest here?",
+            "A GPU has stages. Here are the steps:\n10. Check the": "A GPU has stages.",
+            "We computed it. Which option is fastest here?\nA.  ":
+                "We computed it. Which option is fastest here?\nA.",
             "Intro.\nI. First item is done.\nII. Second item":
                 "Intro.\nI. First item is done.",
             "The cable carries data.\n**IV.** b. Power": "The cable carries data.",
@@ -87,7 +90,7 @@ class CompleteSentences(unittest.TestCase):
             "The tool is called the CLI.",
             "The card was released in 2025. It has 16 GB.",
             "Which option is fastest here?\nA.",
-            "The value of the constant is:\n42.",
+            "We computed the value. The constant is:\n42.",
         ):
             with self.subTest(text=text):
                 self.assertEqual(ai_answers.complete_sentences(text), text)
