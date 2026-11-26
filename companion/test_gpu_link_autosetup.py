@@ -361,10 +361,20 @@ def _adb_lsof_runner(*, listen="", txt="", returncode=0):
     return run
 
 
+def _adb_powershell_runner(*, lines="", returncode=0, explode=False):
+    def run(cmd, **kwargs):
+        if explode:
+            raise OSError("powershell missing")
+        if cmd and cmd[0] == "powershell.exe":
+            return SimpleNamespace(returncode=returncode, stdout=lines.encode())
+        return SimpleNamespace(returncode=1, stdout=b"")
+    return run
+
+
 class AdbServerBinary(unittest.TestCase):
-    def _two_adbs(self, root: Path):
-        path_adb = root / "path" / "adb"
-        server_adb = root / "server" / "adb"
+    def _two_adbs(self, root: Path, name: str = "adb"):
+        path_adb = root / "path" / name
+        server_adb = root / "server" / name
         path_adb.parent.mkdir()
         server_adb.parent.mkdir()
         path_adb.write_text("")
@@ -424,6 +434,107 @@ class AdbServerBinary(unittest.TestCase):
             )
             got = a.prefer_running_adb_server(path_adb, runner=runner, announce=lambda *_: None)
             self.assertEqual(got, path_adb)
+
+    def test_accepts_ipv6_loopback_lsof_and_ignores_f_lines(self):
+        with tempfile.TemporaryDirectory() as d:
+            path_adb, server_adb = self._two_adbs(Path(d))
+            runner = _adb_lsof_runner(
+                listen="p9\nf4\nn[::1]:5037\n",
+                txt="n%s\n" % server_adb,
+            )
+            got = a.running_adb_server_executable(runner=runner)
+            self.assertEqual(got, server_adb.resolve())
+
+    def test_refuses_wildcard_bind_and_two_listener_pids(self):
+        with tempfile.TemporaryDirectory() as d:
+            _path_adb, server_adb = self._two_adbs(Path(d))
+            wildcard = _adb_lsof_runner(listen="p1\nn*:5037\n", txt="n%s\n" % server_adb)
+            two = _adb_lsof_runner(
+                listen="p1\nn127.0.0.1:5037\np2\nn127.0.0.1:5037\n",
+                txt="n%s\n" % server_adb,
+            )
+            self.assertIsNone(a.running_adb_server_executable(runner=wildcard))
+            self.assertIsNone(a.running_adb_server_executable(runner=two))
+
+    def test_lsof_missing_returns_none(self):
+        def boom(*_args, **_kwargs):
+            raise OSError("lsof missing")
+        self.assertIsNone(a.running_adb_server_executable(runner=boom))
+
+    def test_windows_detects_loopback_server_via_powershell(self):
+        with tempfile.TemporaryDirectory() as d:
+            path_adb, server_adb = self._two_adbs(Path(d), name="adb.exe")
+            runner = _adb_powershell_runner(lines="127.0.0.1|%s\n" % server_adb)
+            got = a.running_adb_server_executable(runner=runner, system="win32")
+            self.assertEqual(got, server_adb.resolve())
+            notes = []
+            preferred = a.prefer_running_adb_server(
+                path_adb, runner=runner, announce=notes.append, system="win32")
+            self.assertEqual(preferred, server_adb.resolve())
+            self.assertTrue(notes)
+
+    def test_windows_accepts_dual_stack_same_binary_and_refuses_non_loopback(self):
+        with tempfile.TemporaryDirectory() as d:
+            _path_adb, server_adb = self._two_adbs(Path(d), name="adb.exe")
+            both = _adb_powershell_runner(
+                lines="127.0.0.1|%s\n::1|%s\n" % (server_adb, server_adb))
+            self.assertEqual(
+                a.running_adb_server_executable(runner=both, system="win32"),
+                server_adb.resolve())
+            bad = _adb_powershell_runner(lines="192.0.2.5|%s\n" % server_adb)
+            self.assertIsNone(a.running_adb_server_executable(runner=bad, system="win32"))
+            missing = _adb_powershell_runner(explode=True)
+            self.assertIsNone(a.running_adb_server_executable(runner=missing, system="win32"))
+
+    def test_ensure_adb_uses_running_server_when_no_candidate_instead_of_not_found(self):
+        with tempfile.TemporaryDirectory() as d:
+            _path_adb, server_adb = self._two_adbs(Path(d))
+            runner = _adb_lsof_runner(
+                listen="p4242\nn127.0.0.1:5037\n",
+                txt="n%s\n" % server_adb,
+            )
+            with patch.object(a, "adb_candidates", return_value=[]):
+                got = a.ensure_adb(Path(d), allow_download=False, runner=runner)
+            self.assertEqual(got, server_adb.resolve())
+
+    def test_ensure_adb_does_not_download_when_a_server_is_already_running(self):
+        with tempfile.TemporaryDirectory() as d:
+            _path_adb, server_adb = self._two_adbs(Path(d))
+            runner = _adb_lsof_runner(
+                listen="p4242\nn127.0.0.1:5037\n",
+                txt="n%s\n" % server_adb,
+            )
+            def no_download(*_args, **_kwargs):
+                raise AssertionError("should not download when a server is running")
+            with patch.object(a, "adb_candidates", return_value=[]), \
+                    patch.object(a, "download", no_download):
+                got = a.ensure_adb(Path(d), allow_download=True, runner=runner)
+            self.assertEqual(got, server_adb.resolve())
+
+    def test_bare_adb_name_uses_which_not_cwd(self):
+        with tempfile.TemporaryDirectory() as d:
+            path_adb, server_adb = self._two_adbs(Path(d))
+            # Without a live server, "adb" must resolve via PATH, not <cwd>/adb.
+            with patch.object(a.shutil, "which", return_value=str(path_adb)):
+                got = a.prefer_running_adb_server(
+                    "adb", runner=_adb_lsof_runner(returncode=1), announce=lambda *_: None)
+            self.assertEqual(got, path_adb)
+            runner = _adb_lsof_runner(
+                listen="p3\nn127.0.0.1:5037\n",
+                txt="n%s\n" % server_adb,
+            )
+            notes = []
+            with patch.object(a.shutil, "which", return_value=str(path_adb)):
+                got = a.prefer_running_adb_server("adb", runner=runner, announce=notes.append)
+            self.assertEqual(got, server_adb.resolve())
+            self.assertTrue(notes)
+
+    def test_explicit_missing_path_without_a_server_is_an_error(self):
+        with tempfile.TemporaryDirectory() as d:
+            missing = Path(d) / "no-such-adb"
+            with self.assertRaises(RuntimeError):
+                a.ensure_adb(Path(d), explicit=str(missing), allow_download=False,
+                             runner=_adb_lsof_runner(returncode=1))
 
 
 class Labels(unittest.TestCase):

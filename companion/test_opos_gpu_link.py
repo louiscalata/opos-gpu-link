@@ -160,9 +160,28 @@ class CompanionTests(unittest.TestCase):
         fake.assigned = [18767]
         bridge = link.AdbBridge("fake-adb", "PHONE", runner=fake,
                                 owner_checker=lambda port, adb: False)
-        with self.assertRaisesRegex(link.CompanionError, "listener"):
+        with self.assertRaisesRegex(link.CompanionError, "not a queued computer answer"):
             bridge.create_forward()
         self.assertEqual(fake.forwards, {})
+
+    def test_resolve_launch_adb_uses_the_running_server(self):
+        from test_gpu_link_autosetup import _adb_lsof_runner
+        with tempfile.TemporaryDirectory() as d:
+            root = Path(d)
+            path_adb = root / "path" / "adb"
+            server_adb = root / "server" / "adb"
+            path_adb.parent.mkdir()
+            server_adb.parent.mkdir()
+            path_adb.write_text("")
+            server_adb.write_text("")
+            path_adb.chmod(0o755)
+            server_adb.chmod(0o755)
+            runner = _adb_lsof_runner(
+                listen="p4242\nn127.0.0.1:5037\n",
+                txt="n%s\n" % server_adb,
+            )
+            got = link.resolve_launch_adb(str(path_adb), runner=runner)
+            self.assertEqual(Path(got).resolve(), server_adb.resolve())
 
     def test_pairing_key_saves_only_when_called_and_is_private(self):
         with tempfile.TemporaryDirectory() as directory:
@@ -513,6 +532,7 @@ class CompanionTests(unittest.TestCase):
             output = io.StringIO()
             with contextlib.redirect_stdout(output), \
                     patch.object(link.gpu_link_discover, "discover", return_value=[]), \
+                    patch.object(link, "resolve_launch_adb", side_effect=lambda adb, runner=None: adb), \
                     patch.object(link, "select_serial", side_effect=[None, None, "PHONE"]) as select, \
                     patch.object(link.time, "sleep") as sleep, \
                     patch.object(link, "Companion") as companion_type:
@@ -528,6 +548,7 @@ class CompanionTests(unittest.TestCase):
         output = io.StringIO()
         with contextlib.redirect_stderr(output), \
                 patch.object(link.gpu_link_discover, "discover", return_value=[]), \
+                patch.object(link, "resolve_launch_adb", side_effect=lambda adb, runner=None: adb), \
                 patch.object(link, "select_serial", side_effect=link.CompanionError(
                     "More than one authorized USB phone is present; pass --serial")):
             self.assertEqual(link.main(["--headless", "--model", "local"]), 2)
@@ -1001,6 +1022,7 @@ class CompanionTests(unittest.TestCase):
     def test_missing_tk_falls_back_to_headless_and_sigterm_stops(self):
         with tempfile.TemporaryDirectory() as directory, \
                 patch.object(link.gpu_link_discover, "discover", return_value=[]), \
+                patch.object(link, "resolve_launch_adb", side_effect=lambda adb, runner=None: adb), \
                 patch.object(link, "select_serial", return_value="PHONE"), \
                 patch.dict(sys.modules, {"tkinter": None}), \
                 patch.object(link, "Companion") as companion_type:
