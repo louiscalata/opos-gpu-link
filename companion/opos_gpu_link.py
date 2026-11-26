@@ -1201,8 +1201,9 @@ class Companion:
                                 + ("; use phone notification to open"
                                    if self.session_launch_failed else ""))
             return
-        if success and not self.bridge.forward_present():
-            # The one-token check passed; the adb forward disappeared while it ran.
+        if not self.bridge.forward_present():
+            # The forward disappeared while the one-token check ran, whether it
+            # returned true or false. Blame the link, not the model route.
             self.session_pc = None
             self.bridge.remove_own_forward()
             self.status.set("Phone link interrupted; reconnecting")

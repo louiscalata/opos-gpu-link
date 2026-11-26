@@ -1046,6 +1046,28 @@ class CompanionTests(unittest.TestCase):
             self.assertTrue(app.online)
             self.assertEqual(app.starts, 1)
 
+    def test_failed_preflight_with_lost_forward_does_not_blame_the_model(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fake = FakeAdb()
+            fake.state = "device"
+            fake.assigned = [18767, 18768]
+            now = [100.0]
+            app = app_fixture(directory, fake, now)
+            app.keys.save_first_allow(bytes(range(32)))
+            with patch.object(link, "PC", FakePC), \
+                    patch.object(link, "authenticated_idle", return_value=True), \
+                    patch.object(link, "model_server_listening", return_value=True), \
+                    patch.object(link, "model_server_preflight", return_value=False):
+                app.tick()
+                self.assertEqual(app.lines[-1], "Warming model")
+                fake.forwards.clear()
+                finish_preflight(app)
+                self.assertFalse(app.online)
+                self.assertEqual(app.starts, 0)
+                self.assertEqual(app.lines[-1], "Phone link interrupted; reconnecting")
+                self.assertNotIn("Local model or chat route failed", "".join(app.lines))
+                self.assertEqual(app.next_try, 101.0)
+
     def test_lost_forward_during_warmup_cancels_preflight(self):
         with tempfile.TemporaryDirectory() as directory:
             fake = FakeAdb()
