@@ -199,7 +199,7 @@ public final class LinkWatcherService extends Service {
             clearPairing();
             return;
         }
-        String label = pending.optString("label").trim();
+        String label = pending.isNull("label") ? "" : pending.optString("label").trim();
         if (code.equals(notifiedCode) && label.equals(notifiedLabel)) return;
 
         Intent open = new Intent(this, MainActivity.class)

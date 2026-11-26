@@ -52,8 +52,8 @@ def display_label(label: object) -> object:
 # Placeholder lead-model names (OPOS_GPU_LINK_MODEL_NAME) shown only when the companion sends
 # no lead_label. They follow the paired computer, so a Mac is never named for another machine.
 GENERIC_MODEL_NAMES = frozenset({"computer gpu", "macbook gpu", "mac gpu", "pc gpu"})
-_MACBOOK = re.compile(r"\bMacBook\b", re.I)
-_MAC = re.compile(r"\b(?:iMac|Mac)\b", re.I)
+_MACBOOK = re.compile(r"\b(?:MacBook|MBP)", re.I)
+_MAC = re.compile(r"\b(?:iMac|Mac|Macintosh)\b", re.I)
 
 
 def fallback_model_name(name: str, pc_label: object) -> str:

@@ -272,7 +272,7 @@ public final class MainActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-        ComputerWords.set(getPreferences(MODE_PRIVATE).getString("computer_noun", ComputerWords.COMPUTER));
+        ComputerWords.restore(getPreferences(MODE_PRIVATE).getString("computer_noun", ComputerWords.COMPUTER));
         setContentView(R.layout.models);
         SharedPreferences preferences = getPreferences(MODE_PRIVATE);
         pcLabelStatic(findViewById(android.R.id.content), new int[][]{
@@ -2146,7 +2146,7 @@ public final class MainActivity extends Activity {
         pairingPending = pending != null;
         applyComposerState();
         if (pending != null) {
-            String named = pending.optString("label", "").trim();
+            String named = pending.isNull("label") ? "" : pending.optString("label", "").trim();
             // The pending computer may not be the one already paired: name it by its own label.
             String pendingNoun = ComputerWords.noun(named);
             String label = named.isEmpty() ? "the " + pendingNoun : named;

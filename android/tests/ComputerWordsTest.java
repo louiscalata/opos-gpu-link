@@ -18,6 +18,18 @@ public final class ComputerWordsTest {
         equal("Done. Computer's GPU is next.", ComputerWords.apply("Done. PC's GPU is next.", "computer"));
         equal(" · PHONE + COMPUTER GPU EDITION", ComputerWords.apply(" · PHONE + PC GPU EDITION", "computer"));
         equal("Computer", ComputerWords.title("computer"));
+        equal("Computer", ComputerWords.title(null));
+        equal("Done.\u00a0Computer is next", ComputerWords.apply("Done.\u00a0PC is next", "computer"));
+        equal("Phone ready\nComputer waiting", ComputerWords.apply("Phone ready\nPC waiting", "computer"));
+        equal("Ready? Computer next", ComputerWords.apply("Ready? PC next", "computer"));
+        equal("MacBook · Computer GPU", ComputerWords.apply("MacBook · PC GPU", "computer"));
+        equal("  Computer GPU", ComputerWords.apply("  PC GPU", "computer"));
+        equal("Ready — Computer is next", ComputerWords.apply("Ready — PC is next", "computer"));
+        equal("(Computer GPU)", ComputerWords.apply("(PC GPU)", "computer"));
+        equal("Allow this computer", ComputerWords.apply("Allow this PC", "computer"));
+        equal("MacBook", ComputerWords.noun("Louiss-MBP"));
+        equal("MacBook", ComputerWords.noun("MacBookPro18,3"));
+        equal("Mac", ComputerWords.noun("Louis's Macintosh"));
         equal("MacBook", ComputerWords.title("MacBook"));
 
         equal("MacBook GPU", ComputerWords.apply("PC GPU", "MacBook"));
@@ -55,6 +67,11 @@ public final class ComputerWordsTest {
         equal("Computer GPU", PaneKeys.kicker("gpu"));
         check(ComputerWords.set("PC"));
         equal("PC", ComputerWords.current());
+        check(ComputerWords.restore("PC")); // the old build saved "PC" for no pairing
+        equal("computer", ComputerWords.current());
+        check(ComputerWords.restore("MacBook"));
+        equal("MacBook", ComputerWords.current());
+        ComputerWords.set(ComputerWords.COMPUTER);
         System.out.println("ComputerWordsTest: OK");
     }
 
