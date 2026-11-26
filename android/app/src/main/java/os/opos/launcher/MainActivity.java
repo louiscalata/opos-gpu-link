@@ -3267,6 +3267,11 @@ public final class MainActivity extends Activity {
             }
             try {
                 updated = client.getSnapshot();
+                // A cancel refused because the answer just finished is not a failed Stop.
+                if (problem != null && !updated.optBoolean("locked")
+                        && !StopPolicy.stillRunning(ids, openAnswerIds(updated))) {
+                    problem = null;
+                }
             } catch (IOException | JSONException failure) {
                 if (updated == null && problem == null) problem = getString(R.string.action_failed);
             }
