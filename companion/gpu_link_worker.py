@@ -715,11 +715,20 @@ class ServerSource:
             raise ToolError("server stream did not stop")
 
 
+# A model server that stalls or crashes mid-answer is a recoverable fault: the phone keeps the
+# acknowledged text and the answer resumes from it once the server answers again.
+RECOVERABLE_ERRORS = frozenset({"server"})
+RECOVERY_MIN_HOLD = 3.0       # long enough for the phone to see two lease-less statuses and pause
+RECOVERY_MAX_HOLD = 180.0     # then ask for the work again even if no readiness probe said so
+RECOVERY_TRIES = 3            # recoveries in a row with no new acknowledged text before failing
+
+
 class StandIn:
     """A single-step reactor; pausing calls to step simulates a pulled cable."""
 
     def __init__(
-        self, pc, source=PracticeSource, rate=4, emit=print, show_text=False, clock=time.monotonic, give_up_after=300
+        self, pc, source=PracticeSource, rate=4, emit=print, show_text=False, clock=time.monotonic, give_up_after=300,
+        server_ready=None,
     ):
         if not math.isfinite(rate) or not 0 < rate <= 4:
             raise ToolError("rate must be greater than zero and at most 4")
@@ -735,6 +744,9 @@ class StandIn:
         self.retry_at, self.pending = 0, None
         self.started = clock()
         self.stop_event = None
+        self.server_ready = server_ready
+        self.holding_since, self.next_ready_check = None, 0
+        self.recovery = None  # (question, tries, acknowledged bytes) of the answer last held
 
     def _check_stop(self):
         if self.stop_event is not None and self.stop_event.is_set():
@@ -800,16 +812,21 @@ class StandIn:
             data, _, _, tokens, error = self.source.snapshot()
             code = getattr(self.source, "error_code", "server")
             draining = error and code == "garbled" and (self.offset < len(data) or self.pending is not None)
+            if error and not draining and code in RECOVERABLE_ERRORS and self._hold_for_recovery():
+                return
             if error and not draining:
                 self._send_status(self.job["lease"], error=code)
                 self.emit("Answer stopped: chat-completions server error")
+                self.recovery = None  # the answer has ended; a new run gets a fresh budget
                 self.close()
                 return
             if tokens is not None:
                 tps = min(100000, round(tokens / max(0.001, self.clock() - self.started), 3))
-        state = "loading" if self.source is not None and getattr(self.source, "warming", False) else None
+        warming = self.source is not None and getattr(self.source, "warming", False)
+        state = "loading" if warming or self.job is None and self.holding_since is not None else None
         status, value = self._send_status(self.job["lease"] if self.job else None, tokens, tps, state=state)
         if status == 404 and self.job and value.get("error") == "lease":
+            self.recovery = None
             self.close()
             self.emit("Lease ended; polling again")
             self._status()
@@ -818,10 +835,49 @@ class StandIn:
             raise ToolError("status refused")
         self.next_status = self.clock() + 1
         if self.job and value.get("cancel") == self.job["lease"]:
+            self.recovery = None
             self.close()
             self.emit("Answer cancelled by phone")
         else:
             self.emit("Status warming" if state == "loading" else "Status busy" if self.job else "Status ready")
+
+    def _hold_for_recovery(self):
+        """Give the lease back without an error so the phone pauses the answer and keeps its text."""
+        question, offset = self.job["question"], self.offset
+        tries = 1
+        if self.recovery is not None and self.recovery[0] == question and offset == self.recovery[2]:
+            tries = self.recovery[1] + 1
+        if tries > RECOVERY_TRIES:
+            self.recovery = None
+            return False
+        self.recovery = (question, tries, offset)
+        self.close()
+        self.holding_since, self.next_ready_check = self.clock(), 0
+        self.next_status = 0
+        self.emit("Answer held: model server recovering")
+        return True
+
+    def _recovered(self):
+        """True once a held answer may be asked for again."""
+        if self.holding_since is None:
+            return True
+        now = self.clock()
+        held = now - self.holding_since
+        if held < RECOVERY_MIN_HOLD or now < self.next_ready_check:
+            return False
+        ready = held >= RECOVERY_MAX_HOLD
+        if not ready:
+            try:
+                ready = self.server_ready is None or bool(self.server_ready())
+            except Exception:
+                ready = False
+            finally:
+                # Counted from the end of the probe: a hung server makes the probe itself slow.
+                self.next_ready_check = self.clock() + 1
+        if ready:
+            self.holding_since = None
+            self.emit("Model server answering again; resuming")
+        return ready
 
     def _work(self):
         self._check_stop()
@@ -833,6 +889,8 @@ class StandIn:
         if status != 200:
             raise ToolError("work poll refused")
         self.job, self.offset = job, len(job["partial"].encode())
+        if self.recovery is not None and (self.recovery[0] != job["question"] or self.offset < self.recovery[2]):
+            self.recovery = None  # a different or restarted answer starts with a fresh budget
         self.source = self.source_factory(job)
         self.started, self.next_status = self.clock(), 0
         self.emit(f"Work received; partial {self.offset} bytes")
@@ -898,6 +956,7 @@ class StandIn:
             if self.show_text:
                 self.emit("Text: " + json.dumps(piece.decode(), ensure_ascii=False))
             if final:
+                self.recovery = None
                 self.close()
         else:
             raise ToolError("text post refused")
@@ -914,7 +973,7 @@ class StandIn:
                     self.emit("Hello accepted")
             if self.clock() >= self.next_status:
                 self._status()
-            if self.job is None and self.clock() >= self.next_poll:
+            if self.job is None and self.clock() >= self.next_poll and self._recovered():
                 self._check_stop()
                 self._work()
             if self.job is not None and self.clock() >= self.next_post:
