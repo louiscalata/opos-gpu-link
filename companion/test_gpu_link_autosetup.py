@@ -621,7 +621,41 @@ class Labels(unittest.TestCase):
         for name in ("NVIDIA GeForce RTX 5080", "Apple M5 Pro", "AMD Radeon(TM) RX 7900 XTX", "", "!!!"):
             label = a.safe_label({"name": name})
             self.assertTrue(proto.valid_label(label), (name, label))
-        self.assertEqual(a.safe_label({"name": "NVIDIA GeForce RTX 5080"}), "RTX 5080 PC")
+        self.assertEqual(a.safe_label({"name": "NVIDIA GeForce RTX 5080"}, "Windows"), "RTX 5080 PC")
+        for system in ("Darwin", "Linux", "Windows"):
+            for model in ("MacBook Pro", "Mac mini", "", "MacBook Pro (16-inch, 2026) !!"):
+                for name in ("Apple M5 Pro", "AMD Radeon Pro 5500M", "", "!!!"):
+                    label = a.safe_label({"name": name}, system, model)
+                    self.assertTrue(proto.valid_label(label), (system, model, name, label))
+
+    def test_wire_label_rule_matches_the_protocol(self):
+        self.assertEqual(a.WIRE_LABEL.pattern, proto._LABEL.pattern)
+
+    def test_a_mac_is_named_as_a_mac(self):
+        self.assertEqual(a.safe_label({"name": "Apple M5 Pro"}, "Darwin", "MacBook Pro"), "M5 Pro MacBook Pro")
+        self.assertEqual(a.safe_label({"name": "Apple M4"}, "Darwin", "Mac mini"), "M4 Mac mini")
+        self.assertEqual(a.safe_label({"name": "AMD Radeon Pro 5500M"}, "Darwin", "MacBook Pro"),
+                         "MacBook Pro")  # too long with the GPU name; still a Mac
+        self.assertEqual(a.safe_label({"name": "AMD Radeon Pro 5500M"}, "Darwin", "iMac"),
+                         "AMD Radeon Pro 5500M Mac")
+        self.assertEqual(a.safe_label({"name": "Apple M5 Pro"}, "Darwin", ""), "M5 Pro Mac")
+        self.assertEqual(a.safe_label({}, "Darwin", "MacBook Air"), "MacBook Air")
+
+    def test_mac_model_name_reads_only_the_model_line(self):
+        out = "Hardware:\n\n    Hardware Overview:\n\n      Model Name: MacBook Pro\n      Chip: Apple M5 Pro\n"
+        calls = []
+
+        def runner(argv, **kwargs):
+            calls.append((argv, kwargs))
+            return SimpleNamespace(returncode=0, stdout=out)
+        self.assertEqual(a.mac_model_name(runner), "MacBook Pro")
+        self.assertIs(calls[0][1]["stdin"], subprocess.DEVNULL)
+        self.assertLessEqual(calls[0][1]["timeout"], 5)
+
+        def broken(argv, **kwargs):
+            raise subprocess.TimeoutExpired(argv, 5)
+        self.assertEqual(a.mac_model_name(broken), "")
+        self.assertEqual(a.mac_model_name(lambda *x, **k: SimpleNamespace(returncode=1, stdout=out)), "")
 
 
 class ChatOverCoder(unittest.TestCase):
@@ -1374,7 +1408,8 @@ class ServedLeadLabelTests(unittest.TestCase):
         self.assertNotIn("lead_label", rt.lanes[1])
         argv = a.companion_args(args, rt, info, Path("/unused/adb"), "SERIAL")
         self.assertEqual(argv[argv.index("--label") + 1], a.safe_label(info["gpu"]))
-        self.assertEqual(a.safe_label(info["gpu"]), "M5 Pro PC")
+        self.assertEqual(a.safe_label(info["gpu"], "Darwin", "MacBook Pro"), "M5 Pro MacBook Pro")
+        self.assertEqual(a.safe_label(info["gpu"], "Linux"), "M5 Pro PC")
 
 
 if __name__ == "__main__":

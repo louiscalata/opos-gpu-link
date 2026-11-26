@@ -71,8 +71,8 @@ def computer_noun(system: str | None = None, model_id: str | None = None,
     """Name this computer for people: "MacBook", "Mac" or "PC" (Windows or Linux).
 
     Apple silicon reports model IDs like "Mac17,9" for laptops and desktops alike, so a
-    built-in battery is what marks a MacBook there. This is screen wording only; the
-    pairing label on the wire is unchanged, because renaming it needs owner recovery.
+    built-in battery is what marks a MacBook there. This is screen wording only; the wire
+    label comes from gpu_link_autosetup.safe_label.
     main() warms the cached default once before any window or worker thread starts.
     """
     if system is None and model_id is None and battery is None:
@@ -1478,7 +1478,8 @@ def arguments(argv=None):
     parser.add_argument("--serial", help="authorized USB adb device serial; auto-select if exactly one")
     parser.add_argument("--adb", default="adb", help="adb executable from Android platform tools")
     parser.add_argument("--label", default="OPOS GPU PC", help="pairing label sent to the phone (1 to 24 letters, digits, spaces or hyphens); "
-                        "changing it after pairing needs owner recovery on the phone")
+                        "the phone keeps the label it saw at pairing, so a new one takes effect only "
+                        "after Forget on the phone and --reset-pairing here")
     routes = parser.add_mutually_exclusive_group()
     routes.add_argument("--server", help="existing loopback chat completions URL")
     routes.add_argument("--lm-url", help="existing loopback backend base or chat completions URL")
