@@ -1201,6 +1201,15 @@ class Companion:
                                 + ("; use phone notification to open"
                                    if self.session_launch_failed else ""))
             return
+        if not self.bridge.forward_present():
+            # The forward disappeared while the one-token check ran, whether it
+            # returned true or false. Blame the link, not the model route.
+            self.session_pc = None
+            self.bridge.remove_own_forward()
+            self.status.set("Phone link interrupted; reconnecting")
+            self.next_try = self.clock() + 1
+            self.retry_delay = 3
+            return
         self.status.set("Local model or chat route failed its one-token check; check --server and --model; retrying")
         self._schedule_retry()
 
@@ -1237,6 +1246,21 @@ class Companion:
                 self._cancel_preflight()
                 self.session_pc = None
                 self.bridge.remove_own_forward()
+                # Also cover the warming window, when self.online is still False.
+                self.status.set("Phone disconnected; waiting to reconnect")
+                self.next_try = self.clock() + 1
+                self.retry_delay = 3
+            if (present and not self.online and self.preflight_thread is not None
+                    and self.preflight_cancel is not None and not self.preflight_cancel.is_set()
+                    and not self.bridge.forward_present()):
+                # Lost USB forward during warmup (phone still listed). Run once
+                # per interruption so later ticks do not keep postponing next_try.
+                self._cancel_preflight()
+                self.session_pc = None
+                self.bridge.remove_own_forward()
+                self.status.set("Phone link interrupted; reconnecting")
+                self.next_try = self.clock() + 1
+                self.retry_delay = 3
             forward_ok = present and self.bridge.forward_present() if self.online else False
             server_ok = model_server_listening(self.args.server) if forward_ok else False
             worker_ok = self._workers_alive()
@@ -1250,7 +1274,7 @@ class Companion:
                 if not present:
                     self.status.set("Phone disconnected; waiting to reconnect")
                 elif not forward_ok:
-                    self.status.set("PC link interrupted; retrying")
+                    self.status.set("Phone link interrupted; reconnecting")
                 elif not server_ok:
                     self.status.set("Local model server unavailable; start it and GPU Link will retry")
                 else:
