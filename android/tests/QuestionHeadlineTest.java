@@ -15,12 +15,46 @@ public final class QuestionHeadlineTest {
         equal(0, QuestionHeadline.prefixLength("You asked: x", null));
         equal(2, QuestionHeadline.minLines(true));
         equal(2, QuestionHeadline.minLines(false));
-        equal(3, QuestionHeadline.maxLines(true));
-        equal(4, QuestionHeadline.maxLines(false));
+        equal(4, QuestionHeadline.maxLines(true));
+        equal(6, QuestionHeadline.maxLines(false));
+
+        equal("", QuestionHeadline.displayQuestion(null));
+        equal("", QuestionHeadline.displayQuestion("   "));
+        equal("What is RAM?", QuestionHeadline.displayQuestion("  what   is   RAM  "));
+        equal("What is RAM?", QuestionHeadline.displayQuestion("What is RAM"));
+        equal("What is RAM?", QuestionHeadline.displayQuestion("What is RAM?"));
+        equal("What is RAM.", QuestionHeadline.displayQuestion("What is RAM."));
+        equal("Go.", QuestionHeadline.displayQuestion("go."));
+        equal("USB-C power delivery?", QuestionHeadline.displayQuestion("USB-C power delivery"));
+        equal("In 60 words, why do GPUs help with AI?",
+                QuestionHeadline.displayQuestion("In 60 words, why do GPUs help with AI?"));
+        equal("You asked: What is RAM?",
+                QuestionHeadline.formatHeadline("You asked: what is RAM", prefix));
+        equal("You asked: What is RAM?",
+                QuestionHeadline.formatHeadline("  what is RAM  ", prefix));
+        equal("What is RAM?", QuestionHeadline.formatHeadline("what is RAM", ""));
+        equal("You asked: ", QuestionHeadline.formatHeadline(null, prefix));
+        equal("What is RAM?", QuestionHeadline.formatHeadline("what is RAM", null));
+
+        equal(26, QuestionHeadline.baseSp(false));
+        equal(21, QuestionHeadline.baseSp(true));
+        equal(16, QuestionHeadline.minSp(false));
+        equal(14, QuestionHeadline.minSp(true));
+        equal(11, QuestionHeadline.floorSp(false));
+        equal(10, QuestionHeadline.floorSp(true));
+        equal(26, QuestionHeadline.shrinkSp(26, 11, 3, 6));
+        equal(25, QuestionHeadline.shrinkSp(26, 11, 7, 6));
+        equal(11, QuestionHeadline.shrinkSp(11, 11, 9, 6));
         System.out.println("QuestionHeadlineTest: OK");
     }
 
     private static void equal(int expected, int actual) {
         if (expected != actual) throw new AssertionError(expected + " != " + actual);
+    }
+
+    private static void equal(String expected, String actual) {
+        if (expected == null ? actual != null : !expected.equals(actual)) {
+            throw new AssertionError(expected + " != " + actual);
+        }
     }
 }
