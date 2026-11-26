@@ -119,9 +119,9 @@ public final class CoverScreenPolicyTest {
         eq("", CoverScreenPolicy.indicator(null));
         check(CoverScreenPolicy.invertIndicator("paused"));
         check(!CoverScreenPolicy.invertIndicator("answering"));
-        eq("PC GPU · PAUSED", CoverScreenPolicy.kicker("g1", "paused"));
+        eq("Computer GPU · PAUSED", CoverScreenPolicy.kicker("g1", "paused"));
         eq("MODEL · LIVE", CoverScreenPolicy.kicker("m1", "answering"));
-        eq("PC GPU", CoverScreenPolicy.kicker("gpu", ""));
+        eq("Computer GPU", CoverScreenPolicy.kicker("gpu", ""));
         eq("", CoverScreenPolicy.moreLabel(0));
         eq("+6 more models hidden", CoverScreenPolicy.moreLabel(6));
         check(!CoverScreenPolicy.userBusy(false, false, 10_000, 5_000));

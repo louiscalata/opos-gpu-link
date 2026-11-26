@@ -199,8 +199,7 @@ public final class LinkWatcherService extends Service {
             clearPairing();
             return;
         }
-        String label = pending.optString("label").trim();
-        if (label.isEmpty()) label = getString(R.string.pc);
+        String label = pending.isNull("label") ? "" : pending.optString("label").trim();
         if (code.equals(notifiedCode) && label.equals(notifiedLabel)) return;
 
         Intent open = new Intent(this, MainActivity.class)
@@ -210,7 +209,8 @@ public final class LinkWatcherService extends Service {
         String formattedCode = code.substring(0, 3) + " " + code.substring(3);
         Notification pairing = new Notification.Builder(this, PAIRING_CHANNEL)
                 .setSmallIcon(R.drawable.ic_status)
-                .setContentTitle(getString(R.string.pairing_notification_title, label))
+                .setContentTitle(label.isEmpty() ? getString(R.string.pairing_notification_title_unnamed)
+                        : getString(R.string.pairing_notification_title, label))
                 .setContentText(getString(R.string.pairing_notification_text, formattedCode))
                 .setContentIntent(prompt)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)

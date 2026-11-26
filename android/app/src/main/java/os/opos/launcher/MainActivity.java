@@ -272,7 +272,7 @@ public final class MainActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
-        ComputerWords.set(getPreferences(MODE_PRIVATE).getString("computer_noun", ComputerWords.PC));
+        ComputerWords.restore(getPreferences(MODE_PRIVATE).getString("computer_noun", ComputerWords.COMPUTER));
         setContentView(R.layout.models);
         SharedPreferences preferences = getPreferences(MODE_PRIVATE);
         pcLabelStatic(findViewById(android.R.id.content), new int[][]{
@@ -2146,9 +2146,10 @@ public final class MainActivity extends Activity {
         pairingPending = pending != null;
         applyComposerState();
         if (pending != null) {
-            String label = pending.optString("label", getString(R.string.pc));
+            String named = computerLabel(pending);
             // The pending computer may not be the one already paired: name it by its own label.
-            String pendingNoun = ComputerWords.noun(label);
+            String pendingNoun = ComputerWords.noun(named);
+            String label = named.isEmpty() ? "the " + pendingNoun : named;
             setIfChanged(findViewById(R.id.pairing_header),
                     ComputerWords.apply(getString(R.string.pairing_title), pendingNoun));
             TextView allow = findViewById(R.id.allow_pc);
@@ -2498,7 +2499,7 @@ public final class MainActivity extends Activity {
             PaneViews article = paneViews.get(pane);
             JSONObject answer = answerOf(snapshot, pane);
             String id = answer == null ? "" : answer.optString("id");
-            String shortLabel = "gpu".equals(pane) ? ComputerWords.current() : "phone".equals(pane)
+            String shortLabel = "gpu".equals(pane) ? ComputerWords.title(ComputerWords.current()) : "phone".equals(pane)
                     ? "Phone" : article.heading.getText().toString();
             boolean included = latestRequestedPanes.isEmpty()
                     ? answer != null && !latestQuestion.isEmpty()
@@ -2649,7 +2650,7 @@ public final class MainActivity extends Activity {
             line = pcWords(R.string.cable_checking);
         } else if (pending != null) {
             line = ComputerWords.apply(getString(R.string.pairing_pending),
-                    ComputerWords.noun(pending.optString("label", "")));
+                    ComputerWords.noun(computerLabel(pending)));
         } else if (pausedAfterFreshSnapshot) {
             line = pcWords(R.string.gpu_paused);
         } else if (awaitingAnswerId()) {
@@ -2875,16 +2876,21 @@ public final class MainActivity extends Activity {
 
     /**
      * Follow the paired computer. A snapshot that confirms no PC is paired (and none pending)
-     * resets the noun to "PC"; a transient connection loss keeps it.
+     * resets the noun to the neutral "computer"; a transient connection loss keeps it.
      */
     private void observeComputer(String label, JSONObject link, JSONObject pc) {
         boolean changed = link != null && pc == null && link.optJSONObject("pending") == null
-                ? ComputerWords.set(ComputerWords.PC) : ComputerWords.observe(label);
+                ? ComputerWords.set(ComputerWords.COMPUTER) : ComputerWords.observe(label);
         if (!changed) return;
         getPreferences(MODE_PRIVATE).edit().putString("computer_noun", ComputerWords.current()).apply();
         for (Map.Entry<TextView, String> entry : pcLabelledViews.entrySet()) {
             entry.getKey().setText(ComputerWords.apply(entry.getValue()));
         }
+    }
+
+    /** A computer's display label; JSON null or a missing object is "" (optString would say "null"). */
+    private static String computerLabel(JSONObject computer) {
+        return computer == null || computer.isNull("label") ? "" : computer.optString("label", "").trim();
     }
 
     private static void setIfChanged(TextView view, String text) {
@@ -4455,10 +4461,10 @@ public final class MainActivity extends Activity {
         if (gpu == null) return "";
         JSONObject link = gpu.optJSONObject("link");
         JSONObject pc = link == null ? null : link.optJSONObject("pc");
-        String label = pc == null ? "" : pc.optString("label").trim();
+        String label = computerLabel(pc);
         if (!label.isEmpty()) return label;
         JSONObject pending = link == null ? null : link.optJSONObject("pending");
-        label = pending == null ? "" : pending.optString("label").trim();
+        label = computerLabel(pending);
         if (!label.isEmpty()) return label;
         label = gpu.optString("where").trim();
         return "unknown".equalsIgnoreCase(label) ? "" : label;

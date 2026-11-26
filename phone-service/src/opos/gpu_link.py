@@ -18,6 +18,7 @@ import hashlib
 import hmac
 import math
 import os
+import re
 import stat
 import threading
 import time
@@ -47,6 +48,29 @@ def display_label(label: object) -> object:
         if sep and saved.strip() == label and proto.valid_label(shown.strip()):
             return shown.strip()
     return label
+
+# Placeholder lead-model names (OPOS_GPU_LINK_MODEL_NAME) shown only when the companion sends
+# no lead_label. They follow the paired computer, so a Mac is never named for another machine.
+GENERIC_MODEL_NAMES = frozenset({"computer gpu", "macbook gpu", "mac gpu", "pc gpu"})
+_MACBOOK = re.compile(r"\b(?:MacBook|MBP(?![A-Za-z]))", re.I)
+_MAC = re.compile(r"\b(?:iMac|Mac(?:intosh|mini|Studio|Pro)?)(?![A-Za-z])", re.I)
+
+
+def fallback_model_name(name: str, pc_label: object) -> str:
+    """Lead model name when the companion has not published one.
+
+    A generic placeholder becomes "MacBook GPU" or "Mac GPU" when the paired computer's display
+    name is a Mac, and "Computer GPU" otherwise; a real configured name is kept as is.
+    """
+    if name.strip().lower() not in GENERIC_MODEL_NAMES:
+        return name
+    shown = display_label(pc_label)
+    if isinstance(shown, str) and _MACBOOK.search(shown):
+        return "MacBook GPU"
+    if isinstance(shown, str) and _MAC.search(shown):
+        return "Mac GPU"
+    return "Computer GPU"
+
 
 HISTORY_LIMIT = 64
 LINK_SECONDS = 2.5
@@ -164,6 +188,10 @@ class LinkService:
     @staticmethod
     def _display_name(name: str) -> str:
         return "".join(c for c in name if " " <= c <= "~")[:64]
+
+    def _fallback_name(self) -> str:
+        """Lead model name for the paired computer when no lead_label is known (lock held)."""
+        return fallback_model_name(self._model["name"], self._pc[0] if self._pc else None)
 
     def set_model_name(self, name: str) -> None:
         """Set the printable display name supplied by the listener's environment."""
@@ -598,7 +626,7 @@ class LinkService:
                             self._speed = speed
                         else:
                             self._extra_speeds[pane] = speed
-                    values.update(model=(self._status_lead_label(status, proto_version) or self._model["name"])
+                    values.update(model=(self._status_lead_label(status, proto_version) or self._fallback_name())
                                   if pane == "gpu" else self._advertised[pane]["label"],
                                   where=self._pc[0])
                     speed["values"].update(values)
@@ -629,7 +657,7 @@ class LinkService:
             # This is volatile display metadata, scoped to the enrolled PC.
             self._lead_label = self._status_lead_label(status, proto_version)
             if live is not None and self._speed is not None and self._speed["answer"] == live["answer"]:
-                self._speed["values"].update(model=self._lead_label or self._model["name"], where=self._pc[0])
+                self._speed["values"].update(model=self._lead_label or self._fallback_name(), where=self._pc[0])
                 self._note_speed(live["answer"])
         cancel = status["lease"] if history is not None and history[0] == "cancelled" else None
         return Reply(200, (), proto.status_reply(cancel, proto_version=proto_version))
@@ -714,7 +742,7 @@ class LinkService:
                 self._speed = speed
             else:
                 self._extra_speeds[pane] = speed
-        speed["values"].update(model=(self._lead_label or self._model["name"]) if pane == "gpu" else self._advertised[pane]["label"],
+        speed["values"].update(model=(self._lead_label or self._fallback_name()) if pane == "gpu" else self._advertised[pane]["label"],
                                where=self._pc[0])
         self._note_speed(answer["id"], pane=pane)
         return self._work_reply(body, pane)
@@ -881,7 +909,7 @@ class LinkService:
                 "storage": "error" if self._storage_fault is not None or self._answers.startup_notice else None,
                 "storage_notice": self._answers.startup_notice,
                 "storage_fault": self._storage_fault is not None,
-                "model": self._model.copy(),
+                "model": {**self._model, "name": self._fallback_name()},
                 "pc": pc,
                 "pending": pending,
                 "enrol": "closed" if self._denials >= 3 else "open",
