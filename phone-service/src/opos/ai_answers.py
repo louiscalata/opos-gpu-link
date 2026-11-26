@@ -29,6 +29,11 @@ _ERROR = re.compile(r"[a-z0-9_-]{1,32}")
 
 # A one-digit list marker ("2.") is not a sentence end; "2025." still is.
 _SENTENCE_END = re.compile(r"(?<![ \n\t]\d)([.!?]+)([\"\'\u201d)\]]*)(?=\s+|$)")
+# A "sentence" that is only a list or section marker ("10.", "VII.", "b.",
+# "## 3.") starts a heading that never arrived, so it is not a sentence end.
+_BARE_MARKER = re.compile(
+    r"(?:[#>*+\-]+\s*)*(?:\d{1,3}|[IVXLC]{1,7}|[ivx]{1,5}|[A-Za-z])[.!?]+[\"\'\u201d)\]]*"
+)
 
 
 def complete_sentences(text: str) -> str:
@@ -40,7 +45,12 @@ def complete_sentences(text: str) -> str:
     if not text:
         return text
     last = None
+    previous = 0
     for match in _SENTENCE_END.finditer(text):
+        start = max(previous, text.rfind("\n", 0, match.start()) + 1)
+        previous = match.end()
+        if _BARE_MARKER.fullmatch(text[start:match.end()].strip()):
+            continue
         last = match.end()
     if last is None:
         return text

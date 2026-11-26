@@ -40,6 +40,38 @@ class CompleteSentences(unittest.TestCase):
         text = "Hi. " + ("word " * 30)
         self.assertEqual(ai_answers.complete_sentences(text), text)
 
+    def test_drops_a_trailing_roman_section_marker(self):
+        # Seen live on the Flip 6 (SmolLM2 1.7B at its token cap, 26 Nov 2026).
+        text = (
+            "A thermal limit of at least 100\u00b0C is recommended.\n\n"
+            "VII. Battery and"
+        )
+        self.assertEqual(
+            ai_answers.complete_sentences(text),
+            "A thermal limit of at least 100\u00b0C is recommended.",
+        )
+
+    def test_drops_a_bare_marker_left_after_the_last_sentence(self):
+        cases = {
+            "The cable carries data. VII.": "The cable carries data.",
+            "The cable carries data.\n\n10.": "The cable carries data.",
+            "The cable carries data.\n## 3.": "The cable carries data.",
+            "The cable carries data.\n- b.": "The cable carries data.",
+            "The cable carries data. 12. Check the": "The cable carries data.",
+        }
+        for text, shown in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(ai_answers.complete_sentences(text), shown)
+
+    def test_keeps_real_short_sentences_and_numbers(self):
+        for text in (
+            "The cable carries data. It worked in 2025.",
+            "Did it resume? Yes.",
+            "The card was released in 2025. It has 16 GB.",
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(ai_answers.complete_sentences(text), text)
+
     def test_empty_string(self):
         self.assertEqual(ai_answers.complete_sentences(""), "")
 
