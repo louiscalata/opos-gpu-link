@@ -171,15 +171,26 @@ final class NewspaperSummary {
         if (fastest != null) {
             result.append('\n').append(allDone ? "Fastest: " : "Fastest so far: ")
                     .append(fastest.label).append(" (" + seconds(fastest.elapsedMs) + ")");
-            result.append(" · ").append(allDone ? "Slowest: " : "Slowest so far: ")
-                    .append(slowest.label).append(" (" + seconds(slowest.elapsedMs) + ")");
+            // One measured lane is not a range: "Fastest: Phone · Slowest: Phone" reads as a bug.
+            if (slowest != fastest) {
+                result.append(" · ").append(allDone ? "Slowest: " : "Slowest so far: ")
+                        .append(slowest.label).append(" (" + seconds(slowest.elapsedMs) + ")");
+            }
         }
         if (longest != null) result.append('\n')
                 .append(allDone ? "Longest answer: " : "Longest answer so far: ")
                 .append(longest.label).append(" (" + longest.words + " words)");
-        if (first != null && second != null) result.append('\n').append(first.label)
-                .append(" finished first by ")
-                .append(seconds(Math.max(0, second.finishedAtMs - first.finishedAtMs)));
+        if (first != null && second != null) {
+            long margin = Math.max(0, second.finishedAtMs - first.finishedAtMs);
+            result.append('\n');
+            // Same 50 ms tie rule as finishedFirst(): never "finished first by 0.0 s".
+            if (margin < 50) {
+                result.append(first.label).append(" and ").append(second.label)
+                        .append(" finished together");
+            } else {
+                result.append(first.label).append(" finished first by ").append(seconds(margin));
+            }
+        }
         else if (allDone && includedCount >= 2) {
             result.append('\n').append("Finish order unavailable");
         }

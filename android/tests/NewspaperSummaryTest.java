@@ -64,7 +64,8 @@ public final class NewspaperSummaryTest {
                 new NewspaperSummary.Lane("PC", "one two", "Done · 2.0 s", 2000L),
                 new NewspaperSummary.Lane("Phone", "", "Not asked this time", null, false),
                 new NewspaperSummary.Lane("Qwen", "", "Ready", null, false)));
-        contains(unasked, "Fastest: PC (2.0 s) · Slowest: PC (2.0 s)");
+        contains(unasked, "Fastest: PC (2.0 s)");
+        check(!unasked.contains("Slowest"));
         check(!unasked.contains("finished first by"));
         NewspaperSummary.Lane pausedPc = new NewspaperSummary.Lane("PC", "partial",
                 "Paused — will continue when the PC is back", null, null,
@@ -88,11 +89,22 @@ public final class NewspaperSummaryTest {
                         "Lane wall elapsed · pause history unknown\nPC  2.0 s"));
         String afterResume = NewspaperSummary.report(
                 Arrays.asList(resumedPc, phoneDuringPause));
-        contains(afterResume, "Fastest: Phone (1.0 s) · Slowest: Phone (1.0 s)");
+        contains(afterResume, "Fastest: Phone (1.0 s)");
+        check(!afterResume.contains("Slowest"));
         contains(afterResume, "Finish order unavailable");
         check(!afterResume.contains("Fastest: PC"));
         check(!afterResume.contains("Slowest: PC"));
         check(!afterResume.contains("finished first by"));
+        // While the PC is paused only the phone has a time; it must not be both ends.
+        check(!duringPause.contains("Slowest"));
+        NewspaperSummary.Lane tieA = new NewspaperSummary.Lane("PC", "a b",
+                "Done · 2.00 s", 2000L, 2000L, true);
+        NewspaperSummary.Lane tieB = new NewspaperSummary.Lane("Phone", "a b",
+                "Done · 2.02 s", 2020L, 2020L, true);
+        String tie = NewspaperSummary.report(Arrays.asList(tieA, tieB));
+        contains(tie, "PC and Phone finished together");
+        check(!tie.contains("finished first by 0.0 s"));
+        contains(tie, "Fastest: PC (2.0 s) · Slowest: Phone (2.0 s)");
         System.out.println("NewspaperSummaryTest: OK");
     }
 
