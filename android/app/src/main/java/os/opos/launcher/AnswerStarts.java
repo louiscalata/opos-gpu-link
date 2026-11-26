@@ -27,8 +27,8 @@ final class AnswerStarts {
         return kept;
     }
 
-    /** Save only the starts of the answers the current question is following. */
-    static Map<String, Long> toSave(Map<String, Long> starts, Collection<String> currentIds) {
+    /** Keep only the starts of the answers the current question is following (save and restore). */
+    static Map<String, Long> onlyFollowed(Map<String, Long> starts, Collection<String> currentIds) {
         Map<String, Long> kept = new HashMap<>();
         if (starts == null || currentIds == null) return kept;
         for (Map.Entry<String, Long> entry : starts.entrySet()) {

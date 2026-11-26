@@ -1999,7 +1999,7 @@ public final class MainActivity extends Activity {
         // recreated mid-question (fold, unfold, rotation, Termux in front) still times its lanes.
         Map<String, Long> savedStarts = new HashMap<>();
         loadTimingMap(preferences.getString("answer_starts", ""), savedStarts);
-        Map<String, Long> restoredStarts = AnswerStarts.toSave(AnswerStarts.sameBoot(savedStarts,
+        Map<String, Long> restoredStarts = AnswerStarts.onlyFollowed(AnswerStarts.sameBoot(savedStarts,
                 preferences.getInt("answer_starts_boot", -1), bootCount(),
                 SystemClock.elapsedRealtime()), latestRequestIds.values());
         for (Map.Entry<String, Long> entry : restoredStarts.entrySet()) {
@@ -2082,7 +2082,7 @@ public final class MainActivity extends Activity {
             }
             editor.putString("answer_finished_at", finished.toString());
             JSONObject answerStartStamps = new JSONObject();
-            for (Map.Entry<String, Long> entry : AnswerStarts.toSave(answerStarts,
+            for (Map.Entry<String, Long> entry : AnswerStarts.onlyFollowed(answerStarts,
                     latestRequestIds.values()).entrySet()) {
                 answerStartStamps.put(entry.getKey(), entry.getValue().longValue());
             }
