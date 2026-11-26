@@ -9,16 +9,16 @@ Ask a question on your Android phone and read both answers side by side. Pull th
 ```mermaid
 flowchart LR
     A["Phone app<br/>ask · read · notes"] --> B["Phone link service<br/>127.0.0.1"]
-    B <-->|"USB-C<br/>adb forward, signed"| C["PC companion"]
+    B <-->|"USB-C<br/>adb forward, signed"| C["Computer companion<br/>Mac, Windows or Linux"]
     C --> D["Local model server<br/>llama.cpp on your GPU"]
 ```
 
 ## Quick start
 
 1. **adb.** Install Google's [Android SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools) for `adb`.
-2. **PC.** Download the app for your computer from [Releases](../../releases) and check it against `SHA256SUMS`. The first time, run it with `--prefetch` to download a model that fits your GPU. After that, run it plainly: it finds your GPU, uses the model on disk and starts a local model server. To run from source instead, see [`companion/SETUP.md`](companion/SETUP.md).
+2. **Computer.** Download the app for your Mac, Windows PC or Linux machine from [Releases](../../releases) and check it against `SHA256SUMS`. The first time, run it with `--prefetch` to download a model that fits your GPU. After that, run it plainly: it finds your GPU, uses the model on disk and starts a local model server. To run from source instead, see [`companion/SETUP.md`](companion/SETUP.md).
 3. **Phone.** Turn on USB debugging, plug in the cable, accept the computer's prompt, and install the APK from [Releases](../../releases).
-4. **Pair.** Compare the six-digit code on both screens and tap **Allow this PC** on the phone. Later plugs reuse that pairing.
+4. **Pair.** Compare the six-digit code on both screens and tap **Allow** on the phone. The button names your computer, for example **Allow this MacBook** on a MacBook. Later plugs reuse that pairing.
 5. **Ask.**
 
 Build the app yourself with `android/scripts/build-debug-apk.sh`.
@@ -29,7 +29,19 @@ Build the app yourself with `android/scripts/build-debug-apk.sh`.
 | --- | --- |
 | `android/` | The phone app |
 | `phone-service/` | The phone side of the link: pairing, signed requests, pause and resume |
-| `companion/` | The PC companion and its tests |
+| `companion/` | The computer companion (Mac, Windows, Linux) and its tests |
+
+## Models in the demo
+
+The Dec 10 2026 demo runs NVIDIA models, all as local GGUF files:
+
+| Where | Model | File |
+| --- | --- | --- |
+| MacBook (Metal) | NVIDIA Nemotron 3.5 Bolt E4B 4GB, Q4_K_M | [`nvidia/NVIDIA-Nemotron-3.5-Bolt-E4B-4GB`](https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Bolt-E4B-4GB), 6.18 GB, OpenMDW-1.1 |
+| Phone, lead | NVIDIA AceInstruct 1.5B, Q4_K_M | community quant [`bartowski/nvidia_AceInstruct-1.5B-GGUF`](https://huggingface.co/bartowski/nvidia_AceInstruct-1.5B-GGUF), 1.12 GB, CC-BY-NC-4.0 |
+| Phone, second | NVIDIA Nemotron 3 Nano 4B, Q4_K_M | [`nvidia/NVIDIA-Nemotron-3-Nano-4B-GGUF`](https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-4B-GGUF), 2.84 GB, NVIDIA Nemotron Open Model License |
+
+Nemotron 3.5 Bolt E4B is post-trained by NVIDIA from Google's Gemma 4 E4B, so Gemma's terms also apply. Any other local GGUF works too; the companion picks one that fits your GPU.
 
 ## Supported platforms
 
@@ -44,8 +56,8 @@ Build the app yourself with `android/scripts/build-debug-apk.sh`.
 
 Private: runs on your phone and your own computer, no cloud.
 
-- The PC companion downloads nothing by default. It uses models already on disk; fetching one is opt-in (`--prefetch`).
-- The phone app talks only to its own loopback service. The PC is reached only through the USB forward.
+- The computer companion downloads nothing by default. It uses models already on disk; fetching one is opt-in (`--prefetch`).
+- The phone app talks only to its own loopback service. The computer is reached only through the USB forward.
 - Every request is signed with a key set up when you pair.
 
 ## Status
@@ -53,7 +65,7 @@ Private: runs on your phone and your own computer, no cloud.
 Early demo build.
 
 - The APK is a debug build signed with a throwaway key. It is not on Google Play.
-- The phone side runs on its own with `phone-service/run_link.py`, including the `/api/ai` endpoint the app reads. The phone lane needs a local OpenAI-compatible server on the phone, such as `llama-server`; without one, questions go to the PC.
+- The phone side runs on its own with `phone-service/run_link.py`, including the `/api/ai` endpoint the app reads. The phone lane needs a local OpenAI-compatible server on the phone, such as `llama-server`; without one, questions go to the computer.
 - The macOS apps are ad-hoc signed, not notarized, so macOS asks before the first run.
 - USB is the only link today. A wireless version is in the works.
 
