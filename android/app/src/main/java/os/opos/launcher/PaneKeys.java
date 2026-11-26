@@ -47,6 +47,15 @@ final class PaneKeys {
         return pc(pane) ? ComputerWords.apply("on the PC's GPU") : "on this phone";
     }
 
+    /** The phone service's own default ("on the PC's GPU") is worded for the paired computer. */
+    static String shownWhere(String pane, String where) {
+        String value = where == null ? "" : where.trim();
+        if (value.isEmpty() || "unknown".equalsIgnoreCase(value) || "on the PC's GPU".equals(value)) {
+            return defaultWhere(pane);
+        }
+        return value;
+    }
+
     static String pref(String pane, String field) {
         if (!valid(pane)) throw new IllegalArgumentException("Unknown pane");
         if ("latest_id".equals(field)) return "latest_" + pane + "_id";

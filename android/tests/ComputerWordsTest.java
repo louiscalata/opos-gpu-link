@@ -30,6 +30,15 @@ public final class ComputerWordsTest {
         equal("MODEL", PaneKeys.kicker("phone"));
         check(ComputerWords.observe("RTX 5080 PC"));
         equal("PC GPU", PaneKeys.kicker("gpu"));
+        equal("PC", ComputerWords.noun("RTX 5080 PC"));
+        equal("text", ComputerWords.apply("text", null));
+        ComputerWords.set("MacBook");
+        equal("on the MacBook's GPU", PaneKeys.shownWhere("gpu", "on the PC's GPU"));
+        equal("on the MacBook's GPU", PaneKeys.shownWhere("gpu", ""));
+        equal("M5 Pro MacBook Pro", PaneKeys.shownWhere("gpu", "M5 Pro MacBook Pro"));
+        equal("on this phone", PaneKeys.shownWhere("phone", "unknown"));
+        check(Dateline.format(java.time.LocalDate.of(2026, 12, 10), "PC").endsWith("PHONE + PC GPU EDITION"));
+        check(Dateline.format(java.time.LocalDate.of(2026, 12, 10)).endsWith("PHONE + MACBOOK GPU EDITION"));
         ComputerWords.set("bogus");
         equal("PC", ComputerWords.current());
         System.out.println("ComputerWordsTest: OK");

@@ -272,10 +272,11 @@ public final class MainActivity extends Activity {
     protected void onCreate(Bundle state) {
         super.onCreate(state);
         getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
+        ComputerWords.set(getPreferences(MODE_PRIVATE).getString("computer_noun", ComputerWords.PC));
         setContentView(R.layout.models);
         SharedPreferences preferences = getPreferences(MODE_PRIVATE);
-        ComputerWords.set(preferences.getString("computer_noun", ComputerWords.PC));
-        pcLabelTree(findViewById(android.R.id.content));
+        pcLabelStatic(findViewById(android.R.id.content), new int[][]{
+                {R.id.pairing_disclosure, R.string.pairing_disclosure}});
         uiSettings = new UiSettings(new UiSettings.Store() {
             @Override public String get(String key, String fallback) {
                 return preferences.getString(key, fallback);
@@ -775,6 +776,7 @@ public final class MainActivity extends Activity {
         mastheadBlock.setPadding(dp(12), 0, dp(12), 0);
         mastheadBlock.addView(bigMasthead);
         TextView dateline = newspaperText(Dateline.format(LocalDate.now()), 12, false, false);
+        pcLabelled(dateline, Dateline.format(LocalDate.now(), ComputerWords.PC));
         dateline.setLetterSpacing(0.08f);
         mastheadBlock.addView(dateline);
         View mastheadRule = new View(this);
@@ -1737,7 +1739,7 @@ public final class MainActivity extends Activity {
         JSONObject link = gpu.optJSONObject("link");
         JSONObject pc = link == null ? null : link.optJSONObject("pc");
         String label = pcLabel(gpu);
-        observeComputer(label);
+        observeComputer(label, link, pc);
         setIfChanged(gpuHeading, label.isEmpty() ? pcWords(R.string.gpu_heading) : label);
         long[] heartbeats = PcHeartbeat.afterSnapshot(pc != null,
                 pc != null && pc.optBoolean("live"), gpu.optBoolean("ready"),
@@ -1906,9 +1908,7 @@ public final class MainActivity extends Activity {
             PaneViews view = paneViews.get(pane);
             String label = model == null ? pane : model.optString("label", pane);
             String maker = model == null ? "" : model.optString("maker");
-            String where = model == null ? PaneKeys.defaultWhere(pane)
-                    : model.optString("where", PaneKeys.defaultWhere(pane));
-            if (where.isEmpty()) where = PaneKeys.defaultWhere(pane);
+            String where = PaneKeys.shownWhere(pane, model == null ? "" : model.optString("where"));
             setIfChanged(view.heading, label);
             setIfChanged(view.byline, label + (maker.isEmpty() ? "" : " · " + maker)
                     + " · " + where);
@@ -2318,7 +2318,7 @@ public final class MainActivity extends Activity {
                 } else if (isGpu && open(answer) && awaitingReplugSnapshot) {
                     message = R.string.cable_checking;
                 }
-                setLaneState(stateView, article.card, getString(message));
+                setLaneState(stateView, article.card, pcWords(message));
                 setWaitingLayout(article, extra && message == R.string.waiting_turn);
                 if (!pcPaused) plainArticle(article, "");
                 return;
@@ -2564,8 +2564,7 @@ public final class MainActivity extends Activity {
             String label = "phone".equals(pane) ? getString(R.string.phone_heading)
                     : article.heading.getText().toString();
             String maker = model == null ? "" : model.optString("maker");
-            String where = model == null ? "" : model.optString("where");
-            if (where.isEmpty()) where = PaneKeys.defaultWhere(pane);
+            String where = PaneKeys.shownWhere(pane, model == null ? "" : model.optString("where"));
             boolean interrupted = PaneKeys.pc(pane) && answerTiming.interrupted(expectedId);
             anyInterrupted |= interrupted;
             long pauseMs = PaneKeys.pc(pane)
@@ -2622,7 +2621,8 @@ public final class MainActivity extends Activity {
         } else if (awaitingReplugSnapshot) {
             line = pcWords(R.string.cable_checking);
         } else if (pending != null) {
-            line = pcWords(R.string.pairing_pending);
+            line = ComputerWords.apply(getString(R.string.pairing_pending),
+                    ComputerWords.noun(pending.optString("label", "")));
         } else if (pausedAfterFreshSnapshot) {
             line = pcWords(R.string.gpu_paused);
         } else if (awaitingAnswerId()) {
@@ -2826,7 +2826,7 @@ public final class MainActivity extends Activity {
     }
 
     private String pcWords(int id, Object... args) {
-        return ComputerWords.apply(getString(id, args));
+        return String.format(java.util.Locale.US, ComputerWords.apply(getString(id)), args);
     }
 
     /** Remember a fixed label that names the computer, so a new pairing can rename it. */
@@ -2836,19 +2836,23 @@ public final class MainActivity extends Activity {
         view.setText(ComputerWords.apply(original));
     }
 
-    /** Capture XML-inflated labels only; never answers, notes or the question box. */
-    private void pcLabelTree(View view) {
-        if (view instanceof android.widget.EditText) return;
-        if (view instanceof TextView) {
-            pcLabelled((TextView) view, ((TextView) view).getText().toString());
-        } else if (view instanceof ViewGroup) {
-            ViewGroup group = (ViewGroup) view;
-            for (int index = 0; index < group.getChildCount(); index++) pcLabelTree(group.getChildAt(index));
+    /** Static XML labels that name the computer; dynamic views are re-set on every render. */
+    private void pcLabelStatic(View root, int[][] idsAndStrings) {
+        if (root == null) return;
+        for (int[] pair : idsAndStrings) {
+            View view = root.findViewById(pair[0]);
+            if (view instanceof TextView) pcLabelled((TextView) view, getString(pair[1]));
         }
     }
 
-    private void observeComputer(String label) {
-        if (!ComputerWords.observe(label)) return;
+    /**
+     * Follow the paired computer. A snapshot that confirms no PC is paired (and none pending)
+     * resets the noun to "PC"; a transient connection loss keeps it.
+     */
+    private void observeComputer(String label, JSONObject link, JSONObject pc) {
+        boolean changed = link != null && pc == null && link.optJSONObject("pending") == null
+                ? ComputerWords.set(ComputerWords.PC) : ComputerWords.observe(label);
+        if (!changed) return;
         getPreferences(MODE_PRIVATE).edit().putString("computer_noun", ComputerWords.current()).apply();
         for (Map.Entry<TextView, String> entry : pcLabelledViews.entrySet()) {
             entry.getKey().setText(ComputerWords.apply(entry.getValue()));
@@ -3806,11 +3810,8 @@ public final class MainActivity extends Activity {
     private String modelDetails(String pane, JSONObject view) {
         String model = view == null ? "" : view.optString("model").trim();
         String maker = view == null ? "" : view.optString("maker").trim();
-        String where = view == null ? "" : view.optString("where").trim();
+        String where = PaneKeys.shownWhere(pane, view == null ? "" : view.optString("where"));
         if (maker.isEmpty()) maker = "Maker unavailable";
-        if (where.isEmpty() || "unknown".equalsIgnoreCase(where)) {
-            where = PaneKeys.defaultWhere(pane);
-        }
         StringBuilder details = new StringBuilder();
         if (!model.isEmpty()) details.append(model).append(" · ");
         details.append(maker).append(" · ").append(where);
@@ -4031,7 +4032,11 @@ public final class MainActivity extends Activity {
 
     private LinearLayout savedArticle(HistoryStore.Lane lane) {
         LinearLayout card = savedBox();
-        TextView kicker = newspaperText(PaneKeys.kicker(lane.pane),
+        // A saved answer keeps the noun of the computer that wrote it, when known.
+        String laneComputer = lane.where == null || lane.where.trim().isEmpty()
+                || lane.where.startsWith("on the ") ? ComputerWords.current()
+                : ComputerWords.noun(lane.where);
+        TextView kicker = newspaperText(PaneKeys.kicker(lane.pane, laneComputer),
                 LaneCardLayout.LABEL_SP, true, false);
         typography.kicker(kicker);
         card.addView(kicker);
@@ -4276,7 +4281,11 @@ public final class MainActivity extends Activity {
             if (infoDialog == dialog) infoDialog = null;
         });
         dialog.setContentView(R.layout.gpu_link_info);
-        pcLabelTree(dialog.getWindow().getDecorView());
+        pcLabelStatic(dialog.getWindow().getDecorView(), new int[][]{
+                {R.id.info_pc_label_text, R.string.info_pc_label},
+                {R.id.info_pc_id_label_text, R.string.info_pc_id_label},
+                {R.id.info_pc_status_label_text, R.string.info_pc_status_label},
+                {R.id.info_forget_pc, R.string.forget_pc}});
         typography.defaults(dialog.getWindow().getDecorView());
         applyPaletteToDialog(dialog);
         typography.headline(dialog.findViewById(R.id.info_page_title), 26);
@@ -4352,8 +4361,8 @@ public final class MainActivity extends Activity {
         if (label.isEmpty() || acting || !info.isShowing()) return;
         setIfChanged(info.findViewById(R.id.info_forget_error), "");
         showAlert(new AlertDialog.Builder(this, R.style.LinkDialogTheme)
-                .setTitle(R.string.forget_pc_title)
-                .setMessage(R.string.forget_pc_first_message)
+                .setTitle(pcWords(R.string.forget_pc_title))
+                .setMessage(pcWords(R.string.forget_pc_first_message))
                 .setNegativeButton(R.string.not_now, null)
                 .setPositiveButton(R.string.continue_label, (first, which) -> {
                     if (!sameTrustedPc(label, fingerprint)) {
@@ -4362,10 +4371,10 @@ public final class MainActivity extends Activity {
                         return;
                     }
                     showAlert(new AlertDialog.Builder(this, R.style.LinkDialogTheme)
-                            .setTitle(R.string.forget_pc_confirm_title)
+                            .setTitle(pcWords(R.string.forget_pc_confirm_title))
                             .setMessage(pcWords(R.string.forget_pc_second_message, label))
                             .setNegativeButton(R.string.not_now, null)
-                            .setPositiveButton(R.string.forget_pc_final, (second, confirmed) -> {
+                            .setPositiveButton(pcWords(R.string.forget_pc_final), (second, confirmed) -> {
                                 if (acting) return;
                                 if (!sameTrustedPc(label, fingerprint)) {
                                     setIfChanged(info.findViewById(R.id.info_forget_error),

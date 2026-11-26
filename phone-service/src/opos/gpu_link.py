@@ -593,7 +593,7 @@ class LinkService:
                         else:
                             self._extra_speeds[pane] = speed
                     values.update(model=(status.get("lead_label") or self._model["name"]) if pane == "gpu" else self._advertised[pane]["label"],
-                                  where=display_label(self._pc[0]))
+                                  where=self._pc[0])
                     speed["values"].update(values)
                     self._note_speed(live["answer"], pane=pane)
             elif live["sent"] is not None:
@@ -618,7 +618,7 @@ class LinkService:
             # This is volatile display metadata, scoped to the enrolled PC.
             self._lead_label = status.get("lead_label")
             if live is not None and self._speed is not None and self._speed["answer"] == live["answer"]:
-                self._speed["values"].update(model=self._lead_label or self._model["name"], where=display_label(self._pc[0]))
+                self._speed["values"].update(model=self._lead_label or self._model["name"], where=self._pc[0])
                 self._note_speed(live["answer"])
         cancel = status["lease"] if history is not None and history[0] == "cancelled" else None
         return Reply(200, (), proto.status_reply(cancel, proto_version=proto_version))
@@ -704,7 +704,7 @@ class LinkService:
             else:
                 self._extra_speeds[pane] = speed
         speed["values"].update(model=(self._lead_label or self._model["name"]) if pane == "gpu" else self._advertised[pane]["label"],
-                               where=display_label(self._pc[0]))
+                               where=self._pc[0])
         self._note_speed(answer["id"], pane=pane)
         return self._work_reply(body, pane)
 

@@ -50,7 +50,7 @@ final class ComputerWords {
 
     /** Replace the standalone word "PC" (and "PC's") with the noun; other words are untouched. */
     static String apply(String text, String noun) {
-        if (text == null || PC.equals(noun) || text.indexOf("PC") < 0) return text;
+        if (text == null || noun == null || PC.equals(noun) || text.indexOf("PC") < 0) return text;
         String upper = PC_UPPER.matcher(text).replaceAll(noun.toUpperCase(Locale.US) + " GPU EDITION");
         Matcher m = PC_WORD.matcher(upper);
         StringBuffer out = new StringBuffer();

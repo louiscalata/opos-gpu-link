@@ -30,6 +30,14 @@ except ImportError:
     def _pc_display(label: Any) -> Any:
         return label
 
+
+def _shown_answer(answer: dict | None) -> dict | None:
+    """Map a stored PC answer's saved pairing label to its screen name, without storing it."""
+    if not answer or not answer.get("where"):
+        return answer
+    shown = _pc_display(answer["where"])
+    return answer if shown == answer["where"] else {**answer, "where": shown}
+
 QUESTIONS = (
     "Explain why the sky looks blue in words a ten-year-old would understand.",
     "Suggest five things neighbours can do together to make a small public garden welcoming.",
@@ -498,7 +506,7 @@ class PageState:
                         and pc["state"] == "ready"
                         and not link.get("storage_notice")
                     ),
-                    "answer": gpu,
+                    "answer": _shown_answer(gpu),
                     "link": link,
                 },
                 "models": [
@@ -530,7 +538,7 @@ class PageState:
                         "model": (extra[item["pane"]]["model"] if extra[item["pane"]] else "") or item["label"],
                         "where": "on the PC's GPU",
                         "ready": bool(pc and pc["live"] and item["live"] and not link.get("storage_notice")),
-                        "answer": extra[item["pane"]],
+                        "answer": _shown_answer(extra[item["pane"]]),
                         "live_speed": item.get("live_speed") if extra[item["pane"]] and
                         extra[item["pane"]]["state"] == "answering" else None,
                     }

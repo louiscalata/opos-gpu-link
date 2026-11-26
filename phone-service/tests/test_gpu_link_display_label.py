@@ -26,5 +26,18 @@ class DisplayLabelTest(unittest.TestCase):
             self.assertEqual(gpu_link.display_label("M5 Pro PC"), "M5 Pro PC")
 
 
+    def test_ai_page_maps_a_stored_answer_without_changing_it(self):
+        try:
+            from opos import ai_page
+        except ImportError:
+            self.skipTest("ai_page needs the host app (ai_model_pool)")
+        stored = {"id": "a", "where": "M5 Pro PC", "state": "done"}
+        with mock.patch.dict(os.environ, {"OPOS_GPU_LINK_PC_DISPLAY": "M5 Pro PC=M5 Pro MacBook Pro"}):
+            shown = ai_page._shown_answer(stored)
+        self.assertEqual(shown["where"], "M5 Pro MacBook Pro")
+        self.assertEqual(stored["where"], "M5 Pro PC")
+        self.assertIsNone(ai_page._shown_answer(None))
+
+
 if __name__ == "__main__":
     unittest.main()
