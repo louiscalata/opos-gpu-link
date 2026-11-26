@@ -453,7 +453,7 @@ class CompanionTests(unittest.TestCase):
                 now[0] = 101.0
                 app.tick()
                 self.assertFalse(app.online)
-                self.assertIn("PC link interrupted", app.lines[-1])
+                self.assertIn("Phone link interrupted", app.lines[-1])
                 now[0] = app.next_try
                 app.tick()
                 finish_preflight(app)

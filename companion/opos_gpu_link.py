@@ -1260,7 +1260,7 @@ class Companion:
                 if not present:
                     self.status.set("Phone disconnected; waiting to reconnect")
                 elif not forward_ok:
-                    self.status.set("PC link interrupted; retrying")
+                    self.status.set("Phone link interrupted; reconnecting")
                 elif not server_ok:
                     self.status.set("Local model server unavailable; start it and GPU Link will retry")
                 else:
