@@ -53,7 +53,7 @@ Private: runs on your phone and your own computer, no cloud.
 Early demo build.
 
 - The APK is a debug build signed with a throwaway key. It is not on Google Play.
-- The phone side of the link is in `phone-service/`, but it still runs inside a host process that is not published yet. A standalone runner is next.
+- The phone side of the link runs on its own with `phone-service/run_link.py`. The `/api/ai` endpoint the app reads still needs a host app that is not published yet.
 - The one-file PC apps are held back for now while `adb` is taken out of them.
 - USB is the only link today. A wireless version is in the works.
 
