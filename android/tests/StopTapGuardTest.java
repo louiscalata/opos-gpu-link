@@ -11,6 +11,8 @@ public final class StopTapGuardTest {
         // A deliberate Stop after the grace window works.
         check(!StopTapGuard.ignore(10_800L, 10_000L));
         check(!StopTapGuard.ignore(25_000L, 10_000L));
+        // Uptime 0 is a real time, not "never".
+        check(StopTapGuard.ignore(100L, 0L));
         // Clock oddity (ask stamped after now): do not swallow the tap.
         check(!StopTapGuard.ignore(9_000L, 10_000L));
         System.out.println("StopTapGuardTest: OK");

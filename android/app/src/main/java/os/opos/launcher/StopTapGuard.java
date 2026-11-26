@@ -6,6 +6,8 @@ package os.opos.launcher;
  */
 final class StopTapGuard {
     static final long GRACE_MS = 800L;
+    /** Stop appearing this soon after an ask counts as appearing because of it. */
+    static final long SHOWN_AFTER_ASK_MS = 10_000L;
 
     private StopTapGuard() {}
 

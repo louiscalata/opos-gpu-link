@@ -100,6 +100,7 @@ public final class MainActivity extends Activity {
     private final Runnable coverResultsCheck = this::ensureCoverResultsArea;
     private final Map<String, Long> answerStarts = new HashMap<>();
     private long lastAskTapMs = -1;
+    private long stopShownMs = -1;
     private final Map<TextView, String> pcLabelledViews = new java.util.WeakHashMap<>();
     private Typography typography;
     private UiSettings uiSettings;
@@ -361,7 +362,10 @@ public final class MainActivity extends Activity {
         send.setOnClickListener(view -> askModels());
         stop.setOnClickListener(view -> {
             // Stop takes Send's place, so a double tap on Send would land on Stop.
-            if (StopTapGuard.ignore(SystemClock.uptimeMillis(), lastAskTapMs)) return;
+            long now = SystemClock.uptimeMillis();
+            if (StopTapGuard.ignore(now, lastAskTapMs) || StopTapGuard.ignore(now, stopShownMs)) {
+                return;
+            }
             stopAnswers();
         });
         retry.setOnClickListener(view -> retryFailed());
@@ -3190,7 +3194,14 @@ public final class MainActivity extends Activity {
         boolean waitingForId = awaitingAnswerId();
         boolean canAsk = anyReadyPane();
         send.setVisibility(offline || running ? View.GONE : View.VISIBLE);
-        stop.setVisibility(!offline && running ? View.VISIBLE : View.GONE);
+        boolean showStop = !offline && running;
+        // Start the grace window when Stop replaces Send after an ask, so a slow ask post
+        // cannot use it up before Stop is even on screen.
+        if (showStop && stop.getVisibility() != View.VISIBLE && lastAskTapMs >= 0
+                && SystemClock.uptimeMillis() - lastAskTapMs < StopTapGuard.SHOWN_AFTER_ASK_MS) {
+            stopShownMs = SystemClock.uptimeMillis();
+        }
+        stop.setVisibility(showStop ? View.VISIBLE : View.GONE);
         reconnect.setVisibility(offline ? View.VISIBLE : View.GONE);
         send.setEnabled(reachable && !acting && !quitting && !running && !waitingForId
                 && !pairingPending && canAsk);
@@ -3237,9 +3248,10 @@ public final class MainActivity extends Activity {
     }
 
     private void askModels() {
-        lastAskTapMs = SystemClock.uptimeMillis();
+        long tapped = SystemClock.uptimeMillis();
         // A bare "again" or "retry" would reach the models with no history; send the real question.
-        sendQuestion(FollowUpPolicy.resolve(prompt.getText().toString(), lastSubmittedQuestion), false);
+        if (sendQuestion(FollowUpPolicy.resolve(prompt.getText().toString(), lastSubmittedQuestion),
+                false)) lastAskTapMs = tapped;
     }
 
     private void retryFailed() {
