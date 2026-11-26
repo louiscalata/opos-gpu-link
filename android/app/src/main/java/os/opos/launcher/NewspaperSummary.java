@@ -158,6 +158,16 @@ final class NewspaperSummary {
         return latest == null ? null : Math.max(0, latest - questionStartedAtMs);
     }
 
+    /**
+     * Fail closed: a lane is still going if the caller says so, or if it has no time yet
+     * and its state reads as in progress ("Loading…", "Retrying…", "Paused — …").
+     */
+    static boolean stillGoing(Lane lane) {
+        if (lane.pending) return true;
+        if (lane.elapsedMs != null) return false;
+        return lane.state.endsWith("…") || lane.state.startsWith("Paused");
+    }
+
     static String report(List<Lane> lanes) {
         StringBuilder result = new StringBuilder();
         Lane fastest = null;
@@ -178,7 +188,7 @@ final class NewspaperSummary {
             anyIncluded = true;
             includedCount++;
             if (!lane.state.startsWith("Done")) allDone = false;
-            if (lane.pending) anyPending = true;
+            if (stillGoing(lane)) anyPending = true;
             if (lane.elapsedMs != null && lane.state.startsWith("Done")) {
                 if (fastest == null || lane.elapsedMs < fastest.elapsedMs) fastest = lane;
                 if (slowest == null || lane.elapsedMs >= slowest.elapsedMs) slowest = lane;

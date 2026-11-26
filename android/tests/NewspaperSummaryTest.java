@@ -97,6 +97,28 @@ public final class NewspaperSummaryTest {
                 new NewspaperSummary.Lane("Qwen", "", "Stopped", null),
                 new NewspaperSummary.Lane("Granite", "", "Waiting for its turn…", null)));
         contains(stillWaiting, "Fastest so far: MacBook (10.1 s)");
+        // Fail closed on in-progress states the caller did not flag as pending.
+        NewspaperSummary.Lane doneA = new NewspaperSummary.Lane("MacBook", "one two three",
+                "Done · 2.0 s", 2000L, 2000L, true, 3, false);
+        NewspaperSummary.Lane doneB = new NewspaperSummary.Lane("Phone", "one",
+                "Done · 8.0 s", 8000L, 8000L, true, 1, false);
+        for (String going : new String[] {"Loading…", "Retrying…",
+                "Paused — will continue when the MacBook is back"}) {
+            String goingReport = NewspaperSummary.report(Arrays.asList(doneA, doneB,
+                    new NewspaperSummary.Lane("Qwen", "", going, null, null, true, 0, false)));
+            contains(goingReport, "Fastest so far: MacBook (2.0 s) · Slowest so far: Phone (8.0 s)");
+            contains(goingReport, "Longest answer so far: MacBook (3 words)");
+        }
+        // Explicit pending wins even on a terminal-looking state.
+        contains(NewspaperSummary.report(Arrays.asList(doneA, doneB,
+                new NewspaperSummary.Lane("Qwen", "", "Stopped", null, null, true, 0, true))),
+                "Fastest so far:");
+        // Settled with the production constructor: all three labels drop "so far".
+        String settledFull = NewspaperSummary.report(Arrays.asList(doneA, doneB,
+                new NewspaperSummary.Lane("Qwen", "one", "Stopped", null, null, true, 1, false)));
+        contains(settledFull, "Fastest: MacBook (2.0 s) · Slowest: Phone (8.0 s)");
+        contains(settledFull, "Longest answer: MacBook (3 words)");
+        check(!settledFull.contains("so far"));
         NewspaperSummary.Lane resumedPc = new NewspaperSummary.Lane("PC", "partial finished",
                 "Done · time unmeasured", null, null, true, 2, false, "unmeasured");
         equal("PC\u00a0unmeasured\nPhone\u00a01.0\u00a0s", NewspaperSummary.timing(
