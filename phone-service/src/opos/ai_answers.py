@@ -29,10 +29,18 @@ _ERROR = re.compile(r"[a-z0-9_-]{1,32}")
 
 # A one-digit list marker ("2.") is not a sentence end; "2025." still is.
 _SENTENCE_END = re.compile(r"(?<![ \n\t]\d)([.!?]+)([\"\'\u201d)\]]*)(?=\s+|$)")
-# A "sentence" that is only a list or section marker ("10.", "VII.", "b.",
-# "## 3.") starts a heading that never arrived, so it is not a sentence end.
+# A line that so far holds only list or section markers ("10.", "VII.", "b.",
+# "3.1.", "## 4.", "3. b.") is a heading that never arrived, not a sentence.
+# Linear on purpose: one prefix class, bounded wrappers, "." only.
+_MARKER = (
+    r"[*_]{0,3}(?:\d{1,3}(?:\.\d{1,3}){0,3}"
+    r"|(?=[IVX])X{0,3}(?:IX|IV|V?I{0,3})"
+    r"|(?=[ivx])x{0,3}(?:ix|iv|v?i{0,3})"
+    r"|[A-Za-z])[*_]{0,3}"
+)
 _BARE_MARKER = re.compile(
-    r"(?:[#>*+\-]+\s*)*(?:\d{1,3}|[IVXLC]{1,7}|[ivx]{1,5}|[A-Za-z])[.!?]+[\"\'\u201d)\]]*"
+    r"[#>*+\-_\u2022\u2013\u2014\s]*(?:" + _MARKER + r"\.\s+){0,3}"
+    + _MARKER + r"\.[*_\"\'\u201d)\]]{0,4}"
 )
 
 
@@ -46,10 +54,15 @@ def complete_sentences(text: str) -> str:
         return text
     last = None
     previous = 0
+    line_start = 0
     for match in _SENTENCE_END.finditer(text):
-        start = max(previous, text.rfind("\n", 0, match.start()) + 1)
+        newline = text.rfind("\n", previous, match.start())
+        if newline >= 0:
+            line_start = newline + 1
         previous = match.end()
-        if _BARE_MARKER.fullmatch(text[start:match.end()].strip()):
+        # Only a whole line of markers is skipped, so "See Fig. 10." and
+        # "Which option? A." keep their endings.
+        if _BARE_MARKER.fullmatch(text, line_start, match.end()):
             continue
         last = match.end()
     if last is None:

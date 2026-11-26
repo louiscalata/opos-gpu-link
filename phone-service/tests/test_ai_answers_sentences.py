@@ -51,26 +51,47 @@ class CompleteSentences(unittest.TestCase):
             "A thermal limit of at least 100\u00b0C is recommended.",
         )
 
-    def test_drops_a_bare_marker_left_after_the_last_sentence(self):
+    def test_drops_a_trailing_line_of_markers(self):
         cases = {
-            "The cable carries data. VII.": "The cable carries data.",
-            "The cable carries data.\n\n10.": "The cable carries data.",
+            "The cable carries data.\n\nVII.": "The cable carries data.",
+            "The cable carries data.\n\n10. Check the": "The cable carries data.",
             "The cable carries data.\n## 3.": "The cable carries data.",
             "The cable carries data.\n- b.": "The cable carries data.",
-            "The cable carries data. 12. Check the": "The cable carries data.",
+            "The cable carries data.\n\n3.1. Battery and": "The cable carries data.",
+            "The cable carries data.\n3. b. Check the": "The cable carries data.",
+            "The cable carries data.\n**IV.** Power": "The cable carries data.",
+            "The cable carries data.\n\u2022 12. Heat": "The cable carries data.",
         }
         for text, shown in cases.items():
             with self.subTest(text=text):
                 self.assertEqual(ai_answers.complete_sentences(text), shown)
 
-    def test_keeps_real_short_sentences_and_numbers(self):
+    def test_keeps_real_endings_that_look_like_markers(self):
         for text in (
             "The cable carries data. It worked in 2025.",
             "Did it resume? Yes.",
+            "Which option is fastest here? A.",
+            "The figure is shown in the guide. See Fig. 10.",
+            "The model is rated for approx. 60.",
+            "The answer was short. 100!",
+            "The tool is called the CLI.",
             "The card was released in 2025. It has 16 GB.",
         ):
             with self.subTest(text=text):
                 self.assertEqual(ai_answers.complete_sentences(text), text)
+
+    def test_long_marker_like_runs_stay_fast(self):
+        import time
+        texts = (
+            "Intro sentence here.\n" + "-" * 5000 + " x.",
+            "Intro sentence here.\n" + "#" * 5000 + "Heading.",
+            "Intro sentence here.\n" + "*_" * 2500 + " Summary.",
+            "Word. " * 20000,
+        )
+        started = time.monotonic()
+        for text in texts:
+            ai_answers.complete_sentences(text)
+        self.assertLess(time.monotonic() - started, 2.0)
 
     def test_empty_string(self):
         self.assertEqual(ai_answers.complete_sentences(""), "")
