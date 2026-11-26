@@ -12,3 +12,5 @@ receipts/
 logs/
 models/
 bundles/
+build-work/
+build-cache/

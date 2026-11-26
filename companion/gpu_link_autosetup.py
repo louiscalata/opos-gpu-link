@@ -1809,7 +1809,9 @@ def ensure_adb(runtime_dir: Path, explicit=None, allow_download=True, system=Non
                 ensure_exec(path)
             return path
     if not allow_download:
-        raise RuntimeError("adb not found and downloads are disabled")
+        raise RuntimeError("adb not found and downloads are disabled. Install Google's Android SDK "
+                           "Platform-Tools (https://developer.android.com/tools/releases/platform-tools), "
+                           "put adb on PATH or pass --adb PATH, or run once with --prefetch")
     system = system or platform.system()
     os_name = {"Darwin": "darwin", "Linux": "linux", "Windows": "windows"}[system]
     pin = pins.PLATFORM_TOOLS[os_name]
