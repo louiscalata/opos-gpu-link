@@ -203,6 +203,7 @@ public final class NewspaperSummaryTest {
         equal("paused", NewspaperSummary.pendingWord("Paused — will continue when the MacBook is back"));
         equal("queued", NewspaperSummary.pendingWord("Waiting for its turn…"));
         equal("retrying", NewspaperSummary.pendingWord("Retrying… (2/3)"));
+        equal("queued", NewspaperSummary.pendingWord("Queued"));
         equal("waiting", NewspaperSummary.pendingWord("Loading… 45%"));
         equal("waiting", NewspaperSummary.pendingWord(null));
         equal("MacBook\u00a028.4\u00a0s\nPhone\u00a0streaming\nNemotron Mini 4B\u00a0queued",
