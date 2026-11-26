@@ -61,6 +61,14 @@ class CompleteSentences(unittest.TestCase):
             "The cable carries data.\n3. b. Check the": "The cable carries data.",
             "The cable carries data.\n**IV**. Power": "The cable carries data.",
             "The cable carries data.\n__3__. Heat": "The cable carries data.",
+            "The cable carries data.\n## IV. Heat": "The cable carries data.",
+            "A GPU has stages. Here are the steps:\nII. Battery and": "A GPU has stages.",
+            "A GPU has stages. For example:\n- b. Memory and": "A GPU has stages.",
+            "A GPU has stages. Overview:\n3.1. Battery and": "A GPU has stages.",
+            "How does a GPU work?\n\nI. Parallel processing and": "How does a GPU work?",
+            "Which option is fastest here?\nB. The second one and": "Which option is fastest here?",
+            "Intro.\nI. First item is done.\nII. Second item":
+                "Intro.\nI. First item is done.",
             "The cable carries data.\n**IV.** b. Power": "The cable carries data.",
             "The cable carries data.\n\u2022 12. Heat": "The cable carries data.",
         }

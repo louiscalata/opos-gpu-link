@@ -44,8 +44,17 @@ _BARE_MARKER = re.compile(
 )
 
 
-def _answers_a_question(text: str, line_start: int) -> bool:
-    """True when the text before this line ends in "?" or ":" ("Which one?\nA.")."""
+_PLAIN_ANSWER = re.compile(r"[ \t]*(?:[0-9]{1,3}|[A-Za-z])\.")
+
+
+def _answers_a_question(text: str, line_start: int, end: int, text_end: int) -> bool:
+    """True for a plain final "A." or "42." right after a line ending in "?" or ":".
+
+    Only when nothing follows it, so a cut-off list item ("Steps:\nII. Battery and")
+    is still trimmed.
+    """
+    if end != text_end or not _PLAIN_ANSWER.fullmatch(text, line_start, end):
+        return False
     index = line_start - 1
     while index >= 0 and text[index].isspace():
         index -= 1
@@ -64,6 +73,7 @@ def complete_sentences(text: str) -> str:
     previous = 0
     line_start = 0
     line_is_text = False
+    text_end = len(text.rstrip())
     for match in _SENTENCE_END.finditer(text):
         newline = text.rfind("\n", previous, match.start())
         if newline >= 0:
@@ -75,7 +85,8 @@ def complete_sentences(text: str) -> str:
         # can never become a marker line again, which keeps this linear.
         if not line_is_text:
             if (_BARE_MARKER.fullmatch(text, line_start, match.end())
-                    and not _answers_a_question(text, line_start)):
+                    and not _answers_a_question(
+                        text, line_start, match.end(), text_end)):
                 continue
             line_is_text = True
         last = match.end()
