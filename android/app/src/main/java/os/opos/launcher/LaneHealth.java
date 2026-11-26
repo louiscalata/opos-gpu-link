@@ -63,6 +63,8 @@ final class LaneHealth {
     private final Set<String> autoSpent = new HashSet<>();
     private Boolean lastCable;
     private long cableSinceMs;
+    private Boolean lastCompanion;
+    private long companionSinceMs;
 
     /** Errors that a second try can plausibly fix. Others (too long, low memory) are left alone. */
     static boolean transientError(String error) {
@@ -76,6 +78,19 @@ final class LaneHealth {
             cableSinceMs = nowMs;
         }
         lastCable = cableConnected;
+    }
+
+    /**
+     * Whether the computer's companion is talking to the phone right now (its status is fresh).
+     * After a replug it can spend a minute warming its model before it can take the paused
+     * answer back, so a paused PC lane counts its grace period from here, not from the cable.
+     * Null means unknown and keeps the cable-only clock.
+     */
+    void observeCompanion(Boolean companionLive, long nowMs) {
+        if (!java.util.Objects.equals(lastCompanion, companionLive)) {
+            companionSinceMs = nowMs;
+        }
+        lastCompanion = companionLive;
     }
 
     Verdict observe(String pane, String id, String state, String error, long size,
@@ -130,7 +145,14 @@ final class LaneHealth {
                     return new Verdict(quiet >= PAUSED_WITH_CABLE_MS ? Status.STUCK : Status.WORKING,
                             quiet >= PAUSED_WITH_CABLE_MS, false);
                 }
-                return stuckVerdict(cableQuiet, PAUSED_WITH_CABLE_MS, autoLeft);
+                if (Boolean.FALSE.equals(lastCompanion)) {
+                    // Cable back but the computer is still warming up: the paused answer will
+                    // resume from its saved text. A retry now would throw that text away.
+                    return new Verdict(Status.PAUSED, true, false);
+                }
+                long companionQuiet = lastCompanion == null ? cableQuiet
+                        : Math.min(cableQuiet, Math.max(0, nowMs - companionSinceMs));
+                return stuckVerdict(companionQuiet, PAUSED_WITH_CABLE_MS, autoLeft);
             case "queued":
             case "waiting":
                 if (!pc || !cableBack || !laneReady) return new Verdict(Status.WORKING, false, false);

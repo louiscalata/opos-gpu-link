@@ -3006,6 +3006,14 @@ public final class MainActivity extends Activity {
         }
     }
 
+    /** True while the paired computer's status is fresh, false when it went quiet, null if unpaired. */
+    private static Boolean companionLive(JSONObject data) {
+        JSONObject gpu = data == null ? null : data.optJSONObject("gpu");
+        JSONObject link = gpu == null ? null : gpu.optJSONObject("link");
+        JSONObject pc = link == null ? null : link.optJSONObject("pc");
+        return pc == null ? null : pc.optBoolean("live");
+    }
+
     private boolean gpuCanQueue(JSONObject gpu) {
         JSONObject link = gpu == null ? null : gpu.optJSONObject("link");
         return link != null && link.optJSONObject("pc") != null;
@@ -3142,6 +3150,7 @@ public final class MainActivity extends Activity {
     private void updateLaneRetry(JSONObject data) {
         long now = SystemClock.elapsedRealtime();
         laneHealth.observeCable(cableConnected, now);
+        laneHealth.observeCompanion(companionLive(data), now);
         Map<String, Boolean> ready = readyPanes(data);
         String autoPane = null;
         String autoQuestion = "";
