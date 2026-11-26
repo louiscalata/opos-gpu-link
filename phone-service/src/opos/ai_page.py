@@ -17,7 +17,7 @@ from collections import deque
 from copy import deepcopy
 from typing import Any
 
-from opos import ai_answers, ai_model_pool, appdoc, apps, assist, muse
+from opos import ai_answers, ai_model_pool, ai_stream_budget, appdoc, apps, assist, muse
 
 try:
     from opos import gpu_link_server
@@ -194,7 +194,9 @@ class PhoneWorker:
         pieces = 0
         try:
             options = {"opener": self._safe_open} if self.safe_seed is not None else {}
-            stream = muse.stream(route, question, cancel=self.cancelled, max_tokens=max_tokens, **options)
+            stream = muse.stream(
+                route, question, cancel=self.cancelled, max_tokens=max_tokens,
+                timeout=ai_stream_budget.stream_timeout(max_tokens), **options)
         except muse.MuseError:
             self._end(open_error)
             return
