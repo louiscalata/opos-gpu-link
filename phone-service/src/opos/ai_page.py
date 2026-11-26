@@ -490,7 +490,7 @@ class PageState:
                            (not gpu["where"] or _pc_display(gpu["where"]) == pc["label"])))
             pc_models = list((pc or {}).get("models") or [])
             visible = {item.get("pane") for item in pc_models}
-            pc_models.extend({"pane": pane, "id": "", "label": (answer["model"] or f"{computer_title(noun)} {pane}"),
+            pc_models.extend({"pane": pane, "id": "", "label": (answer["model"] or f"{computer_title(computer_noun(answer.get('where') or (pc or {}).get('label')))} {pane}"),
                               "maker": "", "live": False, "live_speed": None}
                              for pane, answer in extra.items() if answer is not None and pane not in visible)
             body = {
@@ -846,6 +846,8 @@ function nounOf(label){
  return 'PC';
 }
 function noun(){var l=current&&current.gpu&&current.gpu.link;return nounOf(l&&l.pc&&l.pc.label)}
+// A saved answer names the computer that wrote it (its where), not whichever one is paired now.
+function answerNoun(a){return a&&typeof a.where==='string'&&a.where.trim()&&a.where!=="on the PC's GPU"?nounOf(a.where):noun()}
 function Noun(){var n=noun();return n.charAt(0).toUpperCase()+n.slice(1)}
 function whereWords(w){return w==="on the PC's GPU"?"on the "+noun()+"'s GPU":w}
 var pane=new URLSearchParams(location.search).get('pane');
@@ -871,7 +873,7 @@ function errorWords(name,code){
 }
 function linkWords(link){
  if(!link)return 'GPU Link is off.';
- if(!link.pc)return link.enrol==='closed'?Noun()+' requests are closed.':'Waiting for the '+noun();
+ if(!link.pc)return link.enrol==='closed'?'Computer requests are closed.':'Waiting for the computer';
  if(link.pc.main_live===false||!link.pc.live)return 'Waiting for the '+noun();
  if(link.pc.state==='error')return 'The '+noun()+' could not run the model.';
  if(link.pc.state==='copying')return 'Copying the model';
@@ -889,10 +891,10 @@ function words(name,p){
  if(name==='gpu'&&p.link&&p.link.storage==='error')return storageWords(p.link);
  var a=p.answer;
  if(a){
-  if(a.state==='failed')return errorWords(name,a.error)||(name==='gpu'?'The '+noun()+' could not finish the answer.':'The phone could not finish the answer.');
+  if(a.state==='failed')return errorWords(name,a.error)||(name==='gpu'?'The '+answerNoun(a)+' could not finish the answer.':'The phone could not finish the answer.');
   if(a.state==='done')return a.finish==='length'?'Done: the model reached its answer limit.':'Done';
   if(a.state==='cancelled')return 'Stopped';
-  if(a.state==='paused')return name==='gpu'?'Paused. It continues when the '+noun()+' is ready.':'Paused';
+  if(a.state==='paused')return name==='gpu'?'Paused. It continues when the '+answerNoun(a)+' is ready.':'Paused';
   if(a.state==='queued')return 'Queued behind an earlier answer';
   if(a.state==='loading')return 'Loading the model';
   if(a.state==='answering')return 'Answering';
@@ -964,10 +966,10 @@ function drawPCModels(s){
   }
   var a=m.answer,open=!!(a&&OPEN.indexOf(a.state)>=0),state='Waiting for the '+noun();
   if(a){
-   if(a.state==='failed')state=m.kind==='pc'?'The '+noun()+' could not finish the answer.':'The phone model could not finish the answer.';
+   if(a.state==='failed')state=m.kind==='pc'?'The '+answerNoun(a)+' could not finish the answer.':'The phone model could not finish the answer.';
    else if(a.state==='done')state=a.finish==='length'?'Done: the model reached its answer limit.':'Done';
    else if(a.state==='cancelled')state='Stopped';
-   else if(a.state==='paused')state=m.kind==='pc'?'Paused. It continues when the '+noun()+' is ready.':'Paused';
+   else if(a.state==='paused')state=m.kind==='pc'?'Paused. It continues when the '+answerNoun(a)+' is ready.':'Paused';
    else if(a.state==='queued')state='Queued behind an earlier answer';
    else if(a.state==='loading')state=m.kind==='pc'?'Warming model':'Loading the model';
    else if(a.state==='answering')state='Answering';
@@ -1021,7 +1023,7 @@ function draw(s){
   '. This '+nounOf(pending.label)+' will see what you ask in AI mode and will keep a copy of the model file.':'');
  text('gpu-title',Noun()+' GPU');text('gpu-disclosure','This '+noun()+' can see what you ask here.');
  G('gpu-answer').setAttribute('aria-label',Noun()+' GPU answer');
- text('reopen','Allow '+noun()+' requests again');text('forget','Forget this '+noun());
+ text('forget','Forget this '+noun());
  var nextCode=pending?pending.code:null,active=document.activeElement;
  if(nextCode&&nextCode!==pendingCode&&!G('thumb').hidden&&!(active&&/^(INPUT|TEXTAREA)$/.test(active.tagName)))
   G('deny').focus({preventScroll:true});

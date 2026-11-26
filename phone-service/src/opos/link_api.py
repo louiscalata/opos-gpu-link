@@ -297,7 +297,7 @@ class LinkApi:
                                                and (not gpu["where"] or gpu["where"] == pc["label"]))))
             pc_models = list((pc or {}).get("models") or [])
             shown = {item.get("pane") for item in pc_models}
-            pc_models.extend({"pane": pane, "id": "", "label": answer["model"] or f"{computer_title(computer_noun((pc or {}).get('label')))} {pane}",
+            pc_models.extend({"pane": pane, "id": "", "label": answer["model"] or f"{computer_title(computer_noun(answer.get('where') or (pc or {}).get('label')))} {pane}",
                               "maker": "",
                               "live": False, "live_speed": None}
                              for pane, answer in extra.items() if answer is not None and pane not in shown)

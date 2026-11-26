@@ -118,7 +118,7 @@ class ScreenWordsTest(NoNetwork):
 NODE_HARNESS = r"""
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm');
-const [script,snapshotsPath]=process.argv.slice(2).map(p=>fs.readFileSync(p,'utf8'));
+const [script,snapshotsPath,search]=process.argv.slice(2).map(p=>fs.readFileSync(p,'utf8'));
 const snapshots=JSON.parse(snapshotsPath);
 const nodes=new Map();
 class El{constructor(id){this.id=id;this.text='';this.hidden=false;this.dataset={};this.attrs={};this.children=[];this.parentNode=null;this.value='';this.style={};this.classList={toggle(){},add(){},remove(){}}}
@@ -130,7 +130,9 @@ class El{constructor(id){this.id=id;this.text='';this.hidden=false;this.dataset=
 const get=id=>{if(!nodes.has(id))nodes.set(id,new El(id));return nodes.get(id)};
 const document={hidden:false,documentElement:new El('html'),getElementById:get,createElement:t=>new El(''),
  activeElement:null,querySelector:()=>({content:'fixture-token'}),addEventListener(){}};
-const ctx=vm.createContext({document,location:{search:''},URLSearchParams,AbortController,
+const refuse=name=>function(){throw new Error(name+' is not allowed in tests')};
+const ctx=vm.createContext({document,location:{search},URLSearchParams,AbortController,
+ WebSocket:refuse('WebSocket'),EventSource:refuse('EventSource'),XMLHttpRequest:refuse('XMLHttpRequest'),
  performance:{now:()=>0},setTimeout:()=>0,clearTimeout(){},console,
  fetch:()=>new Promise(()=>{})});  // never answers: no request leaves this process
 vm.runInContext(script,ctx);
@@ -158,12 +160,12 @@ def _pc(label):
 
 @unittest.skipIf(shutil.which("node") is None, "needs node to run the page script")
 class PageScriptTest(NoNetwork):
-    def run_page(self, snapshots):
+    def run_page(self, snapshots, search=""):
         script = _constants(PAGE, "_SCRIPT")[0][1]
         with tempfile.TemporaryDirectory() as tmp:
             paths = []
             for name, value in (("harness.js", NODE_HARNESS), ("page.js", script),
-                                ("snapshots.json", json.dumps(snapshots))):
+                                ("snapshots.json", json.dumps(snapshots)), ("search.txt", search)):
                 path = Path(tmp) / name
                 path.write_text(value, encoding="utf-8")
                 paths.append(str(path))
@@ -178,7 +180,7 @@ class PageScriptTest(NoNetwork):
         self.assertEqual(shown["disclosure"], "This MacBook can see what you ask here.")
         self.assertEqual(shown["aria"], "MacBook GPU answer")
         self.assertEqual(shown["forget"], "Forget this MacBook")
-        self.assertEqual(shown["reopen"], "Allow MacBook requests again")
+        self.assertEqual(shown["reopen"], "")  # the static "Allow computer requests again" is left alone
         self.assertIn("Waiting for the MacBook", shown["speed"])
         self.assertNotIn("PC", json.dumps(shown))
 
@@ -199,9 +201,28 @@ class PageScriptTest(NoNetwork):
         self.assertEqual(shown["title"], "PC GPU")
         self.assertIn("Waiting for the PC", shown["speed"])
 
-    def test_noun_follows_a_new_pairing(self):
-        first, second = self.run_page([_snapshot(_pc("RTX 5080 PC")), _snapshot(_pc("M5 Pro MacBook Pro"))])
-        self.assertEqual((first["title"], second["title"]), ("PC GPU", "MacBook GPU"))
+    def test_noun_follows_pairing_changes(self):
+        shown = self.run_page([_snapshot(_pc("RTX 5080 PC")), _snapshot(_pc("M5 Pro MacBook Pro")), _snapshot()])
+        keys = ("title", "disclosure", "forget", "aria")
+        self.assertEqual([tuple(s[k] for k in keys) for s in shown], [
+            ("PC GPU", "This PC can see what you ask here.", "Forget this PC", "PC GPU answer"),
+            ("MacBook GPU", "This MacBook can see what you ask here.", "Forget this MacBook", "MacBook GPU answer"),
+            ("Computer GPU", "This computer can see what you ask here.", "Forget this computer", "Computer GPU answer"),
+        ])
+        self.assertIn("Waiting for the computer", shown[2]["speed"])
+
+    def test_closed_pairing_and_gpu_only_page(self):
+        snap = _snapshot()
+        snap["gpu"]["link"]["enrol"] = "closed"
+        self.assertIn("Computer requests are closed.", self.run_page([snap])[0]["speed"])
+        shown = self.run_page([_snapshot(_pc("M5 Pro MacBook Pro"))], "?pane=gpu")[0]
+        self.assertEqual(shown["ask"], "Ask MacBook GPU models")
+
+    def test_a_saved_answer_names_the_computer_that_wrote_it(self):
+        snap = _snapshot(_pc("M5 Pro MacBook Pro"))
+        snap["gpu"]["answer"] = {"id": "a1", "state": "failed", "error": "", "where": "RTX 5080 PC", "model": "m",
+                                 "question": "q", "text": "", "finish": None}
+        self.assertIn("The PC could not finish the answer.", self.run_page([snap])[0]["speed"])
 
     def test_pending_pairing_uses_the_requesting_computers_noun(self):
         shown = self.run_page([_snapshot(None, {"label": "M5 Pro MacBook Pro", "code": "123456"})])[0]
