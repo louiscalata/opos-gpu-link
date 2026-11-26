@@ -31,6 +31,11 @@ public final class PhoneBylineTest {
         equal("Llama 3.2 3B · Meta · on this phone",
                 PhoneByline.forCard("Meta Llama 3.2 3B", "", true, false, "on this phone"));
         equal("AceInstruct 1.5B · NVIDIA", PhoneByline.modelAndMaker("nvidia   AceInstruct 1.5B"));
+        // Whitespace variants (gpt-5.4-mini round 2).
+        equal("on this phone",
+                PhoneByline.forCard(" Meta Llama 3.2 1B ", "Meta Llama 3.2 1B", true, false, "on this phone"));
+        equal("Llama 3.2 3B · Meta · on this phone",
+                PhoneByline.forCard("Meta Llama 3.2 3B", "   ", true, true, "on this phone"));
         equal("Qwen 2.5 1.5B", PhoneByline.modelAndMaker("Qwen 2.5 1.5B"));
         equal("on this phone", PhoneByline.text("   ", "on this phone"));
         equal("Llama 3.2 1B · Meta · on this computer", PhoneByline.text("Meta Llama 3.2 1B", "on this computer"));
