@@ -1041,8 +1041,9 @@ class CompanionTests(unittest.TestCase):
                 self.assertTrue(entered.wait(2))
                 self.assertEqual(app.lines[-1], "Warming model")
                 fake.forwards.clear()  # adb dropped the forward; the cable is still in
+                done = app.preflight_done
                 app.tick()
-                self.assertTrue(app.preflight_done.wait(2))
+                self.assertTrue(done.wait(2))
                 app.tick()
                 self.assertEqual(app.lines[-1], "Phone link interrupted while warming; reconnecting")
                 self.assertFalse(any("one-token" in line for line in app.lines))
@@ -1057,6 +1058,40 @@ class CompanionTests(unittest.TestCase):
                 self.assertEqual(len(requests), 2)
                 self.assertTrue(app.online)
                 self.assertEqual(app.starts, 1)
+                self.assertEqual(app.preflight_link_losses, 0)
+
+    def test_forward_that_keeps_vanishing_during_warmup_backs_off(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fake = FakeAdb()
+            fake.state = "device"
+            fake.assigned = [18767, 18768, 18769, 18770]
+            now = [100.0]
+            app = app_fixture(directory, fake, now)
+            app.keys.save_first_allow(bytes(range(32)))
+
+            def preflight(server, model, cancelled):
+                while not cancelled():
+                    time.sleep(0.01)
+                return False
+
+            with patch.object(link, "PC", FakePC), \
+                    patch.object(link, "authenticated_idle", return_value=True), \
+                    patch.object(link, "model_server_listening", return_value=True), \
+                    patch.object(link, "model_server_preflight", side_effect=preflight):
+                delays = []
+                for _ in range(3):
+                    app.tick()  # connect and start warming
+                    self.assertEqual(app.lines[-1], "Warming model")
+                    fake.forwards.clear()
+                    done = app.preflight_done
+                    app.tick()
+                    self.assertTrue(done.wait(2))
+                    app.tick()
+                    self.assertEqual(app.lines[-1], "Phone link interrupted while warming; reconnecting")
+                    delays.append(app.next_try - now[0])
+                    now[0] = app.next_try
+                self.assertEqual(delays, [1, 3, 6])
+                self.assertFalse(any("one-token" in line for line in app.lines))
 
     def test_warm_model_with_missing_forward_reports_link_not_model(self):
         with tempfile.TemporaryDirectory() as directory:

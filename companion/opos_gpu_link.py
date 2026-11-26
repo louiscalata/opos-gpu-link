@@ -1199,7 +1199,12 @@ class Companion:
             self.session_pc = None
             self.bridge.remove_own_forward()
             self.status.set("Phone link interrupted while warming; reconnecting")
-            self.next_try = self.clock() + 1
+            # The first loss retries at once; a forward that keeps vanishing backs off.
+            self.preflight_link_losses = getattr(self, "preflight_link_losses", 0) + 1
+            if self.preflight_link_losses == 1:
+                self.next_try = self.clock() + 1
+            else:
+                self._schedule_retry()
             return
         if success:
             self._start_worker(self.session_pc)
@@ -1207,6 +1212,7 @@ class Companion:
                 self.online = True
                 self.detached_at = None
                 self.retry_delay = 3
+                self.preflight_link_losses = 0
                 self.status.set("Phone connected; waiting for requests"
                                 + ("; use phone notification to open"
                                    if self.session_launch_failed else ""))
