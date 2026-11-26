@@ -283,6 +283,11 @@ class AnswerStore:
             if record is not None:
                 if record["answer"]["state"] == "waiting":
                     record["answer"]["state"] = "queued"
+                ended = record["answer"].get("ended_ms", None)
+                if "ended_ms" in record["answer"] and (
+                    record["answer"]["state"] not in FINAL or not _whole(ended)
+                ):
+                    del record["answer"]["ended_ms"]
                 loaded.append(record)
         loaded.sort(key=lambda record: (record["seq"], record["answer"]["id"]))
         self._records = {record["answer"]["id"]: record for record in loaded}
@@ -418,6 +423,16 @@ class AnswerStore:
 
     def _save(self, record: dict) -> dict:
         ident = record["answer"]["id"]
+        answer = record["answer"]
+        # Wall-clock finish, stamped on the move into a final state only: the
+        # app may not be polling (Home, cover screen, screen off) when a lane
+        # ends, so it cannot time it alone. Older final records stay unstamped.
+        previous = self._records.get(ident)
+        was_final = previous is not None and previous["answer"]["state"] in FINAL
+        if answer["state"] not in FINAL:
+            answer.pop("ended_ms", None)
+        elif not was_final:
+            answer["ended_ms"] = max(0, int(time.time() * 1000))
         if record != self._records.get(ident):
             record["answer"]["rev"] = self._rev + 1
             self._store.write_json(_name(ident), record, durable=True)
