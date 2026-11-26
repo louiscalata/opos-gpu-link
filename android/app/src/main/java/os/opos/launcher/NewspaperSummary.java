@@ -153,7 +153,7 @@ final class NewspaperSummary {
             if (!lane.state.startsWith("Done")) allDone = false;
             if (lane.elapsedMs != null && lane.state.startsWith("Done")) {
                 if (fastest == null || lane.elapsedMs < fastest.elapsedMs) fastest = lane;
-                if (slowest == null || lane.elapsedMs > slowest.elapsedMs) slowest = lane;
+                if (slowest == null || lane.elapsedMs >= slowest.elapsedMs) slowest = lane;
             }
             if (lane.finishedAtMs != null && lane.state.startsWith("Done")) {
                 if (first == null || lane.finishedAtMs < first.finishedAtMs) {

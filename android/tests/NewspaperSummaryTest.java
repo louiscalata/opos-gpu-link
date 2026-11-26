@@ -105,6 +105,10 @@ public final class NewspaperSummaryTest {
         contains(tie, "PC and Phone finished together");
         check(!tie.contains("finished first by 0.0 s"));
         contains(tie, "Fastest: PC (2.0 s) · Slowest: Phone (2.0 s)");
+        String exact = NewspaperSummary.report(Arrays.asList(
+                new NewspaperSummary.Lane("PC", "a", "Done · 2.0 s", 2000L, 2000L, true),
+                new NewspaperSummary.Lane("Phone", "b", "Done · 2.0 s", 2000L, 2000L, true)));
+        contains(exact, "Fastest: PC (2.0 s) · Slowest: Phone (2.0 s)");
         System.out.println("NewspaperSummaryTest: OK");
     }
 

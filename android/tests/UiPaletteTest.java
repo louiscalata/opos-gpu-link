@@ -60,6 +60,7 @@ public final class UiPaletteTest {
         equal(UiPalette.Tone.OK, UiPalette.tone("Connected"));
         equal(UiPalette.Tone.OK, UiPalette.tone("All lanes finished"));
         equal(UiPalette.Tone.OK, UiPalette.tone("Phone finished first by 3.2 s"));
+        equal(UiPalette.Tone.OK, UiPalette.tone("PC and Phone finished together"));
         equal(UiPalette.Tone.NEUTRAL, UiPalette.tone("Getting the PC GPU ready…"));
         equal(UiPalette.Tone.NEUTRAL, UiPalette.tone("Streaming…"));
         equal(UiPalette.Tone.NEUTRAL, UiPalette.tone("Retry"));
