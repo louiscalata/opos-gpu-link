@@ -25,14 +25,25 @@ except ImportError:
     gpu_link_server = None
 
 try:
+    from opos.gpu_link import computer_noun, computer_title
     from opos.gpu_link import display_label as _pc_display
 except ImportError:
     def _pc_display(label: Any) -> Any:
         return label
 
+    def computer_noun(pc_label: Any) -> str:
+        return "computer"
+
+    def computer_title(noun: str) -> str:
+        return noun[:1].upper() + noun[1:] if noun else "Computer"
+
+# The placeholder place for a computer lane. The snapshot keeps it exactly, because the Android app
+# matches it (PaneKeys.shownWhere); the page script words it for the paired computer.
+PC_WHERE = "on the PC's GPU"
+
 
 def _shown_answer(answer: dict | None) -> dict | None:
-    """Map a stored PC answer's saved pairing label to its screen name, without storing it."""
+    """Map a stored computer answer's saved pairing label to its screen name, without storing it."""
     if not answer or not answer.get("where"):
         return answer
     shown = _pc_display(answer["where"])
@@ -54,7 +65,7 @@ PRESETS = tuple(
         ("Why the sky is blue", "A welcoming garden", "A long guide (20 sections)"), QUESTIONS, strict=True
     )
 )
-DISCLOSURE = "Compare answers here and on an enrolled PC. This PC can see what you ask here."
+DISCLOSURE = "Compare answers here and on a paired computer. That computer can see what you ask here."
 APPEND_INTERVAL = 0.25
 POOL_START_TIMEOUT = 90.0
 RESERVED_PORTS = {8080, 8081, 8765, 8767, 1234, 1235, 1236, 11434, 11435, 4173}
@@ -473,12 +484,13 @@ class PageState:
             # Reuse the app's model-details text. Never relabel a finished answer
             # or one belonging to an earlier PC with this PC's active model.
             lead_label = (pc or {}).get("lead_label")
+            noun = computer_noun((pc or {}).get("label"))
             same_pc = bool(pc and (not gpu or
                            gpu["state"] not in ai_answers.FINAL and
                            (not gpu["where"] or _pc_display(gpu["where"]) == pc["label"])))
             pc_models = list((pc or {}).get("models") or [])
             visible = {item.get("pane") for item in pc_models}
-            pc_models.extend({"pane": pane, "id": "", "label": (answer["model"] or f"PC {pane}"),
+            pc_models.extend({"pane": pane, "id": "", "label": (answer["model"] or f"{computer_title(noun)} {pane}"),
                               "maker": "", "live": False, "live_speed": None}
                              for pane, answer in extra.items() if answer is not None and pane not in visible)
             body = {
@@ -496,7 +508,7 @@ class PageState:
                 "gpu": {
                     **({"lead_label": lead_label} if lead_label is not None else {}),
                     "model": (lead_label if same_pc else None) or (gpu["model"] if gpu else "") or (gpu_model["name"] if gpu_model else ""),
-                    "where": _pc_display((gpu["where"] if gpu else "") or "on the PC's GPU"),
+                    "where": _pc_display((gpu["where"] if gpu else "") or PC_WHERE),
                     "ready": bool(
                         gpu_model
                         and gpu_model["state"] == "ready"
@@ -536,7 +548,7 @@ class PageState:
                         "label": item["label"],
                         "maker": item["maker"],
                         "model": (extra[item["pane"]]["model"] if extra[item["pane"]] else "") or item["label"],
-                        "where": "on the PC's GPU",
+                        "where": PC_WHERE,
                         "ready": bool(pc and pc["live"] and item["live"] and not link.get("storage_notice")),
                         "answer": _shown_answer(extra[item["pane"]]),
                         "live_speed": item.get("live_speed") if extra[item["pane"]] and
@@ -713,12 +725,12 @@ def post(data: Any) -> tuple[int, dict]:
                 elif action == "forget":
                     if link.forget(data.get("expect")) is False:
                         raise ValueError(
-                            "There is no PC request to change."
+                            "There is no computer request to change."
                             if link.snapshot()["pc"] is None
-                            else "That is a different PC now."
+                            else "That is a different computer now."
                         )
                 elif getattr(link, action)() is False:
-                    raise ValueError("There is no PC request to change.")
+                    raise ValueError("There is no computer request to change.")
             else:
                 raise ValueError("Choose an AI mode action.")
             return 200, snapshot()
@@ -804,20 +816,20 @@ _LIST = """
 """
 _THUMB = """
 <section id="gpu-pane" class="pane" aria-labelledby="gpu-title">
-<h2 id="gpu-title">PC GPU</h2>
+<h2 id="gpu-title">Computer GPU</h2>
 <p id="gpu-model" class="model" hidden></p>
 <p id="gpu-speed" class="speed" role="status">Waiting for a snapshot</p>
 <p id="gpu-state" class="details" hidden></p>
 <p id="gpu-cable" role="status" hidden></p>
-<p id="gpu-disclosure">This PC can see what you ask here.</p>
-<div id="gpu-answer" class="answer" tabindex="0" role="region" aria-label="PC GPU answer"></div>
+<p id="gpu-disclosure">This computer can see what you ask here.</p>
+<div id="gpu-answer" class="answer" tabindex="0" role="region" aria-label="Computer GPU answer"></div>
 <button id="gpu-stop" class="stop" type="button" hidden>Stop GPU answer</button>
 <div id="link-controls">
 <div id="enrol" hidden><p id="enrol-text"></p>
 <button id="deny" type="button" class="main">Not now</button>
 <button id="allow" type="button">Allow</button></div>
-<button id="reopen" type="button" hidden>Allow PC requests again</button>
-<button id="forget" type="button" hidden>Forget this PC</button>
+<button id="reopen" type="button" hidden>Allow computer requests again</button>
+<button id="forget" type="button" hidden>Forget this computer</button>
 </div>
 </section>
 <div id="pc-extra" aria-label="Additional model lanes"></div>
@@ -825,6 +837,17 @@ _THUMB = """
 _SCRIPT = r"""
 function G(id){return document.getElementById(id)}
 function text(id,value){var e=G(id);if(e.textContent!==value)e.textContent=value}
+// The paired computer's noun from its display name, as the app and gpu_link.computer_noun name it:
+// "MacBook" or "Mac" for a Mac, "PC" for another paired computer, else "computer".
+function nounOf(label){
+ if(typeof label!=='string'||!label.trim())return 'computer';
+ if(/\b(?:MacBook|MBP(?![A-Za-z]))/i.test(label))return 'MacBook';
+ if(/\b(?:iMac|Mac(?:intosh|mini|Studio|Pro)?)(?![A-Za-z])/i.test(label))return 'Mac';
+ return 'PC';
+}
+function noun(){var l=current&&current.gpu&&current.gpu.link;return nounOf(l&&l.pc&&l.pc.label)}
+function Noun(){var n=noun();return n.charAt(0).toUpperCase()+n.slice(1)}
+function whereWords(w){return w==="on the PC's GPU"?"on the "+noun()+"'s GPU":w}
 var pane=new URLSearchParams(location.search).get('pane');
 if(pane!=='phone'&&pane!=='gpu')pane=null;
 if(pane){document.documentElement.setAttribute('data-pane',pane);G(pane==='phone'?'thumb':'list').hidden=true}
@@ -848,14 +871,14 @@ function errorWords(name,code){
 }
 function linkWords(link){
  if(!link)return 'GPU Link is off.';
- if(!link.pc)return link.enrol==='closed'?'PC requests are closed.':'Waiting for the PC';
- if(link.pc.main_live===false||!link.pc.live)return 'Waiting for the PC';
- if(link.pc.state==='error')return 'The PC could not run the model.';
+ if(!link.pc)return link.enrol==='closed'?Noun()+' requests are closed.':'Waiting for the '+noun();
+ if(link.pc.main_live===false||!link.pc.live)return 'Waiting for the '+noun();
+ if(link.pc.state==='error')return 'The '+noun()+' could not run the model.';
  if(link.pc.state==='copying')return 'Copying the model';
  if(link.pc.state==='loading')return 'Loading the model';
  if(link.pc.state==='stopping')return 'Stopping';
- if(link.pc.state==='idle')return 'The PC is not ready yet.';
- if(link.pc.state==='busy')return 'The PC is busy.';
+ if(link.pc.state==='idle')return 'The '+noun()+' is not ready yet.';
+ if(link.pc.state==='busy')return 'The '+noun()+' is busy.';
  if(link.model.state==='checking')return 'Checking the model file';
  if(link.model.state==='error')return 'The model file could not be read.';
  if(link.model.state==='none')return 'No GPU model file is available.';
@@ -866,16 +889,16 @@ function words(name,p){
  if(name==='gpu'&&p.link&&p.link.storage==='error')return storageWords(p.link);
  var a=p.answer;
  if(a){
-  if(a.state==='failed')return errorWords(name,a.error)||(name==='gpu'?'The PC could not finish the answer.':'The phone could not finish the answer.');
+  if(a.state==='failed')return errorWords(name,a.error)||(name==='gpu'?'The '+noun()+' could not finish the answer.':'The phone could not finish the answer.');
   if(a.state==='done')return a.finish==='length'?'Done: the model reached its answer limit.':'Done';
   if(a.state==='cancelled')return 'Stopped';
-  if(a.state==='paused')return name==='gpu'?'Paused. It continues when the PC is ready.':'Paused';
+  if(a.state==='paused')return name==='gpu'?'Paused. It continues when the '+noun()+' is ready.':'Paused';
   if(a.state==='queued')return 'Queued behind an earlier answer';
   if(a.state==='loading')return 'Loading the model';
   if(a.state==='answering')return 'Answering';
   if(name==='phone')return 'Waiting for the phone model';
   if(name!=='gpu')return 'Waiting for its turn';
-  return linkWords(p.link)==='Ready'?'Waiting for the PC':linkWords(p.link);
+  return linkWords(p.link)==='Ready'?'Waiting for the '+noun():linkWords(p.link);
  }
  return name==='gpu'?linkWords(p.link):(p.ready?'Ready':'No model is available on this phone.');
 }
@@ -891,20 +914,20 @@ function cableWords(p){
  var stuck=!!pc&&(pc.state==='stopping'||pc.state==='error');
  if(state==='')return '';
  if(state==='out'){
-  if(!open)return 'Not connected. Check the cable and the PC.';
-  return stuck?'Not connected. The answer is saved.':'Not connected. The answer is saved and continues when the PC is ready again.';
+  if(!open)return 'Not connected. Check the cable and the '+noun()+'.';
+  return stuck?'Not connected. The answer is saved.':'Not connected. The answer is saved and continues when the '+noun()+' is ready again.';
  }
- if(state==='wait')return 'Copying the model to the PC. Wait before unplugging.';
+ if(state==='wait')return 'Copying the model to the '+noun()+'. Wait before unplugging.';
  if(!open)return 'Connected. Safe to unplug.';
  if(stuck)return 'Connected. Safe to unplug: the answer is saved.';
- return 'Connected. Safe to unplug: the answer is saved and continues when the PC is ready again.';
+ return 'Connected. Safe to unplug: the answer is saved and continues when the '+noun()+' is ready again.';
 }
 function drawPane(name,p){
  var off=name==='gpu'&&!p.link,a=off?null:p.answer,isOpen=!!(a&&OPEN.indexOf(a.state)>=0);
  var pc=name==='gpu'&&p.link&&p.link.pc;
  var final=!!a&&['done','failed','cancelled'].indexOf(a.state)>=0;
  var here=pc&&(!a||(a.where?a.where===pc.label:!final));
- var where=here?[pc.label,pc.gpu&&pc.gpu.name].filter(Boolean).join(' · '):p.where;
+ var where=here?[pc.label,pc.gpu&&pc.gpu.name].filter(Boolean).join(' · '):whereWords(p.where);
  line(name+'-model',off?'':[p.model,where].filter(Boolean).join(' · '));
  var state=off?'GPU Link is off.':words(name,p);
  if(pc&&pc.state==='copying'&&pc.total>0&&pc.copied!=null&&state==='Copying the model')
@@ -939,18 +962,18 @@ function drawPCModels(s){
     card.appendChild(e)});
    root.appendChild(card);
   }
-  var a=m.answer,open=!!(a&&OPEN.indexOf(a.state)>=0),state='Waiting for the PC';
+  var a=m.answer,open=!!(a&&OPEN.indexOf(a.state)>=0),state='Waiting for the '+noun();
   if(a){
-   if(a.state==='failed')state=m.kind==='pc'?'The PC could not finish the answer.':'The phone model could not finish the answer.';
+   if(a.state==='failed')state=m.kind==='pc'?'The '+noun()+' could not finish the answer.':'The phone model could not finish the answer.';
    else if(a.state==='done')state=a.finish==='length'?'Done: the model reached its answer limit.':'Done';
    else if(a.state==='cancelled')state='Stopped';
-   else if(a.state==='paused')state=m.kind==='pc'?'Paused. It continues when the PC is ready.':'Paused';
+   else if(a.state==='paused')state=m.kind==='pc'?'Paused. It continues when the '+noun()+' is ready.':'Paused';
    else if(a.state==='queued')state='Queued behind an earlier answer';
    else if(a.state==='loading')state=m.kind==='pc'?'Warming model':'Loading the model';
    else if(a.state==='answering')state='Answering';
   }else if(m.ready)state='Ready';
   if(!a&&!m.ready&&m.kind==='phone')state='No model is available on this phone.';
-  text(id+'-title',m.label||id);text(id+'-model',[m.model,m.maker,m.where].filter(Boolean).join(' · '));
+  text(id+'-title',m.label||id);text(id+'-model',[m.model,m.maker,whereWords(m.where)].filter(Boolean).join(' · '));
   text(id+'-speed',a&&a.tps!=null?a.tps+' tokens per second':m.live_speed!=null&&a&&a.state==='answering'?m.live_speed+' tokens per second':state);
   line(id+'-state',a&&a.tps!=null?state:'');
   var box=G(id+'-answer'),value=a?a.text:'';
@@ -974,7 +997,7 @@ function noticeStands(){return targets().indexOf('gpu')>=0&&!!current.gpu.link.s
 function askingBusy(){return answering()||noticeStands()}
 function buttons(){
  var disabled=!current||!targets().length||askingBusy();G('ask').disabled=disabled;
- text('ask',pane==='gpu'?'Ask PC GPU models':pane==='phone'||!current.gpu.link?'Ask the phone model':'Ask all ready models');
+ text('ask',pane==='gpu'?'Ask '+noun()+' GPU models':pane==='phone'||!current.gpu.link?'Ask the phone model':'Ask all ready models');
  Array.from(G('presets').children).forEach(function(b){b.disabled=disabled});
 }
 function draw(s){
@@ -995,7 +1018,10 @@ function draw(s){
  var link=s.gpu.link,pc=link&&link.pc,pending=link&&link.pending;
  G('enrol').hidden=!pending;G('reopen').hidden=!(link&&link.enrol==='closed');G('forget').hidden=!pc;
  text('enrol-text',pending?'Use the GPU of '+pending.label+'? Code '+pending.code.slice(0,3)+' '+pending.code.slice(3)+
-  '. This PC will see what you ask in AI mode and will keep a copy of the model file.':'');
+  '. This '+nounOf(pending.label)+' will see what you ask in AI mode and will keep a copy of the model file.':'');
+ text('gpu-title',Noun()+' GPU');text('gpu-disclosure','This '+noun()+' can see what you ask here.');
+ G('gpu-answer').setAttribute('aria-label',Noun()+' GPU answer');
+ text('reopen','Allow '+noun()+' requests again');text('forget','Forget this '+noun());
  var nextCode=pending?pending.code:null,active=document.activeElement;
  if(nextCode&&nextCode!==pendingCode&&!G('thumb').hidden&&!(active&&/^(INPUT|TEXTAREA)$/.test(active.tagName)))
   G('deny').focus({preventScroll:true});
@@ -1062,8 +1088,8 @@ APP = apps.register(
         "/ai",
         DISCLOSURE,
         "yes, with a local model",
-        "questions to the enrolled PC when the GPU pane is used",
-        "phone model and optional PC GPU",
+        "questions to the paired computer when the GPU pane is used",
+        "phone model and optional computer GPU",
         "real",
         "ai",
         "OPTIONAL",

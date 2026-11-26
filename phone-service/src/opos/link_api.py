@@ -4,14 +4,14 @@
 This is the GPU Link part of the phone service on its own. It serves:
 
 - ``GET /ai``: a tiny page whose ``<meta name="opos-token">`` carries the session token.
-- ``GET /api/ai``: the snapshot of the phone, GPU and extra PC lanes (``X-OPOS-Token`` required).
+- ``GET /api/ai``: the snapshot of the phone, GPU and extra computer lanes (``X-OPOS-Token`` required).
 - ``POST /api/ai``: ``ask``, ``cancel``, ``retry``, ``allow``, ``deny``, ``reopen`` and ``forget``
   (JSON body, loopback ``Origin``, ``X-OPOS-Token``).
 
-PC lanes are answered by the GPU Link listener in ``gpu_link_server``. The phone lane is optional: pass
+Computer lanes are answered by the GPU Link listener in ``gpu_link_server``. The phone lane is optional: pass
 an OpenAI-compatible chat-completions server on this phone's loopback (for example llama.cpp's
 ``llama-server``) and its answers stream into the same store; without one the phone lane reports
-not ready and asks go to the PC lanes only.
+not ready and asks go to the computer lanes only.
 """
 
 from __future__ import annotations
@@ -29,6 +29,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 from opos import ai_answers, gpu_link_server, secure
+from opos.gpu_link import computer_noun, computer_title
 
 APPEND_INTERVAL = 0.25
 BODY_LIMIT = 6 * ai_answers.MAX_QUESTION_BYTES + 256
@@ -296,7 +297,8 @@ class LinkApi:
                                                and (not gpu["where"] or gpu["where"] == pc["label"]))))
             pc_models = list((pc or {}).get("models") or [])
             shown = {item.get("pane") for item in pc_models}
-            pc_models.extend({"pane": pane, "id": "", "label": answer["model"] or f"PC {pane}", "maker": "",
+            pc_models.extend({"pane": pane, "id": "", "label": answer["model"] or f"{computer_title(computer_noun((pc or {}).get('label')))} {pane}",
+                              "maker": "",
                               "live": False, "live_speed": None}
                              for pane, answer in extra.items() if answer is not None and pane not in shown)
             storage = bool(link and link.get("storage_notice"))
@@ -446,10 +448,10 @@ class LinkApi:
                 raise ValueError("That request is no longer waiting.")
         elif action == "forget":
             if link.forget(data.get("expect")) is False:
-                raise ValueError("There is no PC request to change." if link.snapshot()["pc"] is None
-                                 else "That is a different PC now.")
+                raise ValueError("There is no computer request to change." if link.snapshot()["pc"] is None
+                                 else "That is a different computer now.")
         elif link.reopen() is False:
-            raise ValueError("There is no PC request to change.")
+            raise ValueError("There is no computer request to change.")
 
     def post(self, data: Any) -> tuple[int, dict]:
         """Apply one action and return a fresh snapshot, or a short refusal sentence."""
