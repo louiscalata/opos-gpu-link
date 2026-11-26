@@ -134,11 +134,13 @@ public final class NewspaperSummaryTest {
         check(!NewspaperSummary.report(Arrays.asList(doneA, doneB,
                 new NewspaperSummary.Lane("Qwen", "", "Loading…", null, null, false, 0, false)))
                 .contains("so far"));
-        // All lanes stopped or failed: no crash.
-        NewspaperSummary.report(Arrays.asList(
+        // All lanes stopped or failed: no ranking lines, no crash.
+        String allEnded = NewspaperSummary.report(Arrays.asList(
                 new NewspaperSummary.Lane("Qwen", "", "Stopped", null, null, true, 0, false),
                 new NewspaperSummary.Lane("LFM", "", "Could not finish on this phone. Try again.",
                         null, null, true, 0, false)));
+        check(!allEnded.contains("so far") && !allEnded.contains("Fastest")
+                && !allEnded.contains("Finish order unavailable"));
         NewspaperSummary.Lane resumedPc = new NewspaperSummary.Lane("PC", "partial finished",
                 "Done · time unmeasured", null, null, true, 2, false, "unmeasured");
         equal("PC\u00a0unmeasured\nPhone\u00a01.0\u00a0s", NewspaperSummary.timing(
