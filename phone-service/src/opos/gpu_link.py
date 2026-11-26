@@ -32,6 +32,22 @@ from opos import ai_answers as answers_api
 from opos import gpu_link_proto as proto
 from opos.store import DurabilityError, Store
 
+
+def display_label(label: object) -> object:
+    """Screen name for a paired PC; the saved pairing label itself never changes.
+
+    OPOS_GPU_LINK_PC_DISPLAY maps saved labels to what the phone shows, for example
+    "M5 Pro PC=M5 Pro MacBook Pro" (pairs separated by ";"). Renaming the saved label
+    would force owner recovery, so only the screen text is mapped.
+    """
+    if not isinstance(label, str):
+        return label
+    for item in os.environ.get("OPOS_GPU_LINK_PC_DISPLAY", "").split(";"):
+        saved, sep, shown = item.partition("=")
+        if sep and saved.strip() == label and proto.valid_label(shown.strip()):
+            return shown.strip()
+    return label
+
 HISTORY_LIMIT = 64
 LINK_SECONDS = 2.5
 HASH_RETRY_SECONDS = 5.0
@@ -817,7 +833,7 @@ class LinkService:
             if self._pending is not None:
                 label, key, since = self._pending
                 pending = {
-                    "label": label,
+                    "label": display_label(label),
                     "code": proto.code(label, key),
                     "seconds": max(0, math.ceil(60 - (self._clock() - since))),
                 }
@@ -842,7 +858,7 @@ class LinkService:
                     models[-1]["live_speed"] = lane_status.get("tps")
                 pc.update(
                     id=proto.pc_id(self._pc[1]),
-                    label=self._pc[0],
+                    label=display_label(self._pc[0]),
                     main_live=self._last_status is not None and now - self._last_status < LINK_SECONDS,
                     live=(self._last_status is not None and now - self._last_status < LINK_SECONDS)
                     or any(now - when < LINK_SECONDS for when in self._extra_last_status.values()),
