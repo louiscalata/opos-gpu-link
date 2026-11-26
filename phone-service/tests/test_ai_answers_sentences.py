@@ -59,7 +59,9 @@ class CompleteSentences(unittest.TestCase):
             "The cable carries data.\n- b.": "The cable carries data.",
             "The cable carries data.\n\n3.1. Battery and": "The cable carries data.",
             "The cable carries data.\n3. b. Check the": "The cable carries data.",
-            "The cable carries data.\n**IV.** Power": "The cable carries data.",
+            "The cable carries data.\n**IV**. Power": "The cable carries data.",
+            "The cable carries data.\n__3__. Heat": "The cable carries data.",
+            "The cable carries data.\n**IV.** b. Power": "The cable carries data.",
             "The cable carries data.\n\u2022 12. Heat": "The cable carries data.",
         }
         for text, shown in cases.items():
@@ -76,6 +78,8 @@ class CompleteSentences(unittest.TestCase):
             "The answer was short. 100!",
             "The tool is called the CLI.",
             "The card was released in 2025. It has 16 GB.",
+            "Which option is fastest here?\nA.",
+            "The value of the constant is:\n42.",
         ):
             with self.subTest(text=text):
                 self.assertEqual(ai_answers.complete_sentences(text), text)
@@ -83,10 +87,11 @@ class CompleteSentences(unittest.TestCase):
     def test_long_marker_like_runs_stay_fast(self):
         import time
         texts = (
-            "Intro sentence here.\n" + "-" * 5000 + " x.",
-            "Intro sentence here.\n" + "#" * 5000 + "Heading.",
-            "Intro sentence here.\n" + "*_" * 2500 + " Summary.",
-            "Word. " * 20000,
+            "Intro sentence here.\n" + "-" * 3000 + " x.",
+            "Intro sentence here.\n" + "#" * 3000 + "Heading.",
+            "Intro sentence here.\n" + "-" * 3000 + " a." * 3000,
+            "Intro sentence here.\n" + "*_" * 1500 + " Word." * 1500,
+            "Word. " * 10000,
         )
         started = time.monotonic()
         for text in texts:

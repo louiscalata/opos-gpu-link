@@ -33,15 +33,23 @@ _SENTENCE_END = re.compile(r"(?<![ \n\t]\d)([.!?]+)([\"\'\u201d)\]]*)(?=\s+|$)")
 # "3.1.", "## 4.", "3. b.") is a heading that never arrived, not a sentence.
 # Linear on purpose: one prefix class, bounded wrappers, "." only.
 _MARKER = (
-    r"[*_]{0,3}(?:\d{1,3}(?:\.\d{1,3}){0,3}"
+    r"[*_]{0,3}(?:[0-9]{1,3}(?:\.[0-9]{1,3}){0,3}"
     r"|(?=[IVX])X{0,3}(?:IX|IV|V?I{0,3})"
     r"|(?=[ivx])x{0,3}(?:ix|iv|v?i{0,3})"
     r"|[A-Za-z])[*_]{0,3}"
 )
 _BARE_MARKER = re.compile(
-    r"[#>*+\-_\u2022\u2013\u2014\s]*(?:" + _MARKER + r"\.\s+){0,3}"
-    + _MARKER + r"\.[*_\"\'\u201d)\]]{0,4}"
+    r"[#>*+\-_\u2022\u2013\u2014\s]*(?:" + _MARKER + r"\.[*_]{0,3}\s+){0,3}"
+    + _MARKER + r"\.[\"\'\u201d)\]]{0,4}"
 )
+
+
+def _answers_a_question(text: str, line_start: int) -> bool:
+    """True when the text before this line ends in "?" or ":" ("Which one?\nA.")."""
+    index = line_start - 1
+    while index >= 0 and text[index].isspace():
+        index -= 1
+    return index >= 0 and text[index] in "?:"
 
 
 def complete_sentences(text: str) -> str:
@@ -55,15 +63,21 @@ def complete_sentences(text: str) -> str:
     last = None
     previous = 0
     line_start = 0
+    line_is_text = False
     for match in _SENTENCE_END.finditer(text):
         newline = text.rfind("\n", previous, match.start())
         if newline >= 0:
             line_start = newline + 1
+            line_is_text = False
         previous = match.end()
         # Only a whole line of markers is skipped, so "See Fig. 10." and
-        # "Which option? A." keep their endings.
-        if _BARE_MARKER.fullmatch(text, line_start, match.end()):
-            continue
+        # "Which option? A." keep their endings. Once a line has real text it
+        # can never become a marker line again, which keeps this linear.
+        if not line_is_text:
+            if (_BARE_MARKER.fullmatch(text, line_start, match.end())
+                    and not _answers_a_question(text, line_start)):
+                continue
+            line_is_text = True
         last = match.end()
     if last is None:
         return text
