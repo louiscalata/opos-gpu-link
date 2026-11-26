@@ -453,7 +453,7 @@ class CompanionTests(unittest.TestCase):
                 now[0] = 101.0
                 app.tick()
                 self.assertFalse(app.online)
-                self.assertIn("PC link interrupted", app.lines[-1])
+                self.assertIn("Phone link interrupted", app.lines[-1])
                 now[0] = app.next_try
                 app.tick()
                 finish_preflight(app)
@@ -1036,7 +1036,7 @@ class CompanionTests(unittest.TestCase):
                 finish_preflight(app)
                 self.assertFalse(app.online)
                 self.assertEqual(app.starts, 0)
-                self.assertIn("PC link interrupted; retrying", app.lines)
+                self.assertIn("Phone link interrupted; reconnecting", app.lines)
                 self.assertNotIn("Local model or chat route failed", "".join(app.lines))
                 self.assertEqual(app.next_try, 0)
                 now[0] = 100.0
@@ -1073,7 +1073,7 @@ class CompanionTests(unittest.TestCase):
                 fake.forwards.clear()
                 app.tick()
                 self.assertTrue(app.preflight_done.wait(2))
-                self.assertIn("PC link interrupted; retrying", app.lines[-1])
+                self.assertIn("Phone link interrupted; reconnecting", app.lines[-1])
                 self.assertEqual(app.starts, 0)
                 self.assertEqual(app.next_try, 0)
                 release.set()

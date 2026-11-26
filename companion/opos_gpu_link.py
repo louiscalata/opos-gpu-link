@@ -1204,7 +1204,7 @@ class Companion:
         if success:
             # The one-token check passed; the adb forward disappeared while it ran.
             self.session_pc = None
-            self.status.set("PC link interrupted; retrying")
+            self.status.set("Phone link interrupted; reconnecting")
             self.next_try = 0
             self.retry_delay = 3
             return
@@ -1253,7 +1253,7 @@ class Companion:
                 self._cancel_preflight()
                 self.session_pc = None
                 self.bridge.remove_own_forward()
-                self.status.set("PC link interrupted; retrying")
+                self.status.set("Phone link interrupted; reconnecting")
                 self.next_try = 0
                 self.retry_delay = 3
             forward_ok = present and self.bridge.forward_present() if self.online else False
@@ -1269,7 +1269,7 @@ class Companion:
                 if not present:
                     self.status.set("Phone disconnected; waiting to reconnect")
                 elif not forward_ok:
-                    self.status.set("PC link interrupted; retrying")
+                    self.status.set("Phone link interrupted; reconnecting")
                 elif not server_ok:
                     self.status.set("Local model server unavailable; start it and GPU Link will retry")
                 else:
