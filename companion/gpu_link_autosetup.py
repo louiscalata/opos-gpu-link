@@ -2111,15 +2111,59 @@ def wait_for_phone(adb: Path, runner=subprocess.run, sleep=time.sleep, timeout=N
 
 # ---------------------------------------------------------------- main ----
 
-def safe_label(gpu) -> str:
-    """The pairing label on the wire. Kept as "<GPU> PC" even on a Mac: the phone's saved
-    pairing is bound to it, so renaming it would force owner recovery. Screens show the
-    phone's display name for it instead (OPOS_GPU_LINK_PC_DISPLAY on the phone)."""
+MAC_PROFILER = "/usr/sbin/system_profiler"
+# The phone's wire-label rule (gpu_link_proto.valid_label); test_gpu_link_autosetup checks they agree.
+WIRE_LABEL = re.compile(r"[A-Za-z0-9](?:[A-Za-z0-9 -]{0,22}[A-Za-z0-9])?")
+
+
+def _wire_words(text: str) -> str:
+    text = re.sub(r"[^A-Za-z0-9 -]", " ", text or "")
+    return re.sub(r"\s+", " ", text).strip(" -")
+
+
+_MODEL_NAME_CACHE: list[str] = []
+
+
+def mac_model_name(runner=None) -> str:
+    """This Mac's model name ("MacBook Pro", "Mac mini"), or "" when it cannot be read.
+
+    Reads the locale-independent machine_name from system_profiler's JSON once per process
+    (5 s cap, stdin closed); a runner passed by a test is never cached."""
+    if runner is None and _MODEL_NAME_CACHE:
+        return _MODEL_NAME_CACHE[0]
+    name = ""
+    try:
+        done = (runner or subprocess.run)([MAC_PROFILER, "-json", "SPHardwareDataType"], capture_output=True,
+                                          text=True, stdin=subprocess.DEVNULL, timeout=5, check=False)
+        if done.returncode == 0:
+            items = json.loads(done.stdout or "{}").get("SPHardwareDataType") or []
+            if isinstance(items, list) and items and isinstance(items[0], dict) and isinstance(items[0].get("machine_name"), str):
+                name = _wire_words(items[0]["machine_name"])
+    except (OSError, subprocess.SubprocessError, ValueError, AttributeError, TypeError):
+        name = ""
+    if runner is None:
+        _MODEL_NAME_CACHE[:] = [name]
+    return name
+
+
+def safe_label(gpu, system=None, model_name=None) -> str:
+    """The pairing label on the wire, also the phone's name for this computer.
+
+    A Mac is named as a Mac ("M5 Pro MacBook Pro"); other computers stay "<GPU> PC". The phone
+    keeps the label it saw at pairing, so a new label takes effect only at the next pairing
+    (Forget on the phone, then --reset-pairing on the companion)."""
     name = re.sub(r"(?i)nvidia|geforce|apple|\(r\)|\(tm\)|corporation", "", gpu.get("name") or "")
-    name = re.sub(r"[^A-Za-z0-9 -]", " ", name)
-    name = re.sub(r"\s+", " ", name).strip()
+    name = _wire_words(name)
+    if (system or platform.system()) == "Darwin":
+        model = _wire_words(mac_model_name() if model_name is None else model_name)
+        noun = "MacBook" if model.lower().startswith("macbook") else "Mac"
+        for label in (f"{name} {model}" if model else "", f"{name} {noun}", model, noun):
+            label = label.strip()
+            if WIRE_LABEL.fullmatch(label):
+                return label
     label = (name + " PC").strip() if name else "GPU PC"
-    return label[:24].strip() or "GPU PC"
+    label = label[:24].strip(" -")
+    return label if WIRE_LABEL.fullmatch(label) else "GPU PC"
 
 
 def ready_lines(gpu_name, lanes, noun):

@@ -619,9 +619,72 @@ class AdbServerBinary(unittest.TestCase):
 class Labels(unittest.TestCase):
     def test_label_is_valid_for_phone(self):
         for name in ("NVIDIA GeForce RTX 5080", "Apple M5 Pro", "AMD Radeon(TM) RX 7900 XTX", "", "!!!"):
-            label = a.safe_label({"name": name})
+            label = a.safe_label({"name": name}, "Linux")
             self.assertTrue(proto.valid_label(label), (name, label))
-        self.assertEqual(a.safe_label({"name": "NVIDIA GeForce RTX 5080"}), "RTX 5080 PC")
+        self.assertEqual(a.safe_label({"name": "NVIDIA GeForce RTX 5080"}, "Windows"), "RTX 5080 PC")
+        for system in ("Darwin", "Linux", "Windows"):
+            for model in ("MacBook Pro", "Mac mini", "", "MacBook Pro (16-inch, 2026) !!"):
+                for name in ("Apple M5 Pro", "AMD Radeon Pro 5500M", "", "!!!", "AMD Radeon RX 7900 XTX -9",
+                             "A" * 40, "x" * 23 + " -y"):
+                    label = a.safe_label({"name": name}, system, model)
+                    self.assertTrue(proto.valid_label(label), (system, model, name, label))
+
+    def test_wire_label_rule_matches_the_protocol(self):
+        self.assertEqual(a.WIRE_LABEL.pattern, proto._LABEL.pattern)
+
+    def test_a_mac_is_named_as_a_mac(self):
+        self.assertEqual(a.safe_label({"name": "Apple M5 Pro"}, "Darwin", "MacBook Pro"), "M5 Pro MacBook Pro")
+        self.assertEqual(a.safe_label({"name": "Apple M4"}, "Darwin", "Mac mini"), "M4 Mac mini")
+        self.assertEqual(a.safe_label({"name": "AMD Radeon Pro 5500M"}, "Darwin", "MacBook Pro"),
+                         "MacBook Pro")  # too long with the GPU name; still a Mac
+        self.assertEqual(a.safe_label({"name": "AMD Radeon Pro 5500M"}, "Darwin", "iMac"),
+                         "AMD Radeon Pro 5500M Mac")
+        self.assertEqual(a.safe_label({"name": "Apple M5 Pro"}, "Darwin", ""), "M5 Pro Mac")
+        self.assertEqual(a.safe_label({}, "Darwin", "MacBook Air"), "MacBook Air")
+        self.assertEqual(a.safe_label({"name": "X" * 12}, "Darwin", "MacBook Pro"), "X" * 12 + " MacBook Pro")  # 24
+        self.assertEqual(a.safe_label({"name": "X" * 13}, "Darwin", "MacBook Pro"), "X" * 13 + " MacBook")  # 25 -> noun
+        self.assertEqual(a.safe_label({"name": "X" * 20}, "Darwin", "MacBook Pro"), "MacBook Pro")
+
+    def test_non_mac_never_asks_for_a_model_name_and_truncation_keeps_the_rule(self):
+        with patch.object(a, "mac_model_name", side_effect=AssertionError("not on a PC")):
+            self.assertEqual(a.safe_label({"name": "AMD Radeon RX 7900 XTX -9"}, "Linux"), "AMD Radeon RX 7900 XTX")
+            self.assertEqual(a.safe_label({"name": "!!!"}, "Windows"), "GPU PC")
+
+    def test_darwin_default_reads_the_model_name_once(self):
+        calls = []
+
+        def run(argv, **kwargs):
+            calls.append(argv)
+            return SimpleNamespace(returncode=0, stdout='{"SPHardwareDataType": [{"machine_name": "MacBook Air"}]}')
+        with patch.object(a, "_MODEL_NAME_CACHE", []), patch.object(a.subprocess, "run", side_effect=run):
+            self.assertEqual(a.safe_label({"name": "Apple M4"}, "Darwin"), "M4 MacBook Air")
+            self.assertEqual(a.safe_label({"name": "Apple M4"}, "Darwin"), "M4 MacBook Air")
+        self.assertEqual(calls, [[a.MAC_PROFILER, "-json", "SPHardwareDataType"]])
+
+    def test_mac_model_name_reads_only_machine_name(self):
+        out = '{"SPHardwareDataType": [{"machine_name": "MacBook Pro", "chip_type": "Apple M5 Pro"}]}'
+        calls = []
+
+        def runner(argv, **kwargs):
+            calls.append((argv, kwargs))
+            return SimpleNamespace(returncode=0, stdout=out)
+        self.assertEqual(a.mac_model_name(runner), "MacBook Pro")
+        self.assertIs(calls[0][1]["stdin"], subprocess.DEVNULL)
+        self.assertLessEqual(calls[0][1]["timeout"], 5)
+
+        def broken(argv, **kwargs):
+            raise subprocess.TimeoutExpired(argv, 5)
+        self.assertEqual(a.mac_model_name(broken), "")
+        self.assertEqual(a.mac_model_name(lambda *x, **k: SimpleNamespace(returncode=1, stdout=out)), "")
+        for bad in (None, "", "not json", "[]", '{"SPHardwareDataType": []}', '{"SPHardwareDataType": [{}]}',
+                    '{"SPHardwareDataType": [{"machine_name": 7}]}', '{"SPHardwareDataType": "x"}',
+                    '{"SPHardwareDataType": {"a": 1}}', '"text"'):
+            self.assertEqual(a.mac_model_name(lambda *x, b=bad, **k: SimpleNamespace(returncode=0, stdout=b)), "", bad)
+
+        def missing(argv, **kwargs):
+            raise OSError("no profiler")
+        self.assertEqual(a.mac_model_name(missing), "")
+        self.assertEqual(a.safe_label({"name": "!!!"}, "Darwin", "!!!"), "Mac")
 
 
 class ChatOverCoder(unittest.TestCase):
@@ -707,7 +770,8 @@ class ExtraLanes(unittest.TestCase):
         rt.lanes = [{"id": "opos-gpu-link", "url": "http://127.0.0.1:18090/v1/chat/completions", "label": "Gemma 3 4B", "maker": "Google"},
                     {"id": "opos-gpu-link-2", "url": "http://127.0.0.1:18091/v1/chat/completions", "label": "Qwen3 4B", "maker": "Qwen"},
                     {"id": "opos-gpu-link-3", "url": "http://127.0.0.1:18092/v1/chat/completions", "label": "LFM2 2.6B", "maker": "Liquid AI"}]
-        argv = a.companion_args(a.arguments([]), rt, {"gpu": {"name": "NVIDIA GeForce RTX 5080"}}, Path("adb"), "R5CX")
+        with patch.object(a, "mac_model_name", return_value="MacBook Pro"):  # never the real profiler
+            argv = a.companion_args(a.arguments([]), rt, {"gpu": {"name": "NVIDIA GeForce RTX 5080"}}, Path("adb"), "R5CX")
         parsed = link.arguments(argv)
         self.assertEqual([m["id"] for m in parsed.extra_models], ["opos-gpu-link-2", "opos-gpu-link-3"])
         self.assertEqual(parsed.model_servers["opos-gpu-link-3"], "http://127.0.0.1:18092/v1/chat/completions")
@@ -1372,9 +1436,11 @@ class ServedLeadLabelTests(unittest.TestCase):
         self.assertEqual(len(rt.lanes[0]["lead_label"]), 64)
         self.assertTrue(proto.valid_model_label(rt.lanes[0]["lead_label"]))
         self.assertNotIn("lead_label", rt.lanes[1])
-        argv = a.companion_args(args, rt, info, Path("/unused/adb"), "SERIAL")
-        self.assertEqual(argv[argv.index("--label") + 1], a.safe_label(info["gpu"]))
-        self.assertEqual(a.safe_label(info["gpu"]), "M5 Pro PC")
+        with patch.object(a, "mac_model_name", return_value="MacBook Pro"):
+            argv = a.companion_args(args, rt, info, Path("/unused/adb"), "SERIAL")
+            self.assertEqual(argv[argv.index("--label") + 1], a.safe_label(info["gpu"]))
+        self.assertEqual(a.safe_label(info["gpu"], "Darwin", "MacBook Pro"), "M5 Pro MacBook Pro")
+        self.assertEqual(a.safe_label(info["gpu"], "Linux"), "M5 Pro PC")
 
 
 if __name__ == "__main__":

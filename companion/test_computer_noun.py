@@ -14,10 +14,9 @@ sys.path.insert(0, str(HERE))
 import gpu_link_autosetup as setup  # noqa: E402
 import opos_gpu_link as link  # noqa: E402
 
-# Pairing labels on the wire stay as they are: the phone's saved pairing is bound to them.
-# "PC" alone is computer_noun's answer for a Windows or Linux computer.
+# Wire labels for Windows or Linux computers keep "PC"; "PC" alone is computer_noun's answer there.
 ALLOWED = {"OPOS GPU PC", "Stand-in PC", "PC"}
-# safe_label builds the wire label "<GPU> PC"; only these two literals there are exempt.
+# safe_label builds "<GPU> PC" for non-Macs; only these two literals there are exempt.
 WIRE_LABEL_FUNCTION = "safe_label"
 WIRE_LABEL_PARTS = {" PC", "GPU PC"}
 SCANNED = ("opos_gpu_link.py", "gpu_link_autosetup.py", "gpu_link_worker.py")
@@ -116,9 +115,10 @@ class ScreenWordsTest(unittest.TestCase):
     def test_ready_banner_on_a_pc_still_says_pc(self):
         self.assertIn("PC answer lanes: 0 ()", setup.ready_lines("RTX 5080", [], "PC"))
 
-    def test_wire_label_on_a_mac_is_unchanged(self):
-        self.assertEqual(setup.safe_label({"name": "Apple M5 Pro"}), "M5 Pro PC")
-        self.assertEqual(setup.safe_label({}), "GPU PC")
+    def test_wire_label_names_a_mac_as_a_mac(self):
+        self.assertEqual(setup.safe_label({"name": "Apple M5 Pro"}, "Darwin", "MacBook Pro"), "M5 Pro MacBook Pro")
+        self.assertEqual(setup.safe_label({"name": "NVIDIA GeForce RTX 5080"}, "Linux"), "RTX 5080 PC")
+        self.assertEqual(setup.safe_label({}, "Windows"), "GPU PC")
 
     def test_grant_messages_use_the_noun(self):
         app = SimpleNamespace(granted=False, headless=True)
