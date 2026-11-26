@@ -1051,7 +1051,7 @@ class Companion:
                 StandIn(pc, source, rate=1 if enabled else 4, emit=emit, show_text=False,
                         give_up_after=30).run(stop)
             except (OSError, ToolError, ValueError):
-                self.events.put((generation, "PC worker stopped; checking the phone and model server"))
+                self.events.put((generation, "Answer worker stopped; checking the phone and model server"))
             finally:
                 stop.set()
                 if runtime is not None:
@@ -1270,7 +1270,7 @@ class Companion:
                 elif not server_ok:
                     self.status.set("Local model server unavailable; start it and GPU Link will retry")
                 else:
-                    self.status.set("PC worker stopped; retrying")
+                    self.status.set("Answer worker stopped; retrying")
                 self.next_try = self.clock() + 2
                 self.retry_delay = 3
             if (present and not self.online and self.preflight_thread is not None
@@ -1289,7 +1289,7 @@ class Companion:
                   and self.clock() >= self.next_try and not self.blocked_until_detach):
                 if self.worker is not None and (self.worker.is_alive() or any(
                     lane.is_alive() for lane in getattr(self, "lane_workers", []))):
-                    self.status.set("Waiting for the old PC worker to stop")
+                    self.status.set("Waiting for the previous answer worker to stop")
                 else:
                     self._connect()
         except GrantDeclined as error:
