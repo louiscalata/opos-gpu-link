@@ -56,6 +56,15 @@ class LabelAcrossReconfirm(unittest.TestCase):
         self.assertEqual(self.request(status_body(lead_label=LABEL)).status, 200)
         self.assertEqual(self.label(), LABEL)
 
+    def test_v2_unconfirmed_status_during_an_answer_keeps_label_in_speed(self):
+        self.request(status_body(lead_label=LABEL))
+        answer = self.link._answers.ask("gpu", "Question")
+        job = self.pc.data(self.pc.work())
+        self.assertEqual(self.pc.hello().status, 200)
+        self.assertEqual(self.request(status_body(state="busy", lease=job["lease"], tokens=5, tps=50.0)).status, 200)
+        self.assertEqual(self.link._speed["values"]["model"], LABEL)
+        self.assertEqual(self.link._answers.get(answer["id"])["model"], LABEL)
+
     def test_v2_explicit_null_still_clears(self):
         self.request(status_body(lead_label=LABEL))
         self.assertEqual(self.request(status_body(lead_label=None)).status, 200)
