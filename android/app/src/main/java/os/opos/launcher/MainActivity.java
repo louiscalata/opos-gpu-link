@@ -2493,7 +2493,7 @@ public final class MainActivity extends Activity {
             }
             lanes.add(new NewspaperSummary.Lane(shortLabel, article.rawAnswer,
                     stateText, duration, finishedAt,
-                    included, article.words, pending, marker));
+                    included, article.words, pending, marker, interrupted));
         }
         for (String pane : latestRequestedPanes) {
             JSONObject answer = answerOf(snapshot, pane);

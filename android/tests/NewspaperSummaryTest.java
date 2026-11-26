@@ -93,6 +93,21 @@ public final class NewspaperSummaryTest {
         check(!afterResume.contains("Fastest: PC"));
         check(!afterResume.contains("Slowest: PC"));
         check(!afterResume.contains("finished first by"));
+        // The finish margin is wall time; after a cable pull it must say so, because the
+        // lane's own Done time has the pause taken out (live: PC 11.1 s, Phone 87.1 s,
+        // "PC finished first by 49.9 s").
+        NewspaperSummary.Lane pausedPcDone = new NewspaperSummary.Lane("PC", "a b c",
+                "Done · 11.1 s", 11100L, 37200L, true, 3, false, null, true);
+        NewspaperSummary.Lane phoneDone = new NewspaperSummary.Lane("Phone", "a b",
+                "Done · 87.1 s", 87100L, 87100L, true, 2, false, null, false);
+        String pausedReport = NewspaperSummary.report(Arrays.asList(pausedPcDone, phoneDone));
+        contains(pausedReport, "Fastest: PC (11.1 s)");
+        contains(pausedReport, "PC finished first by 49.9 s · includes pause");
+        NewspaperSummary.Lane cleanPcDone = new NewspaperSummary.Lane("PC", "a b c",
+                "Done · 11.1 s", 11100L, 11100L, true, 3, false, null);
+        String cleanReport = NewspaperSummary.report(Arrays.asList(cleanPcDone, phoneDone));
+        contains(cleanReport, "PC finished first by 76.0 s");
+        check(!cleanReport.contains("includes pause"));
         System.out.println("NewspaperSummaryTest: OK");
     }
 
