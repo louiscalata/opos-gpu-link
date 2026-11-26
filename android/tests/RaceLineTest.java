@@ -10,9 +10,8 @@ public final class RaceLineTest {
         NewspaperSummary.Lane phoneStreaming = new NewspaperSummary.Lane(
                 "Phone", "ans", "Streaming…", null
         );
-        check("Fastest so far: MacBook · 28.4 s".equals(
-                RaceLine.leader(List.of(macBook, phoneStreaming))
-        ), "leader with pending lane should be fastest so far");
+        equal("Fastest so far: MacBook · 28.4 s",
+                RaceLine.leader(List.of(macBook, phoneStreaming)));
 
         NewspaperSummary.Lane phoneDone = new NewspaperSummary.Lane(
                 "Phone", "ans", "Done", 108100L
