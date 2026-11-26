@@ -25,7 +25,7 @@ If a distilled filename names several families, the first family token wins
 | GLM | 0.5 | 0.90 | 40 | 0.05 | 1.10 | 1024 | More budget for reasoning-capable files, still finite. |
 | Generic / unknown | 0.4 | 0.90 | 40 | 0.05 | 1.10 | 1024 | Conservative settings without guessing model identity. |
 
-The 1024-token budget is meant for a short live demo: on a warm mid-size local model it is roughly a dozen to fifteen seconds of generation, long enough for a complete answer without filling a five-minute show. The `rx580-old-mac` overlay still caps new tokens at 384. A length-capped answer is trimmed to the last complete sentence on the phone so the UI does not show a hanging clause.
+The 1024-token budget is meant for a short live demo: on a warm mid-size local model it is roughly a dozen to fifteen seconds of generation, long enough for a complete answer without filling a five-minute show. The `rx580-old-mac` overlay still caps new tokens at 384. The phone UI trims a finished length-capped answer to the last complete sentence so it does not show a hanging clause; the stored text and USB acks stay exact.
 
 All rows use a 128-token repetition window, DRY multiplier `0.6`, base `1.75`,
 allowed length `4`, and a 128-token DRY window. DRY's existing sequence breakers

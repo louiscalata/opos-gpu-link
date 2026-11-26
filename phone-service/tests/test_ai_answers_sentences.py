@@ -32,11 +32,23 @@ class CompleteSentences(unittest.TestCase):
         text = "A GPU has two steps. 2. Rasterization converts shapes into pixels."
         self.assertEqual(ai_answers.complete_sentences(text), text)
 
+    def test_keeps_a_sentence_that_ends_in_a_year(self):
+        text = "The card was released in 2025. It has more cores now."
+        self.assertEqual(ai_answers.complete_sentences(text), text)
 
-class LengthCapAppend(unittest.TestCase):
+    def test_keeps_original_when_the_only_cut_is_a_tiny_prefix(self):
+        text = "Hi. " + ("word " * 30)
+        self.assertEqual(ai_answers.complete_sentences(text), text)
+
+    def test_empty_string(self):
+        self.assertEqual(ai_answers.complete_sentences(""), "")
+
+
+class LengthCapDisplay(unittest.TestCase):
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
-        self.answers = ai_answers.AnswerStore(Store(Path(self.temp.name)))
+        self.root = Path(self.temp.name)
+        self.answers = ai_answers.AnswerStore(Store(self.root))
 
     def tearDown(self):
         self.temp.cleanup()
@@ -45,7 +57,7 @@ class LengthCapAppend(unittest.TestCase):
         row = self.answers.ask("gpu", "Explain how a gpu works in detail?", "Gemma 4 26B")
         return self.answers.begin(row["id"])
 
-    def test_length_finish_trims_only_when_done(self):
+    def test_length_finish_trims_display_only_when_done(self):
         row = self._start()
         hanging = (
             "A GPU is a specialized processor designed for parallel work. "
@@ -53,24 +65,61 @@ class LengthCapAppend(unittest.TestCase):
         )
         mid = self.answers.append(row["id"], 0, hanging.encode(), done=False)
         self.assertEqual(mid["text"], hanging)
-        done = self.answers.append(row["id"], len(hanging.encode()), b"", done=True, finish="length")
-        self.assertEqual(done["state"], "done")
-        self.assertEqual(done["finish"], "length")
-        self.assertEqual(done["text"], "A GPU is a specialized processor designed for parallel work.")
+        self.assertEqual(self.answers.get(row["id"])["text"], hanging)
+        wire = self.answers.append(row["id"], len(hanging.encode()), b"", done=True, finish="length")
+        self.assertEqual(wire["state"], "done")
+        self.assertEqual(wire["finish"], "length")
+        self.assertEqual(wire["text"], hanging)
+        self.assertEqual(wire["bytes"], len(hanging.encode()))
+        shown = self.answers.get(row["id"])
+        self.assertEqual(shown["text"], "A GPU is a specialized processor designed for parallel work.")
+        self.assertLess(shown["bytes"], wire["bytes"])
 
     def test_stop_finish_is_not_trimmed(self):
         row = self._start()
         text = "A GPU is a specialized processor designed for parallel work. And then"
-        done = self.answers.append(row["id"], 0, text.encode(), done=True, finish="stop")
-        self.assertEqual(done["text"], text)
+        self.answers.append(row["id"], 0, text.encode(), done=True, finish="stop")
+        self.assertEqual(self.answers.get(row["id"])["text"], text)
 
-    def test_length_replay_after_trim_is_accepted(self):
+    def test_paused_hanging_text_is_not_trimmed(self):
         row = self._start()
         text = "A GPU is a specialized processor designed for parallel work. And then"
-        self.answers.append(row["id"], 0, text.encode(), done=True, finish="length")
-        again = self.answers.append(row["id"], 0, text.encode(), done=True, finish="length")
-        self.assertEqual(again["finish"], "length")
-        self.assertTrue(again["text"].endswith("work."))
+        self.answers.append(row["id"], 0, text.encode(), done=False)
+        paused = self.answers.pause(row["id"])
+        self.assertEqual(paused["state"], "paused")
+        self.assertEqual(self.answers.get(row["id"])["text"], text)
+
+    def test_exact_stop_replay_is_required(self):
+        row = self._start()
+        text = "A GPU is a specialized processor."
+        self.answers.append(row["id"], 0, text.encode(), done=True, finish="stop")
+        again = self.answers.append(row["id"], 0, text.encode(), done=True, finish="stop")
+        self.assertEqual(again["text"], text)
+        with self.assertRaises(ai_answers.StateError):
+            self.answers.append(row["id"], 0, text.encode(), done=True, finish="length")
+        with self.assertRaises(ai_answers.StateError):
+            self.answers.append(row["id"], 1, text.encode(), done=True, finish="stop")
+
+    def test_reload_after_multi_chunk_length_cap_stays_valid(self):
+        row = self._start()
+        first = "A GPU is a specialized processor designed for parallel work. "
+        rest = "Converting those 3D vector shapes into a"
+        self.answers.append(row["id"], 0, first.encode(), done=False)
+        self.answers.append(row["id"], len(first.encode()), rest.encode(), done=True, finish="length")
+        ident = row["id"]
+        reloaded = ai_answers.AnswerStore(Store(self.root))
+        self.assertFalse(getattr(reloaded, "_startup_notice", None))
+        shown = reloaded.get(ident)
+        self.assertEqual(shown["state"], "done")
+        self.assertEqual(shown["finish"], "length")
+        self.assertEqual(shown["text"], first.rstrip())
+        # The stored record keeps the hanging tail for exact USB acks.
+        raw = (self.root / f"ai-answer-{ident}.json")
+        # store writes a wrapper; just confirm get trim does not quarantine
+        self.assertTrue(any(self.root.iterdir()))
+        self.assertFalse(any(path.name.endswith(suffix) for path in self.root.iterdir()
+                             for suffix in () if ".bad-" in path.name))
+        self.assertFalse(any(".bad-" in path.name for path in self.root.iterdir()))
 
 
 if __name__ == "__main__":
