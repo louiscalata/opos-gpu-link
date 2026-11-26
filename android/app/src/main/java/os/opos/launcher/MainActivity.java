@@ -1921,17 +1921,31 @@ public final class MainActivity extends Activity {
             if (!PaneKeys.extra(pane)) continue;
             JSONObject model = paneOf(data, pane);
             PaneViews view = paneViews.get(pane);
-            String label = model == null ? pane : model.optString("label", pane);
-            String maker = model == null ? "" : model.optString("maker");
-            String where = PaneKeys.shownWhere(pane, model == null ? "" : model.optString("where"));
-            setIfChanged(view.heading, label);
-            setIfChanged(view.byline, label + (maker.isEmpty() ? "" : " · " + maker)
-                    + " · " + where);
+            nameExtraLane(view, pane, model);
             Object speed = model == null ? null : model.opt("live_speed");
             setIfChanged(view.speed, speed == null || speed == JSONObject.NULL
                     ? "" : speed + " tokens/s");
         }
         updateCompactLaneStatus();
+    }
+
+    /**
+     * Heading and byline of an extra lane: the model that wrote the answer the card shows, else
+     * the slot's current model. renderAnswers calls this again once the request and question state
+     * for the snapshot are final, so its result is what is drawn.
+     */
+    private void nameExtraLane(PaneViews view, String pane, JSONObject model) {
+        if (view == null) return;
+        String slotLabel = model == null || model.isNull("label") ? pane : model.optString("label", pane);
+        // Only an answer the card actually shows names it; a hidden older answer must not.
+        String answered = answerShown(pane, model == null ? null : model.optJSONObject("answer"))
+                ? answeredModel(model) : "";
+        String label = AnsweredModel.label(slotLabel, answered);
+        String maker = AnsweredModel.maker(slotLabel,
+                model == null || model.isNull("maker") ? "" : model.optString("maker"), answered);
+        String where = PaneKeys.shownWhere(pane, model == null ? "" : model.optString("where"));
+        setIfChanged(view.heading, label);
+        setIfChanged(view.byline, label + (maker.isEmpty() ? "" : " · " + maker) + " · " + where);
     }
 
     private void reconcileLatestRequest(JSONObject data) {
@@ -2204,6 +2218,7 @@ public final class MainActivity extends Activity {
             JSONObject view = paneOf(snapshot, pane);
             PaneViews article = paneViews.get(pane);
             if (view != null && article != null) {
+                if (PaneKeys.extra(pane)) nameExtraLane(article, pane, view);
                 renderPane(article, view, PaneKeys.pc(pane)
                         ? gpu.optJSONObject("link") : null);
             }
@@ -2333,6 +2348,24 @@ public final class MainActivity extends Activity {
         setTonightTiming("");
         setIfChanged(tonightCount, "—");
         setIfChanged(tonightProvenance, "");
+    }
+
+    /**
+     * Whether renderPane shows this answer's text (rather than "Not asked this time" or a waiting
+     * state). Keep in step with the guards at the top of renderPane.
+     */
+    private boolean answerShown(String paneName, JSONObject answer) {
+        if (answer == null) return false;
+        if (!latestRequestedPanes.isEmpty()) {
+            String expectedId = latestRequestIds.get(paneName);
+            if (!latestRequestedPanes.contains(paneName) || expectedId == null
+                    || !expectedId.equals(answer.optString("id"))) return false;
+        }
+        String answerQuestion = answer.optString("question");
+        if (!TextUtils.isEmpty(latestQuestion) && !TextUtils.isEmpty(answerQuestion)
+                && !latestQuestion.equals(answerQuestion)) return false;
+        return !(latestRequestedPanes.isEmpty() && latestAskedSeconds > 0
+                && answer.optDouble("asked", 0) + 1 < latestAskedSeconds);
     }
 
     private void renderPane(PaneViews article, JSONObject pane, JSONObject link) {
@@ -2606,7 +2639,15 @@ public final class MainActivity extends Activity {
             if (article == null) return;
             String label = "phone".equals(pane) ? getString(R.string.phone_heading)
                     : article.heading.getText().toString();
-            String maker = model == null ? "" : model.optString("maker");
+            // Keep the model that wrote this answer, even if the slot now holds another one.
+            String maker = PaneKeys.extra(pane)
+                    ? AnsweredModel.maker(model == null || model.isNull("label") ? "" : model.optString("label"),
+                            model == null || model.isNull("maker") ? "" : model.optString("maker"), answer.isNull("model")
+                                    ? "" : answer.optString("model"))
+                    : model == null ? "" : model.optString("maker");
+            if (PaneKeys.extra(pane)) {
+                label = AnsweredModel.label(label, answer.isNull("model") ? "" : answer.optString("model"));
+            }
             String where = PaneKeys.shownWhere(pane, model == null ? "" : model.optString("where"));
             boolean interrupted = PaneKeys.pc(pane) && answerTiming.interrupted(expectedId);
             anyInterrupted |= interrupted;
@@ -2901,6 +2942,12 @@ public final class MainActivity extends Activity {
         for (Map.Entry<TextView, String> entry : pcLabelledViews.entrySet()) {
             entry.getKey().setText(ComputerWords.apply(entry.getValue()));
         }
+    }
+
+    /** The model recorded on a lane's current answer; "" when there is no answer or model. */
+    private static String answeredModel(JSONObject lane) {
+        JSONObject answer = lane == null ? null : lane.optJSONObject("answer");
+        return answer == null || answer.isNull("model") ? "" : answer.optString("model", "").trim();
     }
 
     /** A computer's display label; JSON null or a missing object is "" (optString would say "null"). */
