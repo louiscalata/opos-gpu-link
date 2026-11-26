@@ -2137,12 +2137,12 @@ def mac_model_name(runner=None) -> str:
                                           text=True, stdin=subprocess.DEVNULL, timeout=5, check=False)
         if done.returncode == 0:
             items = json.loads(done.stdout or "{}").get("SPHardwareDataType") or []
-            if items and isinstance(items[0], dict) and isinstance(items[0].get("machine_name"), str):
+            if isinstance(items, list) and items and isinstance(items[0], dict) and isinstance(items[0].get("machine_name"), str):
                 name = _wire_words(items[0]["machine_name"])
     except (OSError, subprocess.SubprocessError, ValueError, AttributeError, TypeError):
         name = ""
     if runner is None:
-        _MODEL_NAME_CACHE.append(name)
+        _MODEL_NAME_CACHE[:] = [name]
     return name
 
 

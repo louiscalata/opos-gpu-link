@@ -641,6 +641,9 @@ class Labels(unittest.TestCase):
                          "AMD Radeon Pro 5500M Mac")
         self.assertEqual(a.safe_label({"name": "Apple M5 Pro"}, "Darwin", ""), "M5 Pro Mac")
         self.assertEqual(a.safe_label({}, "Darwin", "MacBook Air"), "MacBook Air")
+        self.assertEqual(a.safe_label({"name": "X" * 12}, "Darwin", "MacBook Pro"), "X" * 12 + " MacBook Pro")  # 24
+        self.assertEqual(a.safe_label({"name": "X" * 13}, "Darwin", "MacBook Pro"), "X" * 13 + " MacBook")  # 25 -> noun
+        self.assertEqual(a.safe_label({"name": "X" * 20}, "Darwin", "MacBook Pro"), "MacBook Pro")
 
     def test_non_mac_never_asks_for_a_model_name_and_truncation_keeps_the_rule(self):
         with patch.object(a, "mac_model_name", side_effect=AssertionError("not on a PC")):
@@ -674,7 +677,8 @@ class Labels(unittest.TestCase):
         self.assertEqual(a.mac_model_name(broken), "")
         self.assertEqual(a.mac_model_name(lambda *x, **k: SimpleNamespace(returncode=1, stdout=out)), "")
         for bad in (None, "", "not json", "[]", '{"SPHardwareDataType": []}', '{"SPHardwareDataType": [{}]}',
-                    '{"SPHardwareDataType": [{"machine_name": 7}]}', '{"SPHardwareDataType": "x"}'):
+                    '{"SPHardwareDataType": [{"machine_name": 7}]}', '{"SPHardwareDataType": "x"}',
+                    '{"SPHardwareDataType": {"a": 1}}', '"text"'):
             self.assertEqual(a.mac_model_name(lambda *x, b=bad, **k: SimpleNamespace(returncode=0, stdout=b)), "", bad)
 
         def missing(argv, **kwargs):
@@ -766,7 +770,8 @@ class ExtraLanes(unittest.TestCase):
         rt.lanes = [{"id": "opos-gpu-link", "url": "http://127.0.0.1:18090/v1/chat/completions", "label": "Gemma 3 4B", "maker": "Google"},
                     {"id": "opos-gpu-link-2", "url": "http://127.0.0.1:18091/v1/chat/completions", "label": "Qwen3 4B", "maker": "Qwen"},
                     {"id": "opos-gpu-link-3", "url": "http://127.0.0.1:18092/v1/chat/completions", "label": "LFM2 2.6B", "maker": "Liquid AI"}]
-        argv = a.companion_args(a.arguments([]), rt, {"gpu": {"name": "NVIDIA GeForce RTX 5080"}}, Path("adb"), "R5CX")
+        with patch.object(a, "mac_model_name", return_value="MacBook Pro"):  # never the real profiler
+            argv = a.companion_args(a.arguments([]), rt, {"gpu": {"name": "NVIDIA GeForce RTX 5080"}}, Path("adb"), "R5CX")
         parsed = link.arguments(argv)
         self.assertEqual([m["id"] for m in parsed.extra_models], ["opos-gpu-link-2", "opos-gpu-link-3"])
         self.assertEqual(parsed.model_servers["opos-gpu-link-3"], "http://127.0.0.1:18092/v1/chat/completions")
@@ -1431,8 +1436,8 @@ class ServedLeadLabelTests(unittest.TestCase):
         self.assertEqual(len(rt.lanes[0]["lead_label"]), 64)
         self.assertTrue(proto.valid_model_label(rt.lanes[0]["lead_label"]))
         self.assertNotIn("lead_label", rt.lanes[1])
-        argv = a.companion_args(args, rt, info, Path("/unused/adb"), "SERIAL")
         with patch.object(a, "mac_model_name", return_value="MacBook Pro"):
+            argv = a.companion_args(args, rt, info, Path("/unused/adb"), "SERIAL")
             self.assertEqual(argv[argv.index("--label") + 1], a.safe_label(info["gpu"]))
         self.assertEqual(a.safe_label(info["gpu"], "Darwin", "MacBook Pro"), "M5 Pro MacBook Pro")
         self.assertEqual(a.safe_label(info["gpu"], "Linux"), "M5 Pro PC")
