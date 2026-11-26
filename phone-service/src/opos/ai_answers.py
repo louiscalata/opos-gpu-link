@@ -26,6 +26,31 @@ _ID = re.compile(r"[0-9a-f]{12}")
 _ERROR = re.compile(r"[a-z0-9_-]{1,32}")
 
 
+
+# A one-digit list marker ("2.") is not a sentence end; "2025." still is.
+_SENTENCE_END = re.compile(r"(?<![ \n\t]\d)([.!?]+)([\"\'\u201d)\]]*)(?=\s+|$)")
+
+
+def complete_sentences(text: str) -> str:
+    """Return text cut at the last complete sentence, or the original if none.
+
+    Used when a model hits its token cap so the UI does not keep a hanging
+    clause. Mid-stream / paused text is not passed through this helper.
+    """
+    if not text:
+        return text
+    last = None
+    for match in _SENTENCE_END.finditer(text):
+        last = match.end()
+    if last is None:
+        return text
+    trimmed = text[:last].rstrip()
+    # Keep the original if the only terminator is a tiny prefix of a long reply.
+    if len(trimmed) < 40 and len(text) > 80:
+        return text
+    return trimmed
+
+
 class AnswerError(Exception):
     """Base error for an answer operation."""
 
@@ -322,10 +347,25 @@ class AnswerStore:
                 queued = ident
         return queued
 
-    def _view(self, record: dict) -> dict:
+    def _wire(self, record: dict) -> dict:
+        """Return the stored answer, including the queued-to-waiting promotion."""
         answer = deepcopy(record["answer"])
         if answer["state"] == "queued" and self._open_id(answer["pane"]) == answer["id"]:
             answer["state"] = "waiting"
+        return answer
+
+    def _view(self, record: dict) -> dict:
+        """Return the answer as shown on the phone, with length caps cleaned up.
+
+        Stored bytes stay complete so USB text acks and resume prefixes remain
+        exact. Only a finished length-capped answer is trimmed for display.
+        """
+        answer = self._wire(record)
+        if answer["state"] == "done" and answer["finish"] == "length":
+            trimmed = complete_sentences(answer["text"])
+            if trimmed != answer["text"]:
+                answer["text"] = trimmed
+                answer["bytes"] = len(trimmed.encode("utf-8"))
         return answer
 
     def _save(self, record: dict) -> dict:
@@ -339,7 +379,7 @@ class AnswerStore:
             if self._sweep_pending:
                 self._retry_sweep()
         self._retry_recoveries()
-        return self._view(record)
+        return self._wire(record)
 
     def ask(self, pane: str, question: str, model: str = "") -> dict:
         """Store a queued answer, then drop old final answers with retryable cleanup."""

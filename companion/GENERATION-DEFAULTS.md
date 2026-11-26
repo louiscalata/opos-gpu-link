@@ -11,19 +11,21 @@ If a distilled filename names several families, the first family token wins
 
 | Family / local filename | Temp | Top-p | Top-k | Min-p | Repeat penalty | Max new tokens | Rationale |
 | --- | ---: | ---: | ---: | ---: | ---: | ---: | --- |
-| Gemma 3 / `gemma-3`, `gemma3` | 0.5 | 0.90 | 40 | 0.05 | 1.10 | 384 | Moderate variety with a short answer budget. |
-| Gemma 4 / `gemma-4`, `gemma4` | 0.5 | 0.90 | 40 | 0.05 | 1.10 | 384 | Same cautious starting point; native quality unverified. |
-| Llama 3.x / `llama-3.2` etc. | 0.5 | 0.90 | 40 | 0.05 | 1.10 | 384 | Bound small instruct models before long repetitions develop. |
-| Qwen 2.5 / `qwen2.5` | 0.4 | 0.90 | 40 | 0.05 | 1.10 | 384 | Lower variety for the older RX 580 catalog family. |
-| Qwen 3.x / `qwen3`, `qwen3.6` etc. | 0.6 | 0.95 | 20 | 0.00 | 1.10 | 512 | Slightly more variety and room within a bounded budget. |
-| Phi 3.x / 4.x / `phi-4-mini` etc. | 0.4 | 0.90 | 40 | 0.05 | 1.10 | 384 | Favor concise, stable small-model answers. |
-| Mistral / Mixtral | 0.5 | 0.90 | 40 | 0.05 | 1.10 | 384 | Moderate sampling without assuming a template version. |
-| LFM 2.x / 3.x | 0.3 | 0.90 | 40 | 0.05 | 1.10 | 384 | Cautious sampling for small companion lanes. |
-| SmolLM 1 / 2 / 3 | 0.4 | 0.90 | 40 | 0.05 | 1.10 | 384 | Bound small local answerers. |
-| Granite | 0.4 | 0.90 | 40 | 0.05 | 1.10 | 384 | Conservative local-family fallback. |
-| DeepSeek | 0.5 | 0.90 | 40 | 0.05 | 1.10 | 512 | More budget for reasoning-capable files, still finite. |
-| GLM | 0.5 | 0.90 | 40 | 0.05 | 1.10 | 512 | More budget for reasoning-capable files, still finite. |
-| Generic / unknown | 0.4 | 0.90 | 40 | 0.05 | 1.10 | 384 | Conservative settings without guessing model identity. |
+| Gemma 3 / `gemma-3`, `gemma3` | 0.5 | 0.90 | 40 | 0.05 | 1.10 | 1024 | Moderate variety with a demo-length answer budget. |
+| Gemma 4 / `gemma-4`, `gemma4` | 0.5 | 0.90 | 40 | 0.05 | 1.10 | 1024 | Same cautious starting point; native quality unverified. |
+| Llama 3.x / `llama-3.2` etc. | 0.5 | 0.90 | 40 | 0.05 | 1.10 | 1024 | Bound small instruct models before long repetitions develop. |
+| Qwen 2.5 / `qwen2.5` | 0.4 | 0.90 | 40 | 0.05 | 1.10 | 1024 | Lower variety for the older RX 580 catalog family. |
+| Qwen 3.x / `qwen3`, `qwen3.6` etc. | 0.6 | 0.95 | 20 | 0.00 | 1.10 | 1024 | Slightly more variety and room within a bounded budget. |
+| Phi 3.x / 4.x / `phi-4-mini` etc. | 0.4 | 0.90 | 40 | 0.05 | 1.10 | 1024 | Favor concise, stable small-model answers. |
+| Mistral / Mixtral | 0.5 | 0.90 | 40 | 0.05 | 1.10 | 1024 | Moderate sampling without assuming a template version. |
+| LFM 2.x / 3.x | 0.3 | 0.90 | 40 | 0.05 | 1.10 | 1024 | Cautious sampling for small companion lanes. |
+| SmolLM 1 / 2 / 3 | 0.4 | 0.90 | 40 | 0.05 | 1.10 | 1024 | Bound small local answerers. |
+| Granite | 0.4 | 0.90 | 40 | 0.05 | 1.10 | 1024 | Conservative local-family fallback. |
+| DeepSeek | 0.5 | 0.90 | 40 | 0.05 | 1.10 | 1024 | More budget for reasoning-capable files, still finite. |
+| GLM | 0.5 | 0.90 | 40 | 0.05 | 1.10 | 1024 | More budget for reasoning-capable files, still finite. |
+| Generic / unknown | 0.4 | 0.90 | 40 | 0.05 | 1.10 | 1024 | Conservative settings without guessing model identity. |
+
+The 1024-token budget is meant for a short live demo: on a warm mid-size local model it is roughly a dozen to fifteen seconds of generation, long enough for a complete answer without filling a five-minute show. The `rx580-old-mac` overlay still caps new tokens at 384. The phone UI trims a finished length-capped answer to the last complete sentence so it does not show a hanging clause; the stored text and USB acks stay exact.
 
 All rows use a 128-token repetition window, DRY multiplier `0.6`, base `1.75`,
 allowed length `4`, and a 128-token DRY window. DRY's existing sequence breakers

@@ -115,13 +115,20 @@ class Profiles(unittest.TestCase):
             profile = g.generation_profile(row["file"], profile=a.PROFILE_RX580, environ={})
             with self.subTest(model=row["file"]):
                 self.assertLessEqual(profile.temp, 0.3)
-                self.assertLessEqual(profile.n_predict, 384)
+                self.assertEqual(profile.n_predict, 384)
                 self.assertGreaterEqual(profile.repeat_penalty, 1.15)
                 self.assertGreaterEqual(profile.dry_multiplier, 0.8)
 
     def test_unknown_hardware_profile_preserves_family_defaults(self):
         self.assertEqual(g.generation_profile("Qwen3-4B.gguf", profile="other-profile", environ={}),
                          g.generation_profile("Qwen3-4B.gguf", environ={}))
+
+    def test_demo_families_use_a_1024_token_budget(self):
+        for family, profile in g.GENERATION_PROFILES.items():
+            with self.subTest(family=family):
+                self.assertEqual(profile.n_predict, 1024)
+        flags = g.generation_flags("gemma-4-26B_q4_0-it.gguf", environ={})
+        self.assertEqual(int(flags[flags.index("-n") + 1]), 1024)
 
 
 class Overrides(unittest.TestCase):
