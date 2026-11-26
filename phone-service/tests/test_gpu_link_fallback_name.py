@@ -22,9 +22,11 @@ class FallbackNameTest(unittest.TestCase):
             self.assertEqual(gpu_link.fallback_model_name(generic, "Louiss-MBP"), "MacBook GPU")
             self.assertEqual(gpu_link.fallback_model_name(generic, "MacBookPro18,3"), "MacBook GPU")
             self.assertEqual(gpu_link.fallback_model_name(generic, "Studio Macintosh"), "Mac GPU")
+            self.assertEqual(gpu_link.fallback_model_name(generic, "Mac14,2"), "Mac GPU")
+            self.assertEqual(gpu_link.fallback_model_name(generic, "MBP16"), "MacBook GPU")
 
     def test_generic_name_is_neutral_otherwise(self):
-        for label in ("RTX 5080 PC", None, "", "Macro box"):
+        for label in ("RTX 5080 PC", None, "", "Macro box", "1000 Mbps PC"):
             self.assertEqual(gpu_link.fallback_model_name("MacBook GPU", label), "Computer GPU")
 
     def test_real_model_name_is_kept(self):

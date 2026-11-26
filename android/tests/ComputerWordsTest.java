@@ -30,6 +30,13 @@ public final class ComputerWordsTest {
         equal("MacBook", ComputerWords.noun("Louiss-MBP"));
         equal("MacBook", ComputerWords.noun("MacBookPro18,3"));
         equal("Mac", ComputerWords.noun("Louis's Macintosh"));
+        equal("MacBook", ComputerWords.noun("MBP16"));
+        equal("PC", ComputerWords.noun("1000 Mbps PC"));
+        equal("Mac", ComputerWords.noun("Mac14,2"));
+        equal("Mac", ComputerWords.noun("Macmini9,1"));
+        equal("Mac", ComputerWords.noun("MacStudio"));
+        equal("PC", ComputerWords.noun("Macro PC"));
+        equal("my.computer", ComputerWords.apply("my.PC", "computer"));
         equal("MacBook", ComputerWords.title("MacBook"));
 
         equal("MacBook GPU", ComputerWords.apply("PC GPU", "MacBook"));

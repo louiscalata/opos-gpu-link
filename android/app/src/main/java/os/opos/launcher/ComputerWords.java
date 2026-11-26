@@ -12,11 +12,11 @@ import java.util.regex.Pattern;
 final class ComputerWords {
     static final String PC = "PC";
     static final String COMPUTER = "computer";
-    private static final Pattern MACBOOK = Pattern.compile("(?i)\\b(MacBook|MBP)");
-    private static final Pattern MAC = Pattern.compile("(?i)\\b(iMac|Mac|Macintosh)\\b");
+    private static final Pattern MACBOOK = Pattern.compile("(?i)\\b(MacBook|MBP(?![A-Za-z]))");
+    private static final Pattern MAC = Pattern.compile("(?i)\\b(iMac|Mac(?:intosh|mini|Studio|Pro)?)(?![A-Za-z])");
     private static final Pattern PC_WORD = Pattern.compile("\\bPC('s)?\\b");
     private static final Pattern PC_UPPER = Pattern.compile("\\bPC GPU EDITION\\b");
-    private static final Pattern SENTENCE_END = Pattern.compile("(^[\\s\u00a0]*|[.!?:\u00b7\u2014(][\\s\u00a0]*|\\n[\\s\u00a0]*)$");
+    private static final Pattern SENTENCE_END = Pattern.compile("(^[\\s\u00a0]*|[.!?:][\\s\u00a0]+|[\u00b7\u2014(][\\s\u00a0]*|\\n[\\s\u00a0]*)$");
 
     private static volatile String current = COMPUTER;
 
