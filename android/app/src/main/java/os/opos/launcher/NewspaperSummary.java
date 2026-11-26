@@ -163,7 +163,7 @@ final class NewspaperSummary {
             if (!lane.state.startsWith("Done")) allDone = false;
             if (lane.elapsedMs != null && lane.state.startsWith("Done")) {
                 if (fastest == null || lane.elapsedMs < fastest.elapsedMs) fastest = lane;
-                if (slowest == null || lane.elapsedMs > slowest.elapsedMs) slowest = lane;
+                if (slowest == null || lane.elapsedMs >= slowest.elapsedMs) slowest = lane;
             }
             if (lane.finishedAtMs != null && lane.state.startsWith("Done")) {
                 if (first == null || lane.finishedAtMs < first.finishedAtMs) {
@@ -181,16 +181,28 @@ final class NewspaperSummary {
         if (fastest != null) {
             result.append('\n').append(allDone ? "Fastest: " : "Fastest so far: ")
                     .append(fastest.label).append(" (" + seconds(fastest.elapsedMs) + ")");
-            result.append(" · ").append(allDone ? "Slowest: " : "Slowest so far: ")
-                    .append(slowest.label).append(" (" + seconds(slowest.elapsedMs) + ")");
+            // One measured lane is not a range: "Fastest: Phone · Slowest: Phone" reads as a bug.
+            if (slowest != fastest) {
+                result.append(" · ").append(allDone ? "Slowest: " : "Slowest so far: ")
+                        .append(slowest.label).append(" (" + seconds(slowest.elapsedMs) + ")");
+            }
         }
         if (longest != null) result.append('\n')
                 .append(allDone ? "Longest answer: " : "Longest answer so far: ")
                 .append(longest.label).append(" (" + longest.words + " words)");
-        if (first != null && second != null) result.append('\n').append(first.label)
-                .append(" finished first by ")
-                .append(seconds(Math.max(0, second.finishedAtMs - first.finishedAtMs)))
-                .append(first.includesPause || second.includesPause ? " · includes pause" : "");
+        if (first != null && second != null) {
+            long margin = Math.max(0, second.finishedAtMs - first.finishedAtMs);
+            result.append('\n');
+            // Same 50 ms tie rule as finishedFirst(): never "finished first by 0.0 s".
+            if (margin < 50) {
+                result.append(first.label).append(" and ").append(second.label)
+                        .append(" finished together");
+            } else {
+                result.append(first.label).append(" finished first by ").append(seconds(margin));
+            }
+            // The margin is wall time; after a cable pull it must say so.
+            if (first.includesPause || second.includesPause) result.append(" · includes pause");
+        }
         else if (allDone && includedCount >= 2) {
             result.append('\n').append("Finish order unavailable");
         }
