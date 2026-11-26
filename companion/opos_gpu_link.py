@@ -1189,9 +1189,19 @@ class Companion:
         self.preflight_thread = None
         self.preflight_done = None
         self.preflight_cancel = None
+        link_lost = getattr(self, "preflight_link_lost", False)
+        self.preflight_link_lost = False
         if not present or not self.running or self.session_pc is None:
             return
-        if success and self.bridge.forward_present():
+        if link_lost or (success and not self.bridge.forward_present()):
+            # The model answered (or was still warming); only the USB forward to the
+            # phone went away. Rebuild it soon instead of blaming the model route.
+            self.session_pc = None
+            self.bridge.remove_own_forward()
+            self.status.set("Phone link interrupted while warming; reconnecting")
+            self.next_try = self.clock() + 1
+            return
+        if success:
             self._start_worker(self.session_pc)
             if self.running:
                 self.online = True
@@ -1257,6 +1267,13 @@ class Companion:
                     self.status.set("PC worker stopped; retrying")
                 self.next_try = self.clock() + 2
                 self.retry_delay = 3
+            if (present and not self.online and self.preflight_thread is not None
+                    and self.preflight_cancel is not None and not self.preflight_cancel.is_set()
+                    and not self.bridge.forward_present()):
+                # _connect() waits for the warm-up, so without this check a lost forward
+                # would show "Warming model" until the first-event deadline.
+                self.preflight_link_lost = True
+                self._cancel_preflight()
             self._finish_preflight(present)
             if not present:
                 if self.granted and self.detached_at is None:

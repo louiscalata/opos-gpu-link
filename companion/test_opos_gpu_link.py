@@ -1014,6 +1014,80 @@ class CompanionTests(unittest.TestCase):
                                      for args, _ in fake.calls), 2)
                 self.assertTrue(app.online)
 
+    def test_forward_lost_during_warmup_rebuilds_without_blaming_model(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fake = FakeAdb()
+            fake.state = "device"
+            fake.assigned = [18767, 18768]
+            now = [100.0]
+            app = app_fixture(directory, fake, now)
+            app.keys.save_first_allow(bytes(range(32)))
+            entered, release = threading.Event(), threading.Event()
+            requests = []
+
+            def preflight(server, model, cancelled):
+                requests.append(model)
+                entered.set()
+                while not release.wait(0.01):
+                    if cancelled():
+                        return False
+                return not cancelled()
+
+            with patch.object(link, "PC", FakePC), \
+                    patch.object(link, "authenticated_idle", return_value=True), \
+                    patch.object(link, "model_server_listening", return_value=True), \
+                    patch.object(link, "model_server_preflight", side_effect=preflight):
+                app.tick()
+                self.assertTrue(entered.wait(2))
+                self.assertEqual(app.lines[-1], "Warming model")
+                fake.forwards.clear()  # adb dropped the forward; the cable is still in
+                app.tick()
+                self.assertTrue(app.preflight_done.wait(2))
+                app.tick()
+                self.assertEqual(app.lines[-1], "Phone link interrupted while warming; reconnecting")
+                self.assertFalse(any("one-token" in line for line in app.lines))
+                self.assertEqual(app.starts, 0)
+                self.assertIsNone(app.session_pc)
+                self.assertEqual(app.next_try, 101.0)
+                release.set()
+                now[0] = 101.0
+                app.tick()
+                finish_preflight(app)
+                self.assertEqual(list(fake.forwards), [18768])
+                self.assertEqual(len(requests), 2)
+                self.assertTrue(app.online)
+                self.assertEqual(app.starts, 1)
+
+    def test_warm_model_with_missing_forward_reports_link_not_model(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fake = FakeAdb()
+            fake.state = "device"
+            fake.assigned = [18767, 18768]
+            now = [100.0]
+            app = app_fixture(directory, fake, now)
+            app.keys.save_first_allow(bytes(range(32)))
+            entered, release = threading.Event(), threading.Event()
+
+            def preflight(server, model, cancelled):
+                entered.set()
+                release.wait(2)
+                return True
+
+            with patch.object(link, "PC", FakePC), \
+                    patch.object(link, "authenticated_idle", return_value=True), \
+                    patch.object(link, "model_server_listening", return_value=True), \
+                    patch.object(link, "model_server_preflight", side_effect=preflight):
+                app.tick()
+                self.assertTrue(entered.wait(2))
+                with patch.object(app.bridge, "forward_present", side_effect=[True, False, False]):
+                    app.tick()  # still present while warming
+                    release.set()
+                    self.assertTrue(app.preflight_done.wait(2))
+                    app._finish_preflight(True)
+                self.assertEqual(app.lines[-1], "Phone link interrupted while warming; reconnecting")
+                self.assertFalse(app.online)
+                self.assertEqual(app.starts, 0)
+
     def test_stop_cancels_warmup_without_starting_worker(self):
         with tempfile.TemporaryDirectory() as directory:
             fake = FakeAdb()
