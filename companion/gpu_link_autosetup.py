@@ -780,6 +780,23 @@ def maker_of(name: str) -> str:
     return "Local"
 
 
+def served_model_label(*parts) -> str | None:
+    """Return a lead_label that satisfies proto.valid_model_label, or None.
+
+    Existing-server ids and raw file names can include non-ASCII or control
+    characters. The status worker rejects those with ToolError, so sanitize
+    here and skip unusable values instead of crashing the companion loop.
+    """
+    for part in parts:
+        if not isinstance(part, str):
+            continue
+        cleaned = "".join(ch if " " <= ch <= "~" else " " for ch in part)
+        cleaned = re.sub(r"\s+", " ", cleaned).strip()[:64]
+        if cleaned:
+            return cleaned
+    return None
+
+
 def label_of(name: str) -> str:
     stem = re.sub(r"(?i)\.gguf$", "", name)
     stem = re.sub(r"(?i)[-_.](q\d\w*|f16|bf16|ud|gguf)\b", "", stem)
@@ -2608,7 +2625,12 @@ def start_runtime(args, info, runner=subprocess.run):
         url = gpu_link_discover.chat_url(info["runtime"]["url"])
         say(f"Using the model server already running here: {info['runtime']['kind']} at {url}")
         rt.existing = True
-        rt.lanes = [{"id": info["model"]["id"], "url": url, "label": info["model"]["id"], "maker": "Local"}]
+        model = info["model"]
+        served = served_model_label(model.get("label"), model.get("id"))
+        if not served:
+            raise RuntimeError("Existing server has no usable model label")
+        rt.lanes = [{"id": model.get("id") or "opos-gpu-link", "url": url, "label": served,
+                     "maker": "Local", "lead_label": served}]
         rt.evidence = ["existing server; GPU use not measured"]
         return rt
     binary = ensure_llama_server(args.runtime_dir, gpu, allow_download=not args.no_download)
@@ -2712,9 +2734,13 @@ def start_runtime(args, info, runner=subprocess.run):
             elif gpu["backend"] != "cpu":
                 banner([f"RUNNING ON CPU - the GPU is NOT being used for {label}.", *evidence,
                         f"Log: {server.log_path}"])
-            rt.lanes.append({"id": alias, "url": f"{server.base_url}/v1/chat/completions", "label": label[:64],
-                             "maker": (entry.get("maker") or maker_of(entry.get("name", "")))[:32],
-                             "on_gpu": on_gpu, "gpu_output_bad": gpu_output_bad, "port": port, "size_mb": entry["size_mb"]})
+            served = served_model_label(label, entry.get("name")) or alias
+            lane = {"id": alias, "url": f"{server.base_url}/v1/chat/completions", "label": served,
+                    "maker": (entry.get("maker") or maker_of(entry.get("name", "")))[:32],
+                    "on_gpu": on_gpu, "gpu_output_bad": gpu_output_bad, "port": port, "size_mb": entry["size_mb"]}
+            if index == 0:
+                lane["lead_label"] = served
+            rt.lanes.append(lane)
     except BaseException:
         rt.stop()
         os.environ.pop(KEY_ENV, None)
