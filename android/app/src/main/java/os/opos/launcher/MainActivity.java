@@ -150,7 +150,7 @@ public final class MainActivity extends Activity {
         }
     };
 
-    private View screen, pairing;
+    private View screen, pairing, pairingClosed;
     private ScrollView resultsScroll;
     private LinearLayout header, answers, leftColumn, rightColumn, summaryCard;
     private TextView bigMasthead;
@@ -178,7 +178,8 @@ public final class MainActivity extends Activity {
     private LinedNotesEditText notes;
     private Button send, stop, retry, reconnect, resetAsk, info, settings, allow, deny, reopen;
     private TextView resetAskCopy;
-    private TextView status, error, question, pairingText, pairingCode;
+    private TextView status, error, question, pairingText, pairingCode, pairingCountdown;
+    private int pairingSeconds = -1;
     private TextView phoneState, phoneAnswer, gpuHeading, gpuState, gpuAnswer;
     private LinearLayout tonightRows;
     private TextView tonightCount, tonightProvenance, tonightTiming, summaryText,
@@ -328,11 +329,13 @@ public final class MainActivity extends Activity {
         deny = findViewById(R.id.deny_pc);
         reopen = findViewById(R.id.reopen_pc);
         pairing = findViewById(R.id.pairing);
+        pairingClosed = findViewById(R.id.pairing_closed);
         status = findViewById(R.id.connection);
         error = findViewById(R.id.error);
         question = findViewById(R.id.question);
         pairingText = findViewById(R.id.pairing_text);
         pairingCode = findViewById(R.id.pairing_code);
+        pairingCountdown = findViewById(R.id.pairing_countdown);
         phoneState = findViewById(R.id.phone_state);
         phoneAnswer = findViewById(R.id.phone_answer);
         gpuHeading = findViewById(R.id.gpu_heading);
@@ -797,10 +800,9 @@ public final class MainActivity extends Activity {
                         LinearLayout.LayoutParams.WRAP_CONTENT));
 
         findViewById(R.id.question_label).setVisibility(View.GONE);
-        typography.headline(findViewById(R.id.pairing_header), 23);
         typography.state(phoneState);
         typography.state(gpuState);
-        typography.tabular(pairingCode);
+        applyPairingTypography();
         prompt.setMinLines(1);
         prompt.setMaxLines(3);
         applyComposerRowHeight(false);
@@ -1450,8 +1452,7 @@ public final class MainActivity extends Activity {
         setIfChanged(question, "");
         question.setVisibility(View.GONE);
         clearNewspaperContent();
-        pairing.setVisibility(View.GONE);
-        pairingPending = false;
+        hidePairingUi();
         applyComposerState();
         updateButtons();
         super.onStop();
@@ -1648,8 +1649,7 @@ public final class MainActivity extends Activity {
             setPlainAnswer(pane.answer, getString(R.string.empty_answer));
         }
         updateCompactLaneStatus();
-        pairing.setVisibility(View.GONE);
-        pairingPending = false;
+        hidePairingUi();
         applyComposerState();
         setIfChanged(error, "");
         retry.setVisibility(View.GONE);
@@ -1666,8 +1666,7 @@ public final class MainActivity extends Activity {
                     getString(R.string.info_unknown));
             infoDialog.findViewById(R.id.info_forget_pc).setVisibility(View.GONE);
         }
-        pairing.setVisibility(View.GONE);
-        pairingPending = false;
+        hidePairingUi();
         applyComposerState();
         if (snapshot == null) {
             for (PaneViews pane : paneViews.values()) {
@@ -1712,8 +1711,7 @@ public final class MainActivity extends Activity {
             setIfChanged(question, "");
             question.setVisibility(View.GONE);
             clearNewspaperContent();
-            pairing.setVisibility(View.GONE);
-            pairingPending = false;
+            hidePairingUi();
             applyComposerState();
             setMainStatus(getString(R.string.phone_locked));
             if (infoDialog != null && infoDialog.isShowing()) {
@@ -2182,12 +2180,29 @@ public final class MainActivity extends Activity {
         saveLatestRequest();
     }
 
+    private void hidePairingUi() {
+        if (pairing != null) pairing.setVisibility(View.GONE);
+        if (pairingClosed != null) pairingClosed.setVisibility(View.GONE);
+        if (screen != null) {
+            screen.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
+        }
+        pairingPending = false;
+        pairingSeconds = -1;
+    }
+
     private void renderPairing(JSONObject link) {
         JSONObject pending = link == null ? null : link.optJSONObject("pending");
         boolean closed = link != null && "closed".equals(link.optString("enrol"));
-        boolean wasHidden = pairing.getVisibility() != View.VISIBLE;
+        boolean wasModalHidden = pairing.getVisibility() != View.VISIBLE;
+        boolean wasClosedHidden = pairingClosed == null
+                || pairingClosed.getVisibility() != View.VISIBLE;
         boolean becamePending = pending != null && !pairingPending;
-        pairing.setVisibility(pending != null || closed ? View.VISIBLE : View.GONE);
+        boolean showModal = PairingPrompt.showModal(pending != null);
+        boolean showClosed = PairingPrompt.showClosedBanner(pending != null, closed);
+        pairing.setVisibility(showModal ? View.VISIBLE : View.GONE);
+        if (pairingClosed != null) {
+            pairingClosed.setVisibility(showClosed ? View.VISIBLE : View.GONE);
+        }
         pairingPending = pending != null;
         applyComposerState();
         if (pending != null) {
@@ -2197,31 +2212,119 @@ public final class MainActivity extends Activity {
             String label = named.isEmpty() ? "the " + pendingNoun : named;
             setIfChanged(findViewById(R.id.pairing_header),
                     ComputerWords.apply(getString(R.string.pairing_title), pendingNoun));
-            TextView allow = findViewById(R.id.allow_pc);
             if (allow != null) {
                 setIfChanged(allow, ComputerWords.apply(getString(R.string.allow_pc), pendingNoun));
             }
             setIfChanged(pairingText, getString(R.string.pairing_request, label));
-            String code = pending.optString("code");
-            setIfChanged(pairingCode, code.length() == 6
-                    ? code.substring(0, 3) + " " + code.substring(3) : code);
-            findViewById(R.id.pairing_code_label).setVisibility(View.VISIBLE);
-            pairingCode.setVisibility(View.VISIBLE);
-            findViewById(R.id.pairing_disclosure).setVisibility(View.VISIBLE);
-            findViewById(R.id.pairing_actions).setVisibility(View.VISIBLE);
-            reopen.setVisibility(View.GONE);
+            TextView disclosure = findViewById(R.id.pairing_disclosure);
+            if (disclosure != null) {
+                setIfChanged(disclosure,
+                        ComputerWords.apply(getString(R.string.pairing_disclosure), pendingNoun));
+            }
+            String formatted = PairingPrompt.formatCode(pending.optString("code"));
+            setIfChanged(pairingCode, formatted);
+            pairingCode.setContentDescription(
+                    getString(R.string.pairing_code_label) + " " + formatted);
+            pairingSeconds = PairingPrompt.secondsFromField(
+                    pending.has("seconds"), pending.isNull("seconds"), pending.opt("seconds"));
+            if (pairingCountdown != null) {
+                String countdown = PairingPrompt.countdownText(pairingSeconds,
+                        getString(R.string.pairing_countdown),
+                        getString(R.string.pairing_expired_short));
+                setIfChanged(pairingCountdown, countdown);
+                pairingCountdown.setVisibility(countdown.isEmpty() ? View.GONE : View.VISIBLE);
+                applyPairingCountdownTone();
+            }
         } else if (closed) {
-            setIfChanged(findViewById(R.id.pairing_header), getString(R.string.pairing_closed_title));
-            setIfChanged(pairingText, pcWords(R.string.pairing_closed));
-            findViewById(R.id.pairing_code_label).setVisibility(View.GONE);
-            pairingCode.setVisibility(View.GONE);
-            findViewById(R.id.pairing_disclosure).setVisibility(View.GONE);
-            findViewById(R.id.pairing_actions).setVisibility(View.GONE);
-            reopen.setVisibility(View.VISIBLE);
+            pairingSeconds = -1;
+            setIfChanged(findViewById(R.id.pairing_closed_header),
+                    getString(R.string.pairing_closed_title));
+            setIfChanged(findViewById(R.id.pairing_closed_text), pcWords(R.string.pairing_closed));
+        } else {
+            pairingSeconds = -1;
         }
-        if (becamePending) hideKeyboard();
-        if ((wasHidden || becamePending) && pairing.getVisibility() == View.VISIBLE) {
+        if (becamePending) {
+            hideKeyboard();
+            applyPairingTypography();
+            if (pairingCode != null) {
+                pairingCode.sendAccessibilityEvent(
+                        android.view.accessibility.AccessibilityEvent.TYPE_VIEW_FOCUSED);
+            }
+            String announcement = (findViewById(R.id.pairing_header) instanceof TextView)
+                    ? ((TextView) findViewById(R.id.pairing_header)).getText().toString()
+                    : getString(R.string.pairing_title);
+            if (pairingCode != null && pairingCode.getText().length() > 0) {
+                announcement += " " + pairingCode.getText();
+            }
+            if (pairingCountdown != null && pairingCountdown.getVisibility() == View.VISIBLE) {
+                announcement += " " + pairingCountdown.getText();
+            }
+            pairing.announceForAccessibility(announcement);
+        }
+        if (screen != null) {
+            screen.setImportantForAccessibility(showModal
+                    ? View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+                    : View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
+        }
+        if (showClosed && wasClosedHidden && pairingClosed != null
+                && pairingClosed.getVisibility() == View.VISIBLE) {
             resultsScroll.post(() -> resultsScroll.smoothScrollTo(0, 0));
+        }
+    }
+
+    private void applyPairingTypography() {
+        if (pairing == null) return;
+        TextView header = findViewById(R.id.pairing_header);
+        if (header != null) typography.headline(header, typography.headingSp());
+        if (pairingText != null) typography.body(pairingText, typography.bodySp());
+        TextView codeLabel = findViewById(R.id.pairing_code_label);
+        if (codeLabel != null) typography.kicker(codeLabel);
+        int codeSp = PairingPrompt.codeSizeSp(coverMode);
+        if (pairingCode != null) {
+            typography.display(pairingCode, codeSp);
+            typography.tabular(pairingCode);
+            typography.applyLineHeight(pairingCode, codeSp, 1.1f);
+        }
+        if (pairingCountdown != null) typography.state(pairingCountdown);
+        TextView disclosure = findViewById(R.id.pairing_disclosure);
+        if (disclosure != null) typography.body(disclosure, typography.bodySp());
+        if (allow != null) typography.headline(allow, typography.headingSp());
+        if (deny != null) typography.retry(deny);
+        if (allow != null) {
+            setMinHeightPx(allow, dp(PairingPrompt.allowMinHeightDp(coverMode)));
+        }
+        if (deny != null) {
+            setMinHeightPx(deny, dp(PairingPrompt.denyMinHeightDp(coverMode)));
+        }
+        int pad = dp(PairingPrompt.paddingDp(coverMode));
+        View body = findViewById(R.id.pairing_body);
+        if (body != null) body.setPadding(pad, pad, pad, pad);
+        View actions = findViewById(R.id.pairing_actions);
+        if (actions != null) actions.setPadding(pad, dp(coverMode ? 4 : 8), pad, pad);
+        if (pairingClosed != null) {
+            TextView closedHeader = findViewById(R.id.pairing_closed_header);
+            TextView closedText = findViewById(R.id.pairing_closed_text);
+            if (closedHeader != null) typography.headline(closedHeader, typography.headingSp());
+            if (closedText != null) typography.body(closedText, typography.bodySp());
+            if (reopen != null) typography.retry(reopen);
+        }
+    }
+
+    private void applyPairingCountdownTone() {
+        if (pairingCountdown == null) return;
+        int color = themeColor(PairingPrompt.urgent(pairingSeconds)
+                ? R.color.newspaper_error
+                : R.color.newspaper_ink);
+        pairingCountdown.setTextColor(color);
+    }
+
+    private static void setMinHeightPx(View view, int px) {
+        view.setMinHeight(px);
+        if (view instanceof TextView) ((TextView) view).setMinimumHeight(px);
+        ViewGroup.LayoutParams lp = view.getLayoutParams();
+        if (lp != null) {
+            lp.height = px;
+            view.setLayoutParams(lp);
         }
     }
 
@@ -4647,6 +4750,11 @@ public final class MainActivity extends Activity {
         int label = themeColor(R.color.you_asked_label);
         if (screen != null) screen.setBackgroundColor(paper);
         recolorChrome(screen, paper, ink, label);
+        if (pairing != null) {
+            pairing.setBackgroundColor(paper);
+            recolorChrome(pairing, paper, ink, label);
+            applyPairingCountdownTone();
+        }
         if (notes != null) {
             notes.setTextColor(ink);
             notes.setHintTextColor(label);
@@ -4712,8 +4820,8 @@ public final class MainActivity extends Activity {
 
     private void recolorChrome(View view, int paper, int ink, int label) {
         if (view == null) return;
-        if (view == send) {
-            stylePrimaryButton(send);
+        if (view == send || view == allow || view == reopen) {
+            stylePrimaryButton((Button) view);
             return;
         }
         if (view instanceof Button) {
@@ -4741,6 +4849,7 @@ public final class MainActivity extends Activity {
         }
         if (view instanceof TextView
                 && view != status && view != error && view != tonightProvenance
+                && view != pairingCountdown
                 && (paneViews == null || !isPaneStateOrKicker(view))) {
             ((TextView) view).setTextColor(ink);
         }
@@ -4773,6 +4882,7 @@ public final class MainActivity extends Activity {
     private void applyTypographyToPage() {
         typography.useChoice(uiSettings.typography());
         typography.useCover(coverMode);
+        applyPairingTypography();
         if (bigMasthead != null) {
             typography.display(bigMasthead, coverMode ? CoverScreenPolicy.MASTHEAD_SP : 34);
         }

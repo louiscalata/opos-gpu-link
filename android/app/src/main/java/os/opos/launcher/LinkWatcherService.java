@@ -46,6 +46,7 @@ public final class LinkWatcherService extends Service {
     private Boolean lastConnected;
     private String notifiedCode;
     private String notifiedLabel;
+    private int notifiedSeconds = Integer.MIN_VALUE;
     private NotificationManager notifications;
 
     static void start(Context context) {
@@ -189,7 +190,7 @@ public final class LinkWatcherService extends Service {
             return;
         }
         String code = pending.optString("code");
-        if (!code.matches("[0-9]{6}")) {
+        if (!PairingPrompt.validCode(code)) {
             clearPairing();
             return;
         }
@@ -200,27 +201,44 @@ public final class LinkWatcherService extends Service {
             return;
         }
         String label = pending.isNull("label") ? "" : pending.optString("label").trim();
-        if (code.equals(notifiedCode) && label.equals(notifiedLabel)) return;
+        int seconds = PairingPrompt.secondsFromField(
+                pending.has("seconds"), pending.isNull("seconds"), pending.opt("seconds"));
+        if (code.equals(notifiedCode) && label.equals(notifiedLabel) && seconds == notifiedSeconds) return;
 
         Intent open = new Intent(this, MainActivity.class)
                 .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK | Intent.FLAG_ACTIVITY_CLEAR_TOP);
         PendingIntent prompt = PendingIntent.getActivity(this, PAIRING_ID, open,
                 PendingIntent.FLAG_UPDATE_CURRENT | PendingIntent.FLAG_IMMUTABLE);
-        String formattedCode = code.substring(0, 3) + " " + code.substring(3);
+        String formattedCode = PairingPrompt.formatCode(code);
+        String line = PairingPrompt.headsUpLine(formattedCode, seconds,
+                getString(R.string.pairing_countdown),
+                getString(R.string.pairing_expired_short));
+        String textLine = getString(R.string.pairing_notification_text, line);
+        // The enrol protocol itself expires at TIMEOUT_SECONDS even when an
+        // older snapshot omits pending.seconds; the on-screen countdown still
+        // stays hidden unless that field is present.
+        long timeoutMs = seconds >= 0
+                ? Math.max(1000L, seconds * 1000L)
+                : PairingPrompt.TIMEOUT_SECONDS * 1000L;
         Notification pairing = new Notification.Builder(this, PAIRING_CHANNEL)
                 .setSmallIcon(R.drawable.ic_status)
                 .setContentTitle(label.isEmpty() ? getString(R.string.pairing_notification_title_unnamed)
                         : getString(R.string.pairing_notification_title, label))
-                .setContentText(getString(R.string.pairing_notification_text, formattedCode))
+                .setContentText(textLine)
+                .setStyle(new Notification.BigTextStyle().bigText(textLine))
                 .setContentIntent(prompt)
+                .setCategory(Notification.CATEGORY_REMINDER)
+                .setPriority(Notification.PRIORITY_HIGH)
+                .setDefaults(Notification.DEFAULT_SOUND)
                 .setVisibility(Notification.VISIBILITY_PUBLIC)
                 .setOnlyAlertOnce(true)
-                .setTimeoutAfter(60000)
+                .setTimeoutAfter(timeoutMs)
                 .build();
         try {
             notifications.notify(PAIRING_ID, pairing);
             notifiedCode = code;
             notifiedLabel = label;
+            notifiedSeconds = seconds;
         } catch (SecurityException denied) {
             clearPairing();
         }
@@ -231,6 +249,7 @@ public final class LinkWatcherService extends Service {
         notifications.cancel(PAIRING_ID);
         notifiedCode = null;
         notifiedLabel = null;
+        notifiedSeconds = Integer.MIN_VALUE;
     }
 
     @Override

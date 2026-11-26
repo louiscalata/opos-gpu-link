@@ -30,6 +30,8 @@
     <string name="pairing_notification_title_unnamed">Pair with this computer?</string>
     <string name="pairing_notification_text">Compare code %1$s. Tap for Allow / Not now.</string>
     <string name="pairing_code_label">Pairing code</string>
+    <string name="pairing_countdown">%d s left</string>
+    <string name="pairing_expired_short">Expired</string>
     <string name="pairing_disclosure">If allowed, this PC can see what you ask the GPU model and keeps a copy of the model file.</string>
     <string name="pairing_closed">New PC requests are paused. You can allow pairing again.</string>
     <string name="pairing_closed_title">Pairing requests closed</string>
