@@ -1201,11 +1201,12 @@ class Companion:
                                 + ("; use phone notification to open"
                                    if self.session_launch_failed else ""))
             return
-        if success:
+        if success and not self.bridge.forward_present():
             # The one-token check passed; the adb forward disappeared while it ran.
             self.session_pc = None
+            self.bridge.remove_own_forward()
             self.status.set("Phone link interrupted; reconnecting")
-            self.next_try = 0
+            self.next_try = self.clock() + 1
             self.retry_delay = 3
             return
         self.status.set("Local model or chat route failed its one-token check; check --server and --model; retrying")
@@ -1246,15 +1247,18 @@ class Companion:
                 self.bridge.remove_own_forward()
                 # Also cover the warming window, when self.online is still False.
                 self.status.set("Phone disconnected; waiting to reconnect")
-                self.next_try = 0
+                self.next_try = self.clock() + 1
                 self.retry_delay = 3
             if (present and not self.online and self.preflight_thread is not None
+                    and self.preflight_cancel is not None and not self.preflight_cancel.is_set()
                     and not self.bridge.forward_present()):
+                # Lost USB forward during warmup (phone still listed). Run once
+                # per interruption so later ticks do not keep postponing next_try.
                 self._cancel_preflight()
                 self.session_pc = None
                 self.bridge.remove_own_forward()
                 self.status.set("Phone link interrupted; reconnecting")
-                self.next_try = 0
+                self.next_try = self.clock() + 1
                 self.retry_delay = 3
             forward_ok = present and self.bridge.forward_present() if self.online else False
             server_ok = model_server_listening(self.args.server) if forward_ok else False

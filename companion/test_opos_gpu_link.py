@@ -1004,7 +1004,7 @@ class CompanionTests(unittest.TestCase):
                 self.assertEqual(fake.forwards, {})
                 self.assertEqual(app.starts, 0)
                 self.assertIn("Phone disconnected; waiting to reconnect", app.lines[-1])
-                self.assertEqual(app.next_try, 0)
+                self.assertEqual(app.next_try, 101.0)
                 self.assertEqual(app.retry_delay, 3)
                 release.set()
                 app.tick()
@@ -1036,10 +1036,10 @@ class CompanionTests(unittest.TestCase):
                 finish_preflight(app)
                 self.assertFalse(app.online)
                 self.assertEqual(app.starts, 0)
-                self.assertIn("Phone link interrupted; reconnecting", app.lines)
+                self.assertEqual(app.lines[-1], "Phone link interrupted; reconnecting")
                 self.assertNotIn("Local model or chat route failed", "".join(app.lines))
-                self.assertEqual(app.next_try, 0)
-                now[0] = 100.0
+                self.assertEqual(app.next_try, 101.0)
+                now[0] = 101.0
                 app.tick()
                 if not app.online:
                     finish_preflight(app)
@@ -1073,13 +1073,15 @@ class CompanionTests(unittest.TestCase):
                 fake.forwards.clear()
                 app.tick()
                 self.assertTrue(app.preflight_done.wait(2))
-                self.assertIn("Phone link interrupted; reconnecting", app.lines[-1])
+                self.assertEqual(app.lines[-1], "Phone link interrupted; reconnecting")
                 self.assertEqual(app.starts, 0)
-                self.assertEqual(app.next_try, 0)
+                self.assertEqual(app.next_try, 101.0)
                 release.set()
-                now[0] = 100.0
+                now[0] = 101.0
                 app.tick()
-                finish_preflight(app)
+                self.assertNotIn("Local model or chat route failed", "".join(app.lines))
+                if not app.online:
+                    finish_preflight(app)
             self.assertTrue(app.online)
             self.assertEqual(app.starts, 1)
 
@@ -1103,14 +1105,14 @@ class CompanionTests(unittest.TestCase):
                 fake.state = "unauthorized"
                 app.tick()
                 self.assertIn("Phone disconnected; waiting to reconnect", app.lines[-1])
-                self.assertEqual(app.next_try, 0)
+                self.assertEqual(app.next_try, 101.0)
                 self.assertEqual(app.retry_delay, 3)
             with patch.object(link, "PC", FakePC), \
                     patch.object(link, "authenticated_idle", return_value=True), \
                     patch.object(link, "model_server_listening", return_value=True), \
                     patch.object(link, "model_server_preflight", return_value=True):
                 fake.state = "device"
-                now[0] = 100.5  # would have been inside the old backoff window
+                now[0] = 101.0  # after the one-second floor; inside the old long backoff
                 app.tick()
                 finish_preflight(app)
             self.assertTrue(app.online)
