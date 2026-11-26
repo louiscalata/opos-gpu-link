@@ -1995,6 +1995,11 @@ public final class MainActivity extends Activity {
         }
         overallElapsedMs = preferences.getLong("overall_elapsed_ms", -1);
         loadTimingMap(preferences.getString("answer_durations", ""), answerDurations);
+        // Start stamps are elapsedRealtime: keep only ones from this boot, so an activity
+        // recreated mid-question (fold, unfold, rotation, Termux in front) still times its lanes.
+        java.util.Map<String, Long> savedStarts = new HashMap<>();
+        loadTimingMap(preferences.getString("answer_starts", ""), savedStarts);
+        answerStarts.putAll(AnswerStarts.sameBoot(savedStarts, SystemClock.elapsedRealtime()));
         loadTimingMap(preferences.getString("answer_finished_at", ""), answerFinishedAt);
         java.util.Map<String, Long> pauseTotals = new HashMap<>();
         java.util.Map<String, Long> pauseStarts = new HashMap<>();
@@ -2061,6 +2066,12 @@ public final class MainActivity extends Activity {
                 }
             }
             editor.putString("answer_finished_at", finished.toString());
+            JSONObject answerStartStamps = new JSONObject();
+            for (Map.Entry<String, Long> entry : AnswerStarts.toSave(answerStarts,
+                    latestRequestIds.values()).entrySet()) {
+                answerStartStamps.put(entry.getKey(), entry.getValue().longValue());
+            }
+            editor.putString("answer_starts", answerStartStamps.toString());
             JSONObject pauses = new JSONObject();
             for (Map.Entry<String, Long> entry : answerTiming.pauseTotals().entrySet()) {
                 if (entry.getKey() != null && entry.getValue() != null) {
