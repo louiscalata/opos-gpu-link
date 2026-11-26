@@ -53,12 +53,14 @@ DEFAULT_SERVER = "http://127.0.0.1:1235/v1/chat/completions"
 MAC_MODEL_ID = "/usr/sbin/sysctl"
 MAC_POWER = "/usr/bin/pmset"
 _NOUN_CACHE: list[str] = []
+_NOUN_LOCK = threading.Lock()
 
 
 def _quiet_output(argv: list[str]) -> str:
     """One short local query; any failure reads as no answer."""
     try:
-        done = subprocess.run(argv, capture_output=True, text=True, timeout=3, check=False)
+        done = subprocess.run(argv, stdin=subprocess.DEVNULL, capture_output=True, text=True,
+                              timeout=2, check=False)
     except (OSError, subprocess.SubprocessError, ValueError):
         return ""
     return done.stdout if done.returncode == 0 else ""
@@ -66,15 +68,19 @@ def _quiet_output(argv: list[str]) -> str:
 
 def computer_noun(system: str | None = None, model_id: str | None = None,
                   battery: bool | None = None) -> str:
-    """Name this computer for people: "MacBook", "Mac" or "PC". A Mac is never called a PC.
+    """Name this computer for people: "MacBook", "Mac" or "PC" (Windows or Linux).
 
     Apple silicon reports model IDs like "Mac17,9" for laptops and desktops alike, so a
     built-in battery is what marks a MacBook there. This is screen wording only; the
     pairing label on the wire is unchanged, because renaming it needs owner recovery.
+    main() warms the cached default once before any window or worker thread starts.
     """
     default = system is None and model_id is None and battery is None
-    if default and _NOUN_CACHE:
-        return _NOUN_CACHE[0]
+    if default:
+        with _NOUN_LOCK:
+            if not _NOUN_CACHE:
+                _NOUN_CACHE.append(computer_noun(platform.system()))
+            return _NOUN_CACHE[0]
     system = system or platform.system()
     if system != "Darwin":
         noun = "PC"
@@ -87,8 +93,6 @@ def computer_noun(system: str | None = None, model_id: str | None = None,
             if battery is None:
                 battery = "InternalBattery" in _quiet_output([MAC_POWER, "-g", "batt"])
             noun = "MacBook" if battery else "Mac"
-    if default:
-        _NOUN_CACHE.append(noun)
     return noun
 
 
@@ -1603,6 +1607,7 @@ def resolve_launch_adb(adb: str, runner=subprocess.run, system=None) -> str:
 def main(argv=None, runtime=None) -> int:
     args = arguments(argv)
     args.runtime = runtime
+    computer_noun()  # one short local query now, never on the Tk thread or a worker later
     if args.discover:
         gpu_link_discover.print_discovery(args.probe_url, args.allow_protected_port, args.json)
         return 0

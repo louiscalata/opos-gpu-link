@@ -1,6 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
 """A Mac is never called a PC on the companion's screens. No adb, no phone, no network."""
 import ast
+import re
+import subprocess
 import sys
 import unittest
 from pathlib import Path
@@ -14,7 +16,11 @@ import opos_gpu_link as link  # noqa: E402
 
 # Pairing labels on the wire stay as they are: the phone's saved pairing is bound to them.
 # "PC" alone is computer_noun's answer for a Windows or Linux computer.
-ALLOWED = {"OPOS GPU PC", "GPU PC", " PC", "Stand-in PC", "PC"}
+ALLOWED = {"OPOS GPU PC", "Stand-in PC", "PC"}
+# safe_label builds the wire label "<GPU> PC"; nothing else may use " PC" or "GPU PC".
+WIRE_LABEL_FUNCTION = "safe_label"
+SCANNED = ("opos_gpu_link.py", "gpu_link_autosetup.py", "gpu_link_worker.py")
+PC_WORD = re.compile(r"\bPC\b")
 
 
 class ComputerNounTest(unittest.TestCase):
@@ -46,6 +52,34 @@ class ComputerNounTest(unittest.TestCase):
         with patch.object(link.subprocess, "run", side_effect=run):
             self.assertEqual(link.computer_noun("Darwin"), "MacBook")
 
+    def test_desktop_mac_on_a_ups_is_a_mac(self):
+        ups = "Now drawing from 'UPS Power'\n -CP1500PFCLCD (id=3)\t100%; charged\n"
+        replies = {link.MAC_MODEL_ID: "Mac16,10\n", link.MAC_POWER: ups}
+
+        def run(argv, **_kwargs):
+            return SimpleNamespace(returncode=0, stdout=replies[argv[0]])
+        with patch.object(link.subprocess, "run", side_effect=run):
+            self.assertEqual(link.computer_noun("Darwin"), "Mac")
+
+    def test_timeouts_and_failed_exits_read_as_no_answer(self):
+        def slow(argv, **kwargs):
+            self.assertIs(kwargs.get("stdin"), subprocess.DEVNULL)
+            self.assertLessEqual(kwargs.get("timeout"), 2)
+            raise subprocess.TimeoutExpired(argv, kwargs.get("timeout"))
+        with patch.object(link.subprocess, "run", side_effect=slow):
+            self.assertEqual(link._quiet_output(["/usr/sbin/sysctl"]), "")
+            self.assertEqual(link.computer_noun("Darwin"), "Mac")
+        failed = SimpleNamespace(returncode=1, stdout="InternalBattery")
+        with patch.object(link.subprocess, "run", return_value=failed):
+            self.assertEqual(link.computer_noun("Darwin"), "Mac")
+
+    def test_main_warms_the_noun_before_anything_else(self):
+        seen = []
+        with patch.object(link, "computer_noun", side_effect=lambda: seen.append("noun") or "Mac"), \
+                patch.object(link.gpu_link_discover, "print_discovery", side_effect=lambda *a: seen.append("go")):
+            self.assertEqual(link.main(["--discover"]), 0)
+        self.assertEqual(seen, ["noun", "go"])
+
     def test_default_answer_is_cached(self):
         calls = []
 
@@ -69,27 +103,41 @@ class ScreenWordsTest(unittest.TestCase):
     def test_ready_banner_on_a_pc_still_says_pc(self):
         self.assertIn("PC answer lanes: 0 ()", setup.ready_lines("RTX 5080", [], "PC"))
 
+    def test_wire_label_on_a_mac_is_unchanged(self):
+        self.assertEqual(setup.safe_label({"name": "Apple M5 Pro"}), "M5 Pro PC")
+        self.assertEqual(setup.safe_label({}), "GPU PC")
+
     def test_grant_messages_use_the_noun(self):
         app = SimpleNamespace(granted=False, headless=True)
         with patch.object(link, "computer_noun", return_value="MacBook"):
             with self.assertRaisesRegex(link.GrantDeclined, r"^MacBook grant expired"):
                 link.Companion.ensure_permission(app)
+            app = SimpleNamespace(granted=False, headless=False, permission=lambda: False)
+            with self.assertRaisesRegex(link.GrantDeclined, r"^MacBook permission declined"):
+                link.Companion.ensure_permission(app)
 
     def test_no_screen_string_calls_the_computer_a_pc(self):
-        """Every string literal in the companion's screen code, apart from wire labels."""
+        """String literals and f-string parts in the companion, worker and launcher, including
+        module docstrings (shown by --help); only function and class docstrings are skipped."""
         found = []
-        for name in ("opos_gpu_link.py", "gpu_link_autosetup.py"):
+        for name in SCANNED:
             tree = ast.parse((HERE / name).read_text(encoding="utf-8"))
-            docs = {id(node.body[0].value) for node in ast.walk(tree)
-                    if isinstance(node, (ast.Module, ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef))
-                    and node.body and isinstance(node.body[0], ast.Expr)
-                    and isinstance(node.body[0].value, ast.Constant)}
+            skipped = set()
             for node in ast.walk(tree):
-                if (isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in docs
-                        and node.value not in ALLOWED
-                        and any(word.strip(".,;:!?'\"()") == "PC" for word in node.value.split())):
+                if (isinstance(node, (ast.FunctionDef, ast.ClassDef, ast.AsyncFunctionDef)) and node.body
+                        and isinstance(node.body[0], ast.Expr) and isinstance(node.body[0].value, ast.Constant)):
+                    skipped.add(id(node.body[0].value))
+                if isinstance(node, ast.FunctionDef) and node.name == WIRE_LABEL_FUNCTION:
+                    skipped.update(id(inner) for inner in ast.walk(node) if isinstance(inner, ast.Constant))
+            for node in ast.walk(tree):
+                if (isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in skipped
+                        and node.value not in ALLOWED and PC_WORD.search(node.value)):
                     found.append(f"{name}:{node.lineno}: {node.value[:60]}")
         self.assertEqual(found, [])
+
+    def test_scanner_catches_possessives_and_compounds(self):
+        for text in ("this PC's GPU", "PC-side", "PC/phone", "a PC."):
+            self.assertTrue(PC_WORD.search(text), text)
 
 
 if __name__ == "__main__":
