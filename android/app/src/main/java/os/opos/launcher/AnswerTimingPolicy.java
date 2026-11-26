@@ -43,8 +43,10 @@ final class AnswerTimingPolicy {
                 if (end > started) {
                     pauseMs.put(id, pauseMs.getOrDefault(id, 0L) + (end - started));
                 }
-            } else if (started != null && !pauseMs.containsKey(id)) {
-                // Phantom: unplug observed after the backend had already finished.
+            }
+            // Phantom: unplug observed after the backend had already finished,
+            // or a confirmed close whose finish stamp is not after the pause start.
+            if (started != null && !pauseMs.containsKey(id)) {
                 interruptedIds.remove(id);
             }
             confirmedOpenAfterPause.remove(id);
@@ -54,7 +56,8 @@ final class AnswerTimingPolicy {
             interruptedIds.add(id);
             if (!pauseStartedAt.containsKey(id)) {
                 pauseStartedAt.put(id, nowMs);
-            } else {
+            } else if (nowMs > pauseStartedAt.get(id)) {
+                // Confirm only on a later observation, not the same tick or a replayed stamp.
                 confirmedOpenAfterPause.add(id);
             }
             return;
@@ -114,8 +117,11 @@ final class AnswerTimingPolicy {
                 }
             }
         }
+        // Restored in-flight pauses stay provisional. Confirming them here would
+        // charge a phantom pause if the next snapshot is already Done (Activity
+        // recreation after the first unplug observation). A later still-open
+        // snapshot will confirm them again.
         confirmedOpenAfterPause.clear();
-        confirmedOpenAfterPause.addAll(pauseStartedAt.keySet());
     }
 
     void clear() {

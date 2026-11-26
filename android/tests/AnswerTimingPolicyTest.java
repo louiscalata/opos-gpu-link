@@ -80,6 +80,33 @@ public final class AnswerTimingPolicyTest {
         wait.observe("gpu", "loading", "wait-1", true, 8000L);
         equal(7000L, wait.pauseMs("wait-1", 8000L));
 
+        // Restore keeps in-flight pauses provisional: Done next does not charge a phantom.
+        AnswerTimingPolicy restored = new AnswerTimingPolicy();
+        java.util.Map<String, Long> starts = new java.util.HashMap<>();
+        starts.put("rest-1", 1000L);
+        restored.restore(java.util.Collections.singleton("rest-1"), null, starts);
+        check(restored.interrupted("rest-1"));
+        restored.observe("gpu", "done", "rest-1", false, 4000L, 2500L);
+        check(!restored.interrupted("rest-1"));
+        equal(0L, restored.pauseMs("rest-1", 4000L));
+
+        // After restore, a later still-open snapshot confirms, then Done charges the pause.
+        AnswerTimingPolicy restOpen = new AnswerTimingPolicy();
+        java.util.Map<String, Long> startsOpen = new java.util.HashMap<>();
+        startsOpen.put("rest-2", 1000L);
+        restOpen.restore(java.util.Collections.singleton("rest-2"), null, startsOpen);
+        restOpen.observe("gpu", "answering", "rest-2", false, 2000L);
+        restOpen.observe("gpu", "done", "rest-2", true, 4000L, 2500L);
+        equal(1500L, restOpen.pauseMs("rest-2", 4000L));
+
+        // Confirmed pause whose finish is not after the start is a phantom.
+        AnswerTimingPolicy stale = new AnswerTimingPolicy();
+        stale.observe("gpu", "answering", "stale-1", false, 3000L);
+        stale.observe("gpu", "answering", "stale-1", false, 4000L);
+        stale.observe("gpu", "done", "stale-1", false, 4500L, 2000L);
+        check(!stale.interrupted("stale-1"));
+        equal(0L, stale.pauseMs("stale-1", 4500L));
+
         System.out.println("AnswerTimingPolicyTest: OK");
     }
 
