@@ -43,7 +43,7 @@ class RunLinkTests(unittest.TestCase):
 
         def target():
             with contextlib.redirect_stdout(out):
-                result.append(run_link.main(["--port", "0", "--state-dir", self.temp.name, *extra],
+                result.append(run_link.main(["--port", "0", "--no-app-api", "--state-dir", self.temp.name, *extra],
                                             stop=stop, ready=ready))
 
         thread = threading.Thread(target=target)
