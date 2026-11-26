@@ -389,6 +389,25 @@ def model_server_listening(url: str) -> bool:
         return False
 
 
+def model_server_answers(url: str, timeout: float = 1.5) -> bool:
+    """True when the model server replies to a small HTTP request in time.
+
+    A stopped or hung server still accepts TCP connections, so listening alone does not
+    prove it can stream again. /health is llama.cpp's; any reply below 500 also counts.
+    """
+    host, port, _ = endpoint(url)
+    connection = http.client.HTTPConnection(host, port, timeout=timeout)
+    try:
+        connection.request("GET", "/health", headers=server_auth_headers())
+        response = connection.getresponse()
+        response.read(1024)
+        return response.status < 500
+    except (OSError, http.client.HTTPException, ValueError):
+        return False
+    finally:
+        connection.close()
+
+
 def model_server_preflight(url: str, model: str, cancelled=lambda: False,
                            first_event_timeout: float = 90,
                            completion_timeout: float = 10,
@@ -952,6 +971,13 @@ class Companion:
                     return ServerSource(job, lane["url"], lane["id"], main_budget)
                 return RuntimeSource(build, runtime, self.args.model, job)
             return ServerSource(job, self.args.server, self.args.model, main_budget)
+
+        def main_ready():
+            """A held answer resumes once the lead model server answers again."""
+            if runtime is not None and self.args.model in runtime.pending:
+                return False
+            lane = runtime.lane(self.args.model) if runtime is not None else None
+            return model_server_answers(lane["url"] if lane is not None else self.args.server)
         extra_models = getattr(self.args, "extra_models", [])
 
         def emit(message):
@@ -963,6 +989,10 @@ class Companion:
                 line = "Warming model"
             elif message.startswith("Work received"):
                 line = "Answer started or resumed"
+            elif message == "Answer held: model server recovering":
+                line = "Local model server stalled; holding the answer until it recovers"
+            elif message == "Model server answering again; resuming":
+                line = "Local model server answering again; resuming the answer"
             elif message.startswith("Answer stopped: chat-completions server error"):
                 line = "Local model server could not stream; check it and retry"
             elif message.startswith("Answer cancelled"):
@@ -1032,11 +1062,20 @@ class Companion:
                             return LazyServerSource(job, getattr(self.args, "model_servers", {}).get(ident, self.args.server), ident,
                                                     self.extra_checked, self.extra_checked_lock, budget)
 
-                        def lane_run(client=lane_pc, source_factory=factory):
+                        def lane_ready(ident=model["id"]):
+                            if runtime is not None and ident in runtime.pending:
+                                return False
+                            lane = runtime.lane(ident) if runtime is not None else None
+                            url = (lane["url"] if lane is not None else
+                                   getattr(self.args, "model_servers", {}).get(ident, self.args.server))
+                            return model_server_answers(url)
+
+                        def lane_run(client=lane_pc, source_factory=factory, server_ready=lane_ready):
                             while not stop.is_set():
                                 try:
                                     StandIn(client, source_factory, rate=1, emit=emit,
-                                            show_text=False, give_up_after=30).run(stop)
+                                            show_text=False, give_up_after=30,
+                                            server_ready=server_ready).run(stop)
                                 except (OSError, ToolError, ValueError):
                                     self.events.put((generation, "One PC model lane stopped; retrying"))
                                 if not stop.is_set():
@@ -1049,7 +1088,7 @@ class Companion:
                     if self.generation == generation and not stop.is_set():
                         self.lane_workers = tuple(lane_threads)  # published whole, never half-built
                 StandIn(pc, source, rate=1 if enabled else 4, emit=emit, show_text=False,
-                        give_up_after=30).run(stop)
+                        give_up_after=30, server_ready=main_ready).run(stop)
             except (OSError, ToolError, ValueError):
                 self.events.put((generation, "Answer worker stopped; checking the phone and model server"))
             finally:
