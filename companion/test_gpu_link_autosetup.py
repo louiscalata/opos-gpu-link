@@ -1281,5 +1281,33 @@ class OfflineTests(unittest.TestCase):
             self.assertFalse(dest.exists())
 
 
+class ServedLeadLabelTests(unittest.TestCase):
+    def test_existing_server_publishes_the_served_model_label(self):
+        info = {
+            "gpu": {"name": "Example GPU", "vendor": "Apple", "backend": "metal", "budget_mb": 8000},
+            "runtime": {"type": "existing", "kind": "llama-server",
+                        "url": "http://127.0.0.1:18090/v1/chat/completions"},
+            "model": {"id": "opos-gpu-link", "label": "Gemma 4 26B"},
+        }
+        with patch.object(a, "say"):
+            rt = a.start_runtime(SimpleNamespace(), info)
+        self.assertTrue(rt.existing)
+        self.assertEqual(rt.lanes[0]["id"], "opos-gpu-link")
+        self.assertEqual(rt.lanes[0]["label"], "Gemma 4 26B")
+        self.assertEqual(rt.lanes[0]["lead_label"], "Gemma 4 26B")
+
+    def test_existing_server_falls_back_to_the_model_id(self):
+        info = {
+            "gpu": {"name": "Example GPU", "vendor": "Apple", "backend": "metal", "budget_mb": 8000},
+            "runtime": {"type": "existing", "kind": "llama-server",
+                        "url": "http://127.0.0.1:18090/v1/chat/completions"},
+            "model": {"id": "opos-gpu-link"},
+        }
+        with patch.object(a, "say"):
+            rt = a.start_runtime(SimpleNamespace(), info)
+        self.assertEqual(rt.lanes[0]["label"], "opos-gpu-link")
+        self.assertEqual(rt.lanes[0]["lead_label"], "opos-gpu-link")
+
+
 if __name__ == "__main__":
     unittest.main()

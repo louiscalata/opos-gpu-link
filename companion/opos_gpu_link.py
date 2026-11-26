@@ -935,8 +935,12 @@ class Companion:
         # Runtime publishes a lane's new label only after its replacement loads.
         # Resolve it for every status, including reconnects and a lead-only show.
         def lead_label():
+            # Publish the model this runtime is actually serving, including the
+            # ordinary startup label. lead_label is also set on fallback swaps.
             lane = runtime.lane(self.args.model) if runtime is not None else None
-            return lane.get("lead_label") if lane is not None else None
+            if lane is None:
+                return None
+            return lane.get("lead_label") or lane.get("label") or None
         pc.lead_label_source = lead_label
         def source(job):
             if runtime is not None and runtime.lane(self.args.model) is not None:

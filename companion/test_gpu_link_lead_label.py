@@ -306,7 +306,7 @@ class RuntimeLabelTests(unittest.TestCase):
     def test_successful_policy_swap_updates_live_getter_without_extra_lanes(self):
         pc = worker.PC("127.0.0.1:38641", KEY)
         self.start_worker(pc)
-        self.assertIsNone(pc.lead_label_source())
+        self.assertEqual(pc.lead_label_source(), "Original")
         replacement = integration.process(self.argv, 65002)
         with patch.object(setup.subprocess, "Popen", return_value=replacement), \
                 patch.object(setup, "wait_healthy", return_value=True), \
@@ -323,13 +323,23 @@ class RuntimeLabelTests(unittest.TestCase):
         self.start_worker(pc)
         replacement = integration.process(self.argv, 65002)
         def not_ready(*_args, **_kwargs):
-            self.assertIsNone(pc.lead_label_source())
+            self.assertEqual(pc.lead_label_source(), "Original")
             return False
         with patch.object(setup.subprocess, "Popen", return_value=replacement), \
                 patch.object(setup, "wait_healthy", side_effect=not_ready), \
                 patch.object(health, "port_available", return_value=True):
             self.rt._fallback(self.alias, self.job["question"], self.candidate)
-        self.assertIsNone(pc.lead_label_source())
+        self.assertEqual(pc.lead_label_source(), "Original")
+
+    def test_startup_lane_label_is_published_without_a_lead_label_key(self):
+        pc = worker.PC("127.0.0.1:38641", KEY)
+        self.start_worker(pc)
+        self.assertNotIn("lead_label", self.rt.lanes[0])
+        self.assertEqual(pc.lead_label_source(), "Original")
+        self.rt.lanes[0]["lead_label"] = "Served model"
+        self.assertEqual(pc.lead_label_source(), "Served model")
+        self.rt.lanes[0]["lead_label"] = None
+        self.assertEqual(pc.lead_label_source(), "Original")
 
 
 if __name__ == "__main__":
