@@ -31,7 +31,7 @@ public final class NewspaperSummaryTest {
                 new NewspaperSummary.Lane("Qwen", "one two", "Done · 7.0 s", 7000L));
         equal("PC\u00a04.8\u00a0s\nPhone\u00a01.6\u00a0s\nQwen\u00a07.0\u00a0s",
                 NewspaperSummary.timing(lanes));
-        equal("PC\u00a0waiting\nQwen2.5 1.5B\u00a0—\nGranite\u00a07.0\u00a0s",
+        equal("PC\u00a0paused\nQwen2.5 1.5B\u00a0—\nGranite\u00a07.0\u00a0s",
                 NewspaperSummary.timing(Arrays.asList(
                         new NewspaperSummary.Lane("PC", "partial", "Paused", null,
                                 null, true, 1, true),
@@ -197,6 +197,20 @@ public final class NewspaperSummaryTest {
                 new NewspaperSummary.Lane("PC", "a", "Done", null, null, true)), start) == null);
         check(NewspaperSummary.totalFromFinishes(Arrays.asList(
                 new NewspaperSummary.Lane("PC", "a", "Done", 7000L, 7000L, true)), 0) == null);
+        // A lane with no time yet names its live state, matching its card.
+        equal("streaming", NewspaperSummary.pendingWord("Streaming…"));
+        equal("thinking", NewspaperSummary.pendingWord("Thinking…"));
+        equal("paused", NewspaperSummary.pendingWord("Paused — will continue when the MacBook is back"));
+        equal("queued", NewspaperSummary.pendingWord("Waiting for its turn…"));
+        equal("retrying", NewspaperSummary.pendingWord("Retrying… (2/3)"));
+        equal("queued", NewspaperSummary.pendingWord("Queued"));
+        equal("waiting", NewspaperSummary.pendingWord("Loading… 45%"));
+        equal("waiting", NewspaperSummary.pendingWord(null));
+        equal("MacBook\u00a028.4\u00a0s\nPhone\u00a0streaming\nNemotron Mini 4B\u00a0queued",
+                NewspaperSummary.timing(Arrays.asList(
+                        new NewspaperSummary.Lane("MacBook", "a", "Done · 28.4 s", 28400L),
+                        new NewspaperSummary.Lane("Phone", "b c", "Streaming…", null),
+                        new NewspaperSummary.Lane("Nemotron Mini 4B", "", "Waiting for its turn…", null))));
         System.out.println("NewspaperSummaryTest: OK");
     }
 
