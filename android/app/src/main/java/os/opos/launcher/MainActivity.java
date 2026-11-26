@@ -139,7 +139,8 @@ public final class MainActivity extends Activity {
                     if (!PaneKeys.pc(pane)) continue;
                     JSONObject answer = answerOf(snapshot, pane);
                     if (open(answer)) answerTiming.observe(pane,
-                            answer.optString("state"), answer.optString("id"), observed);
+                            answer.optString("state"), answer.optString("id"), observed,
+                            SystemClock.elapsedRealtime());
                 }
             }
             renderStatus();
@@ -1746,7 +1747,7 @@ public final class MainActivity extends Activity {
             if (!PaneKeys.pc(pane)) continue;
             JSONObject work = answerOf(data, pane);
             if (work != null) answerTiming.observe(pane, work.optString("state"),
-                    work.optString("id"), cableConnected);
+                    work.optString("id"), cableConnected, SystemClock.elapsedRealtime());
             if (work == null || !"paused".equals(work.optString("state"))) continue;
             pausedAfterFreshSnapshot = true;
         }
@@ -1995,6 +1996,18 @@ public final class MainActivity extends Activity {
         overallElapsedMs = preferences.getLong("overall_elapsed_ms", -1);
         loadTimingMap(preferences.getString("answer_durations", ""), answerDurations);
         loadTimingMap(preferences.getString("answer_finished_at", ""), answerFinishedAt);
+        java.util.Map<String, Long> pauseTotals = new HashMap<>();
+        java.util.Map<String, Long> pauseStarts = new HashMap<>();
+        loadTimingMap(preferences.getString("answer_pause_ms", ""), pauseTotals);
+        loadTimingMap(preferences.getString("answer_pause_started_at", ""), pauseStarts);
+        java.util.Set<String> interruptedIds = new HashSet<>();
+        String interruptedRaw = preferences.getString("answer_interrupted_ids", "");
+        if (interruptedRaw != null && !interruptedRaw.isEmpty()) {
+            for (String id : interruptedRaw.split("\n")) {
+                if (!id.isEmpty()) interruptedIds.add(id);
+            }
+        }
+        answerTiming.restore(interruptedIds, pauseTotals, pauseStarts);
         if (!latestRequestedPanes.isEmpty()) {
             latestRequestAtElapsedMs = SystemClock.elapsedRealtime();
         }
@@ -2048,6 +2061,27 @@ public final class MainActivity extends Activity {
                 }
             }
             editor.putString("answer_finished_at", finished.toString());
+            JSONObject pauses = new JSONObject();
+            for (Map.Entry<String, Long> entry : answerTiming.pauseTotals().entrySet()) {
+                if (entry.getKey() != null && entry.getValue() != null) {
+                    pauses.put(entry.getKey(), entry.getValue().longValue());
+                }
+            }
+            editor.putString("answer_pause_ms", pauses.toString());
+            JSONObject starts = new JSONObject();
+            for (Map.Entry<String, Long> entry : answerTiming.pauseStarts().entrySet()) {
+                if (entry.getKey() != null && entry.getValue() != null) {
+                    starts.put(entry.getKey(), entry.getValue().longValue());
+                }
+            }
+            editor.putString("answer_pause_started_at", starts.toString());
+            StringBuilder interrupted = new StringBuilder();
+            for (String id : answerTiming.interruptedAnswerIds()) {
+                if (id == null || id.isEmpty()) continue;
+                if (interrupted.length() > 0) interrupted.append('\n');
+                interrupted.append(id);
+            }
+            editor.putString("answer_interrupted_ids", interrupted.toString());
         } catch (JSONException ignored) {
             // Timing persistence is best-effort; the on-screen ask still works.
         }
@@ -2067,6 +2101,7 @@ public final class MainActivity extends Activity {
         overallElapsedMs = -1;
         answerDurations.clear();
         answerFinishedAt.clear();
+        answerTiming.clear();
         saveLatestRequest();
     }
 
@@ -2397,8 +2432,10 @@ public final class MainActivity extends Activity {
                 return getString(R.string.gpu_paused);
             case "done":
                 Long duration = answerDurations.get(id);
-                return AnswerTimingPolicy.doneLabel(duration,
-                        isGpu && answerTiming.interrupted(id));
+                boolean interrupted = isGpu && answerTiming.interrupted(id);
+                long pauseMs = isGpu ? answerTiming.pauseMs(id, SystemClock.elapsedRealtime()) : 0;
+                boolean pauseMeasured = isGpu && answerTiming.pauseMeasured(id);
+                return AnswerTimingPolicy.doneLabel(duration, pauseMs, interrupted, pauseMeasured);
             case "cancelled":
                 return getString(R.string.answer_stopped);
             case "failed":
@@ -2435,17 +2472,21 @@ public final class MainActivity extends Activity {
             boolean interrupted = included && currentId && PaneKeys.pc(pane)
                     && answerTiming.interrupted(id);
             anyInterrupted |= interrupted;
+            long nowMs = SystemClock.elapsedRealtime();
+            long pauseMs = PaneKeys.pc(pane) ? answerTiming.pauseMs(id, nowMs) : 0;
+            boolean pauseMeasured = PaneKeys.pc(pane) && answerTiming.pauseMeasured(id);
             Long duration = included && currentId
-                    ? AnswerTimingPolicy.modelDuration(answerDurations.get(id), interrupted) : null;
+                    ? AnswerTimingPolicy.displayDuration(answerDurations.get(id), pauseMs,
+                            interrupted, pauseMeasured) : null;
             Long finishedAt = included && currentId
-                    ? AnswerTimingPolicy.comparisonFinish(answerFinishedAt.get(id), interrupted)
+                    ? AnswerTimingPolicy.comparisonFinish(answerFinishedAt.get(id))
                     : null;
             boolean pending = included && ((latestRequestedPanes.contains(pane)
                     && latestRequestIds.get(pane) == null && !missingIdExpired(pane))
                     || currentId && open(answer));
             String stateText = article.state.getText().toString();
             String marker = included && currentId
-                    ? AnswerTimingPolicy.rowMarker(stateText, interrupted) : null;
+                    ? AnswerTimingPolicy.rowMarker(stateText, interrupted, pauseMeasured) : null;
             if (marker == null && included && currentId && duration == null && !pending) {
                 if (ErrorCopy.errorLine(stateText)) marker = "failed";
                 else if (stateText.startsWith("Done")) marker = "unmeasured";
@@ -2503,10 +2544,13 @@ public final class MainActivity extends Activity {
             if (where.isEmpty()) where = PaneKeys.defaultWhere(pane);
             boolean interrupted = PaneKeys.pc(pane) && answerTiming.interrupted(expectedId);
             anyInterrupted |= interrupted;
+            long pauseMs = PaneKeys.pc(pane)
+                    ? answerTiming.pauseMs(expectedId, SystemClock.elapsedRealtime()) : 0;
+            boolean pauseMeasured = PaneKeys.pc(pane) && answerTiming.pauseMeasured(expectedId);
             lanes.add(new HistoryStore.Lane(pane, label, maker, where,
                     article.state.getText().toString(), article.rawAnswer,
                     AnswerTimingPolicy.archivedDuration(answerDurations.get(expectedId),
-                            interrupted)));
+                            pauseMs, interrupted, pauseMeasured)));
         }
         if (lanes.size() != latestRequestedPanes.size()) return;
         String sourceId = "";
