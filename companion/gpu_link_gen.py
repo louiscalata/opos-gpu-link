@@ -27,7 +27,7 @@ class GenerationProfile:
     dry_base: float = 1.75
     dry_allowed_length: int = 4
     dry_penalty_last_n: int = 128
-    n_predict: int = 384
+    n_predict: int = 1024
 
 
 # Intentionally modest demo presets, rather than vendor benchmark settings.
@@ -38,14 +38,14 @@ GENERATION_PROFILES = {
     "llama3": GenerationProfile("llama3", temp=0.5),
     "qwen25": GenerationProfile("qwen25", temp=0.4),
     "qwen3": GenerationProfile("qwen3", temp=0.6, top_p=0.95, top_k=20,
-                               min_p=0.0, n_predict=512),
+                               min_p=0.0, n_predict=1024),
     "phi": GenerationProfile("phi", temp=0.4),
     "mistral": GenerationProfile("mistral", temp=0.5),
     "lfm": GenerationProfile("lfm", temp=0.3),
     "smollm": GenerationProfile("smollm", temp=0.4),
     "granite": GenerationProfile("granite", temp=0.4),
-    "deepseek": GenerationProfile("deepseek", temp=0.5, n_predict=512),
-    "glm": GenerationProfile("glm", temp=0.5, n_predict=512),
+    "deepseek": GenerationProfile("deepseek", temp=0.5, n_predict=1024),
+    "glm": GenerationProfile("glm", temp=0.5, n_predict=1024),
 }
 
 # Use only the file name, never a parent directory or an incidental substring.

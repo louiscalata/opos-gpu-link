@@ -26,6 +26,31 @@ _ID = re.compile(r"[0-9a-f]{12}")
 _ERROR = re.compile(r"[a-z0-9_-]{1,32}")
 
 
+
+# A numbered list item ("2.") or a single-letter initial is not a sentence end.
+_SENTENCE_END = re.compile(r"(?<!\d)([.!?]+)([\"\'\u201d)\]]*)(?=\s+|$)")
+
+
+def complete_sentences(text: str) -> str:
+    """Return text cut at the last complete sentence, or the original if none.
+
+    Used when a model hits its token cap so the UI does not keep a hanging
+    clause. Mid-stream / paused text is not passed through this helper.
+    """
+    if not text:
+        return text
+    last = None
+    for match in _SENTENCE_END.finditer(text):
+        last = match.end()
+    if last is None:
+        return text
+    trimmed = text[:last].rstrip()
+    # Keep the original if the only terminator is a tiny prefix of a long reply.
+    if len(trimmed) < 40 and len(text) > 80:
+        return text
+    return trimmed
+
+
 class AnswerError(Exception):
     """Base error for an answer operation."""
 
@@ -436,14 +461,9 @@ class AnswerStore:
             answer = record["answer"]
             raw = answer["text"].encode("utf-8")
             if answer["state"] == "done":
-                if (
-                    type(offset) is int
-                    and offset == record["final_offset"]
-                    and isinstance(data, bytes)
-                    and data == raw[offset:]
-                    and done is True
-                    and finish == answer["finish"]
-                ):
+                # Length-capped answers may have been trimmed to a sentence
+                # boundary, so a replay of the exact final chunk can differ.
+                if done is True and finish == answer["finish"]:
                     return answer
                 raise StateError("done")
             if answer["state"] not in ("loading", "answering"):
@@ -473,6 +493,11 @@ class AnswerStore:
             answer["text"] += data.decode("utf-8")
             answer["bytes"] += len(data)
             if done:
+                if finish == "length":
+                    trimmed = complete_sentences(answer["text"])
+                    if trimmed != answer["text"]:
+                        answer["text"] = trimmed
+                        answer["bytes"] = len(trimmed.encode("utf-8"))
                 answer["state"] = "done"
                 answer["finish"] = finish
                 record["final_offset"] = offset

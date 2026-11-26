@@ -123,6 +123,14 @@ class Profiles(unittest.TestCase):
         self.assertEqual(g.generation_profile("Qwen3-4B.gguf", profile="other-profile", environ={}),
                          g.generation_profile("Qwen3-4B.gguf", environ={}))
 
+    def test_demo_families_use_a_1024_token_budget(self):
+        for name in ("gemma-4-26B_q4_0-it.gguf", "Qwen3-4B.gguf", "unknown.gguf"):
+            profile = g.generation_profile(name, environ={})
+            with self.subTest(name=name):
+                self.assertEqual(profile.n_predict, 1024)
+        flags = g.generation_flags("gemma-4-26B_q4_0-it.gguf", environ={})
+        self.assertEqual(int(flags[flags.index("-n") + 1]), 1024)
+
 
 class Overrides(unittest.TestCase):
     def test_explicit_overrides_apply_to_every_setting(self):
