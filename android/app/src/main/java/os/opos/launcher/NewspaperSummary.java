@@ -143,17 +143,19 @@ final class NewspaperSummary {
     }
 
     /**
-     * The latest finish among the included lanes, measured from the question; null if any
-     * included lane has no finish time, so the caller falls back to its own clock.
+     * Question total: the latest finish stamp among the included lanes minus the question's
+     * start stamp (both SystemClock.elapsedRealtime). Null if the start is unknown or any
+     * included lane has no finish stamp, so the caller falls back to its own clock.
      */
-    static Long lastFinish(List<Lane> lanes) {
+    static Long totalFromFinishes(List<Lane> lanes, long questionStartedAtMs) {
+        if (questionStartedAtMs <= 0) return null;
         Long latest = null;
         for (Lane lane : lanes) {
             if (!lane.included) continue;
             if (lane.finishedAtMs == null) return null;
             if (latest == null || lane.finishedAtMs > latest) latest = lane.finishedAtMs;
         }
-        return latest;
+        return latest == null ? null : Math.max(0, latest - questionStartedAtMs);
     }
 
     static String report(List<Lane> lanes) {

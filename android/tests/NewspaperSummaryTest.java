@@ -124,13 +124,16 @@ public final class NewspaperSummaryTest {
         String cleanReport = NewspaperSummary.report(Arrays.asList(cleanPcDone, phoneDone));
         contains(cleanReport, "PC finished first by 76.0 s");
         check(!cleanReport.contains("includes pause"));
-        // TONIGHT total after an app restart: the last lane's finish, not "now".
-        equal(305400L, NewspaperSummary.lastFinish(Arrays.asList(
-                new NewspaperSummary.Lane("PC", "a", "Done · 7.0 s", 7000L, 7000L, true),
-                new NewspaperSummary.Lane("Granite", "b", "Done · 305.4 s", 305400L, 305400L, true),
-                new NewspaperSummary.Lane("Qwen", "", "Not asked this time", null, false))));
-        check(NewspaperSummary.lastFinish(Arrays.asList(
-                new NewspaperSummary.Lane("PC", "a", "Done", null, null, true))) == null);
+        // TONIGHT total after an app restart: last finish stamp minus the question start.
+        long start = 221_000_000L;
+        equal(305400L, NewspaperSummary.totalFromFinishes(Arrays.asList(
+                new NewspaperSummary.Lane("PC", "a", "Done · 7.0 s", 7000L, start + 7000L, true),
+                new NewspaperSummary.Lane("Granite", "b", "Done · 305.4 s", 305400L, start + 305400L, true),
+                new NewspaperSummary.Lane("Qwen", "", "Not asked this time", null, false)), start));
+        check(NewspaperSummary.totalFromFinishes(Arrays.asList(
+                new NewspaperSummary.Lane("PC", "a", "Done", null, null, true)), start) == null);
+        check(NewspaperSummary.totalFromFinishes(Arrays.asList(
+                new NewspaperSummary.Lane("PC", "a", "Done", 7000L, 7000L, true)), 0) == null);
         System.out.println("NewspaperSummaryTest: OK");
     }
 

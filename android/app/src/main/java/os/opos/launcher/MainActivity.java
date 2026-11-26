@@ -2511,13 +2511,18 @@ public final class MainActivity extends Activity {
         else {
             long elapsed = allClosed && overallElapsedMs >= 0 ? overallElapsedMs
                     : Math.max(0, SystemClock.elapsedRealtime() - questionStartedAtMs);
-            if (allClosed && overallElapsedMs < 0) {
+            if (allClosed) {
                 // Freeze the total at the last lane's finish, not at "now": after an app
-                // restart the first closed render can be minutes later. Persist it at once.
-                Long lastFinish = NewspaperSummary.lastFinish(lanes);
-                overallElapsedMs = lastFinish != null ? lastFinish : elapsed;
+                // restart the first closed render can be minutes later. Lane finish times are
+                // elapsedRealtime stamps, so measure from the question start, and correct any
+                // stored total that disagrees (self-heals totals saved by older builds).
+                Long total = NewspaperSummary.totalFromFinishes(lanes, questionStartedAtMs);
+                if (total == null && overallElapsedMs < 0) total = elapsed;
+                if (total != null && total != overallElapsedMs) {
+                    overallElapsedMs = total;
+                    saveLatestRequest();
+                }
                 elapsed = overallElapsedMs;
-                saveLatestRequest();
             }
             setIfChanged(tonightCount, NewspaperSummary.seconds(elapsed));
         }
