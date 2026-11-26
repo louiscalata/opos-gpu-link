@@ -75,13 +75,15 @@ def computer_noun(system: str | None = None, model_id: str | None = None,
     pairing label on the wire is unchanged, because renaming it needs owner recovery.
     main() warms the cached default once before any window or worker thread starts.
     """
-    default = system is None and model_id is None and battery is None
-    if default:
+    if system is None and model_id is None and battery is None:
         with _NOUN_LOCK:
             if not _NOUN_CACHE:
-                _NOUN_CACHE.append(computer_noun(platform.system()))
+                _NOUN_CACHE.append(_detect_computer_noun(platform.system() or "", None, None))
             return _NOUN_CACHE[0]
-    system = system or platform.system()
+    return _detect_computer_noun(system or platform.system() or "", model_id, battery)
+
+
+def _detect_computer_noun(system: str, model_id: str | None, battery: bool | None) -> str:
     if system != "Darwin":
         noun = "PC"
     else:
@@ -1607,7 +1609,6 @@ def resolve_launch_adb(adb: str, runner=subprocess.run, system=None) -> str:
 def main(argv=None, runtime=None) -> int:
     args = arguments(argv)
     args.runtime = runtime
-    computer_noun()  # one short local query now, never on the Tk thread or a worker later
     if args.discover:
         gpu_link_discover.print_discovery(args.probe_url, args.allow_protected_port, args.json)
         return 0
@@ -1628,6 +1629,7 @@ def main(argv=None, runtime=None) -> int:
             return 2
         finally:
             guard.close()
+    computer_noun()  # one short local query now, never on the Tk thread or a worker later
     if args.auto_discover:
         backends = gpu_link_discover.discover(args.probe_url, args.allow_protected_port)
         if len(backends) == 1:

@@ -17,10 +17,11 @@ import opos_gpu_link as link  # noqa: E402
 # Pairing labels on the wire stay as they are: the phone's saved pairing is bound to them.
 # "PC" alone is computer_noun's answer for a Windows or Linux computer.
 ALLOWED = {"OPOS GPU PC", "Stand-in PC", "PC"}
-# safe_label builds the wire label "<GPU> PC"; nothing else may use " PC" or "GPU PC".
+# safe_label builds the wire label "<GPU> PC"; only these two literals there are exempt.
 WIRE_LABEL_FUNCTION = "safe_label"
+WIRE_LABEL_PARTS = {" PC", "GPU PC"}
 SCANNED = ("opos_gpu_link.py", "gpu_link_autosetup.py", "gpu_link_worker.py")
-PC_WORD = re.compile(r"\bPC\b")
+PC_WORD = re.compile(r"\bPCs?\b")
 
 
 class ComputerNounTest(unittest.TestCase):
@@ -73,12 +74,24 @@ class ComputerNounTest(unittest.TestCase):
         with patch.object(link.subprocess, "run", return_value=failed):
             self.assertEqual(link.computer_noun("Darwin"), "Mac")
 
-    def test_main_warms_the_noun_before_anything_else(self):
+    def test_main_warms_the_noun_before_the_link_starts(self):
         seen = []
+
+        def stop_at_adb(adb):
+            seen.append("adb")
+            raise link.CompanionError("stop here")
+        # An explicit --server turns auto-discovery off; never probe a real local backend here.
         with patch.object(link, "computer_noun", side_effect=lambda: seen.append("noun") or "Mac"), \
-                patch.object(link.gpu_link_discover, "print_discovery", side_effect=lambda *a: seen.append("go")):
+                patch.object(link.gpu_link_discover, "_probe", side_effect=AssertionError("no probe")), \
+                patch.object(link, "resolve_launch_adb", side_effect=stop_at_adb):
+            self.assertEqual(link.main(["--model", "m", "--server", "http://127.0.0.1:9/v1/chat/completions"]), 2)
+        self.assertEqual(seen, ["noun", "adb"])
+
+    def test_discover_only_does_not_query_the_computer(self):
+        with patch.object(link, "computer_noun", side_effect=AssertionError("no query")), \
+                patch.object(link.gpu_link_discover, "_probe", side_effect=AssertionError("no probe")), \
+                patch.object(link.gpu_link_discover, "print_discovery", return_value=None):
             self.assertEqual(link.main(["--discover"]), 0)
-        self.assertEqual(seen, ["noun", "go"])
 
     def test_default_answer_is_cached(self):
         calls = []
@@ -128,7 +141,8 @@ class ScreenWordsTest(unittest.TestCase):
                         and isinstance(node.body[0], ast.Expr) and isinstance(node.body[0].value, ast.Constant)):
                     skipped.add(id(node.body[0].value))
                 if isinstance(node, ast.FunctionDef) and node.name == WIRE_LABEL_FUNCTION:
-                    skipped.update(id(inner) for inner in ast.walk(node) if isinstance(inner, ast.Constant))
+                    skipped.update(id(inner) for inner in ast.walk(node)
+                                   if isinstance(inner, ast.Constant) and inner.value in WIRE_LABEL_PARTS)
             for node in ast.walk(tree):
                 if (isinstance(node, ast.Constant) and isinstance(node.value, str) and id(node) not in skipped
                         and node.value not in ALLOWED and PC_WORD.search(node.value)):
@@ -136,7 +150,7 @@ class ScreenWordsTest(unittest.TestCase):
         self.assertEqual(found, [])
 
     def test_scanner_catches_possessives_and_compounds(self):
-        for text in ("this PC's GPU", "PC-side", "PC/phone", "a PC."):
+        for text in ("this PC's GPU", "PC-side", "PC/phone", "a PC.", "two PCs"):
             self.assertTrue(PC_WORD.search(text), text)
 
 
