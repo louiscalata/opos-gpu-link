@@ -2121,20 +2121,29 @@ def _wire_words(text: str) -> str:
     return re.sub(r"\s+", " ", text).strip(" -")
 
 
-def mac_model_name(runner=subprocess.run) -> str:
-    """This Mac's model name ("MacBook Pro", "Mac mini"), or "" when it cannot be read."""
+_MODEL_NAME_CACHE: list[str] = []
+
+
+def mac_model_name(runner=None) -> str:
+    """This Mac's model name ("MacBook Pro", "Mac mini"), or "" when it cannot be read.
+
+    Reads the locale-independent machine_name from system_profiler's JSON once per process
+    (5 s cap, stdin closed); a runner passed by a test is never cached."""
+    if runner is None and _MODEL_NAME_CACHE:
+        return _MODEL_NAME_CACHE[0]
+    name = ""
     try:
-        done = runner([MAC_PROFILER, "SPHardwareDataType"], capture_output=True, text=True,
-                      stdin=subprocess.DEVNULL, timeout=5, check=False)
-    except (OSError, subprocess.SubprocessError, ValueError):
-        return ""
-    if done.returncode != 0:
-        return ""
-    for line in (done.stdout or "").splitlines():
-        key, sep, value = line.strip().partition(":")
-        if sep and key.strip() == "Model Name":
-            return _wire_words(value)
-    return ""
+        done = (runner or subprocess.run)([MAC_PROFILER, "-json", "SPHardwareDataType"], capture_output=True,
+                                          text=True, stdin=subprocess.DEVNULL, timeout=5, check=False)
+        if done.returncode == 0:
+            items = json.loads(done.stdout or "{}").get("SPHardwareDataType") or []
+            if items and isinstance(items[0], dict) and isinstance(items[0].get("machine_name"), str):
+                name = _wire_words(items[0]["machine_name"])
+    except (OSError, subprocess.SubprocessError, ValueError, AttributeError, TypeError):
+        name = ""
+    if runner is None:
+        _MODEL_NAME_CACHE.append(name)
+    return name
 
 
 def safe_label(gpu, system=None, model_name=None) -> str:
@@ -2153,7 +2162,8 @@ def safe_label(gpu, system=None, model_name=None) -> str:
             if WIRE_LABEL.fullmatch(label):
                 return label
     label = (name + " PC").strip() if name else "GPU PC"
-    return label[:24].strip() or "GPU PC"
+    label = label[:24].strip(" -")
+    return label if WIRE_LABEL.fullmatch(label) else "GPU PC"
 
 
 def ready_lines(gpu_name, lanes, noun):

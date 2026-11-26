@@ -619,12 +619,13 @@ class AdbServerBinary(unittest.TestCase):
 class Labels(unittest.TestCase):
     def test_label_is_valid_for_phone(self):
         for name in ("NVIDIA GeForce RTX 5080", "Apple M5 Pro", "AMD Radeon(TM) RX 7900 XTX", "", "!!!"):
-            label = a.safe_label({"name": name})
+            label = a.safe_label({"name": name}, "Linux")
             self.assertTrue(proto.valid_label(label), (name, label))
         self.assertEqual(a.safe_label({"name": "NVIDIA GeForce RTX 5080"}, "Windows"), "RTX 5080 PC")
         for system in ("Darwin", "Linux", "Windows"):
             for model in ("MacBook Pro", "Mac mini", "", "MacBook Pro (16-inch, 2026) !!"):
-                for name in ("Apple M5 Pro", "AMD Radeon Pro 5500M", "", "!!!"):
+                for name in ("Apple M5 Pro", "AMD Radeon Pro 5500M", "", "!!!", "AMD Radeon RX 7900 XTX -9",
+                             "A" * 40, "x" * 23 + " -y"):
                     label = a.safe_label({"name": name}, system, model)
                     self.assertTrue(proto.valid_label(label), (system, model, name, label))
 
@@ -641,8 +642,24 @@ class Labels(unittest.TestCase):
         self.assertEqual(a.safe_label({"name": "Apple M5 Pro"}, "Darwin", ""), "M5 Pro Mac")
         self.assertEqual(a.safe_label({}, "Darwin", "MacBook Air"), "MacBook Air")
 
-    def test_mac_model_name_reads_only_the_model_line(self):
-        out = "Hardware:\n\n    Hardware Overview:\n\n      Model Name: MacBook Pro\n      Chip: Apple M5 Pro\n"
+    def test_non_mac_never_asks_for_a_model_name_and_truncation_keeps_the_rule(self):
+        with patch.object(a, "mac_model_name", side_effect=AssertionError("not on a PC")):
+            self.assertEqual(a.safe_label({"name": "AMD Radeon RX 7900 XTX -9"}, "Linux"), "AMD Radeon RX 7900 XTX")
+            self.assertEqual(a.safe_label({"name": "!!!"}, "Windows"), "GPU PC")
+
+    def test_darwin_default_reads_the_model_name_once(self):
+        calls = []
+
+        def run(argv, **kwargs):
+            calls.append(argv)
+            return SimpleNamespace(returncode=0, stdout='{"SPHardwareDataType": [{"machine_name": "MacBook Air"}]}')
+        with patch.object(a, "_MODEL_NAME_CACHE", []), patch.object(a.subprocess, "run", side_effect=run):
+            self.assertEqual(a.safe_label({"name": "Apple M4"}, "Darwin"), "M4 MacBook Air")
+            self.assertEqual(a.safe_label({"name": "Apple M4"}, "Darwin"), "M4 MacBook Air")
+        self.assertEqual(calls, [[a.MAC_PROFILER, "-json", "SPHardwareDataType"]])
+
+    def test_mac_model_name_reads_only_machine_name(self):
+        out = '{"SPHardwareDataType": [{"machine_name": "MacBook Pro", "chip_type": "Apple M5 Pro"}]}'
         calls = []
 
         def runner(argv, **kwargs):
@@ -656,6 +673,14 @@ class Labels(unittest.TestCase):
             raise subprocess.TimeoutExpired(argv, 5)
         self.assertEqual(a.mac_model_name(broken), "")
         self.assertEqual(a.mac_model_name(lambda *x, **k: SimpleNamespace(returncode=1, stdout=out)), "")
+        for bad in (None, "", "not json", "[]", '{"SPHardwareDataType": []}', '{"SPHardwareDataType": [{}]}',
+                    '{"SPHardwareDataType": [{"machine_name": 7}]}', '{"SPHardwareDataType": "x"}'):
+            self.assertEqual(a.mac_model_name(lambda *x, b=bad, **k: SimpleNamespace(returncode=0, stdout=b)), "", bad)
+
+        def missing(argv, **kwargs):
+            raise OSError("no profiler")
+        self.assertEqual(a.mac_model_name(missing), "")
+        self.assertEqual(a.safe_label({"name": "!!!"}, "Darwin", "!!!"), "Mac")
 
 
 class ChatOverCoder(unittest.TestCase):
@@ -1407,7 +1432,8 @@ class ServedLeadLabelTests(unittest.TestCase):
         self.assertTrue(proto.valid_model_label(rt.lanes[0]["lead_label"]))
         self.assertNotIn("lead_label", rt.lanes[1])
         argv = a.companion_args(args, rt, info, Path("/unused/adb"), "SERIAL")
-        self.assertEqual(argv[argv.index("--label") + 1], a.safe_label(info["gpu"]))
+        with patch.object(a, "mac_model_name", return_value="MacBook Pro"):
+            self.assertEqual(argv[argv.index("--label") + 1], a.safe_label(info["gpu"]))
         self.assertEqual(a.safe_label(info["gpu"], "Darwin", "MacBook Pro"), "M5 Pro MacBook Pro")
         self.assertEqual(a.safe_label(info["gpu"], "Linux"), "M5 Pro PC")
 
