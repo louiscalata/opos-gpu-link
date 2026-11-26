@@ -1,5 +1,6 @@
 # SPDX-License-Identifier: Apache-2.0
 """Unit tests for plug-and-play detection and model fit. No network, no GPU, no adb."""
+import contextlib
 import io
 import os
 import sys
@@ -1282,31 +1283,93 @@ class OfflineTests(unittest.TestCase):
 
 
 class ServedLeadLabelTests(unittest.TestCase):
-    def test_existing_server_publishes_the_served_model_label(self):
-        info = {
+    def _existing(self, model):
+        return {
             "gpu": {"name": "Example GPU", "vendor": "Apple", "backend": "metal", "budget_mb": 8000},
             "runtime": {"type": "existing", "kind": "llama-server",
                         "url": "http://127.0.0.1:18090/v1/chat/completions"},
-            "model": {"id": "opos-gpu-link", "label": "Gemma 4 26B"},
+            "model": model,
         }
+
+    def test_existing_server_publishes_the_served_model_label(self):
         with patch.object(a, "say"):
-            rt = a.start_runtime(SimpleNamespace(), info)
+            rt = a.start_runtime(SimpleNamespace(), self._existing(
+                {"id": "opos-gpu-link", "label": "Gemma 4 26B"}))
         self.assertTrue(rt.existing)
         self.assertEqual(rt.lanes[0]["id"], "opos-gpu-link")
         self.assertEqual(rt.lanes[0]["label"], "Gemma 4 26B")
         self.assertEqual(rt.lanes[0]["lead_label"], "Gemma 4 26B")
+        self.assertTrue(proto.valid_model_label(rt.lanes[0]["lead_label"]))
 
     def test_existing_server_falls_back_to_the_model_id(self):
-        info = {
-            "gpu": {"name": "Example GPU", "vendor": "Apple", "backend": "metal", "budget_mb": 8000},
-            "runtime": {"type": "existing", "kind": "llama-server",
-                        "url": "http://127.0.0.1:18090/v1/chat/completions"},
-            "model": {"id": "opos-gpu-link"},
-        }
         with patch.object(a, "say"):
-            rt = a.start_runtime(SimpleNamespace(), info)
+            rt = a.start_runtime(SimpleNamespace(), self._existing({"id": "opos-gpu-link"}))
         self.assertEqual(rt.lanes[0]["label"], "opos-gpu-link")
         self.assertEqual(rt.lanes[0]["lead_label"], "opos-gpu-link")
+
+    def test_existing_server_sanitizes_non_ascii_and_long_labels(self):
+        long_label = "Gemma 4 26B " + ("x" * 80)
+        with patch.object(a, "say"):
+            rt = a.start_runtime(SimpleNamespace(), self._existing(
+                {"id": "raw\tid", "label": "Gemma 4 26B – instruct"}))
+        self.assertEqual(rt.lanes[0]["lead_label"], "Gemma 4 26B instruct")
+        self.assertTrue(proto.valid_model_label(rt.lanes[0]["lead_label"]))
+        with patch.object(a, "say"):
+            rt = a.start_runtime(SimpleNamespace(), self._existing({"id": long_label}))
+        self.assertEqual(len(rt.lanes[0]["lead_label"]), 64)
+        self.assertTrue(proto.valid_model_label(rt.lanes[0]["lead_label"]))
+        self.assertTrue(rt.lanes[0]["lead_label"].startswith("Gemma 4 26B "))
+
+    def test_existing_server_rejects_a_missing_model_id(self):
+        with patch.object(a, "say"), self.assertRaises(RuntimeError) as raised:
+            a.start_runtime(SimpleNamespace(), self._existing({"id": None}))
+        self.assertIn("usable model label", str(raised.exception))
+
+    def test_served_model_label_skips_unusable_values(self):
+        self.assertEqual(a.served_model_label("Gemma 4 26B – it", "fallback"), "Gemma 4 26B it")
+        self.assertEqual(a.served_model_label(None, "\n\t"), None)
+        self.assertEqual(a.served_model_label(None, 12, "ok"), "ok")
+        self.assertTrue(proto.valid_model_label(a.served_model_label("é" * 8, "ASCII")))
+
+    def test_managed_runtime_sets_lead_label_only_on_the_first_lane(self):
+        args = a.arguments(["--own-server", "--no-download", "--port", "18090"])
+        args.log_dir = Path("/unused/logs")
+        args.models_dir = Path("/unused/models")
+        args.runtime_dir = Path("/unused/runtime")
+        args.companion_args = []
+        info = {
+            "gpu": {"name": "Apple M5 Pro", "vendor": "Apple", "backend": "cpu", "budget_mb": 8000},
+            "runtime": {"type": "llama-server"},
+            "model": {"choice": "local", "size_mb": 1000, "maker": "Google", "name": "lead.gguf"},
+            "extras": [{"choice": "local", "size_mb": 400, "maker": "Qwen", "name": "extra.gguf"}],
+        }
+        server = type("Srv", (), {"base_url": "http://127.0.0.1:18090", "log_path": Path("/unused/server.log"),
+                                  "stop": lambda self, quiet=False: None})()
+        labels = iter(("Gemma 4 26B " + ("x" * 80), "Qwen extra"))
+        with contextlib.ExitStack() as stack:
+            stack.enter_context(patch.object(a, "ensure_llama_server", return_value=Path("/unused/llama-server")))
+            stack.enter_context(patch.object(a, "runtime_env", return_value={}))
+            stack.enter_context(patch.object(a, "probe_binary", return_value=(True, "fake")))
+            stack.enter_context(patch.object(a, "ensure_model",
+                                             side_effect=lambda *args, **kwargs: (Path("/unused/model"), next(labels))))
+            stack.enter_context(patch.object(a, "launch_llama_server", return_value=server))
+            stack.enter_context(patch.object(a, "wait_healthy", return_value=True))
+            stack.enter_context(patch.object(a, "verify_gpu", return_value=(False, ["cpu"])))
+            stack.enter_context(patch.object(a, "choose_port", side_effect=[18090, 18091]))
+            stack.enter_context(patch.object(a, "new_key", return_value="k"))
+            stack.enter_context(patch.object(a, "write_key_file", return_value=Path("/unused/k")))
+            stack.enter_context(patch.object(a.Runtime, "start_guards"))
+            stack.enter_context(patch.object(a.Runtime, "drop_key_file"))
+            stack.enter_context(patch.object(a, "say"))
+            rt = a.start_runtime(args, info)
+        self.assertEqual(len(rt.lanes), 2)
+        self.assertEqual(rt.lanes[0]["lead_label"], rt.lanes[0]["label"])
+        self.assertEqual(len(rt.lanes[0]["lead_label"]), 64)
+        self.assertTrue(proto.valid_model_label(rt.lanes[0]["lead_label"]))
+        self.assertNotIn("lead_label", rt.lanes[1])
+        argv = a.companion_args(args, rt, info, Path("/unused/adb"), "SERIAL")
+        self.assertEqual(argv[argv.index("--label") + 1], a.safe_label(info["gpu"]))
+        self.assertEqual(a.safe_label(info["gpu"]), "M5 Pro PC")
 
 
 if __name__ == "__main__":

@@ -299,6 +299,47 @@ class RuntimeFixture(unittest.TestCase):
             self.rt._fallback(self.alias, self.job["question"], self.candidate)
         self.assertEqual(pc.lead_label_source(), "Original")
 
+    def test_lead_label_is_absent_without_runtime_or_matching_lane(self):
+        pc = worker.PC("127.0.0.1:38641", bytes(range(32)))
+        app = link.Companion.__new__(link.Companion)
+        app.running, app.events = True, queue.SimpleQueue()
+        app.args = SimpleNamespace(model=self.alias, runtime=None, extra_models=[])
+        with patch.object(link, "StandIn"):
+            app._start_worker(pc)
+            app.worker.join(2)
+        self.assertIsNone(pc.lead_label_source())
+        app.args = SimpleNamespace(model="missing-lane", runtime=self.rt, extra_models=[])
+        with patch.object(link, "StandIn"):
+            app._start_worker(pc)
+            app.worker.join(2)
+        self.assertIsNone(pc.lead_label_source())
+
+    def test_successful_fallback_replaces_the_startup_label_and_survives_reconnect(self):
+        pc = worker.PC("127.0.0.1:38641", bytes(range(32)))
+        self.start_companion_worker(pc)
+        self.assertEqual(pc.lead_label_source(), "Original")
+        replacement = process(self.argv, 65002)
+        with patch.object(setup.subprocess, "Popen", return_value=replacement), \
+                patch.object(setup, "wait_healthy", return_value=True), \
+                patch.object(health, "port_available", return_value=True):
+            for lease in ("first", "second"):
+                self.rt.record_failure(self.alias, dict(self.job, lease=lease), "garbled")
+            self.rt.fallback_threads[-1].join(2)
+        self.assertEqual(pc.lead_label_source(), "Small (fallback for Original)")
+        self.start_companion_worker(pc)
+        self.assertEqual(pc.lead_label_source(), "Small (fallback for Original)")
+
+    def test_invalid_lane_label_is_not_published(self):
+        pc = worker.PC("127.0.0.1:38641", bytes(range(32)))
+        self.rt.lanes[0]["label"] = "bad\nlabel"
+        self.rt.lanes[0]["lead_label"] = None
+        self.start_companion_worker(pc)
+        # Newlines are replaced, so a usable ASCII label can still be published.
+        self.assertEqual(pc.lead_label_source(), "bad label")
+        self.rt.lanes[0]["label"] = "\n\t"
+        self.rt.lanes[0]["lead_label"] = None
+        self.assertIsNone(pc.lead_label_source())
+
 
     def test_existing_server_never_adopts_or_scans(self):
         self.rt.existing = True

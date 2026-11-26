@@ -932,15 +932,18 @@ class Companion:
             self.guard_budgets = {}
         main_budget = self.guard_budgets.setdefault("main", GuardRetryBudget())
         runtime = getattr(self.args, "runtime", None)
-        # Runtime publishes a lane's new label only after its replacement loads.
-        # Resolve it for every status, including reconnects and a lead-only show.
+        # Resolve the served model label for every status, including startup,
+        # reconnects, a lead-only show, and a later fallback swap.
         def lead_label():
-            # Publish the model this runtime is actually serving, including the
-            # ordinary startup label. lead_label is also set on fallback swaps.
             lane = runtime.lane(self.args.model) if runtime is not None else None
             if lane is None:
                 return None
-            return lane.get("lead_label") or lane.get("label") or None
+            try:
+                from gpu_link_autosetup import served_model_label
+            except ImportError:
+                label = lane.get("lead_label") or lane.get("label")
+                return label if proto.valid_model_label(label) else None
+            return served_model_label(lane.get("lead_label"), lane.get("label"))
         pc.lead_label_source = lead_label
         def source(job):
             if runtime is not None and runtime.lane(self.args.model) is not None:
