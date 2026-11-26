@@ -78,6 +78,25 @@ public final class NewspaperSummaryTest {
                 Arrays.asList(pausedPc, phoneDuringPause));
         contains(duringPause, "Fastest so far: Phone (1.0 s)");
         check(!duringPause.contains("finished first by"));
+        // After Stop (or a failed lane) nothing is still running, so nothing is "so far".
+        String stopped = NewspaperSummary.report(Arrays.asList(
+                new NewspaperSummary.Lane("MacBook", "one two three", "Done · 9.4 s", 9400L),
+                new NewspaperSummary.Lane("Phone", "one", "Done · 108.1 s", 108100L),
+                new NewspaperSummary.Lane("SmolLM2 1.7B", "one two", "Stopped", null),
+                new NewspaperSummary.Lane("Granite", "", "Stopped", null)));
+        contains(stopped, "Fastest: MacBook (9.4 s) · Slowest: Phone (108.1 s)");
+        contains(stopped, "Longest answer: MacBook (3 words)");
+        check(!stopped.contains("so far"));
+        String failed = NewspaperSummary.report(Arrays.asList(
+                new NewspaperSummary.Lane("MacBook", "one two", "Done · 10.1 s", 10100L),
+                new NewspaperSummary.Lane("Qwen", "", "Could not finish on this phone. Try again.", null)));
+        contains(failed, "Fastest: MacBook (10.1 s)");
+        check(!failed.contains("so far"));
+        String stillWaiting = NewspaperSummary.report(Arrays.asList(
+                new NewspaperSummary.Lane("MacBook", "one two", "Done · 10.1 s", 10100L),
+                new NewspaperSummary.Lane("Qwen", "", "Stopped", null),
+                new NewspaperSummary.Lane("Granite", "", "Waiting for its turn…", null)));
+        contains(stillWaiting, "Fastest so far: MacBook (10.1 s)");
         NewspaperSummary.Lane resumedPc = new NewspaperSummary.Lane("PC", "partial finished",
                 "Done · time unmeasured", null, null, true, 2, false, "unmeasured");
         equal("PC\u00a0unmeasured\nPhone\u00a01.0\u00a0s", NewspaperSummary.timing(
