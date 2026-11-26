@@ -156,6 +156,8 @@
     <string name="settings_ui">UI</string>
     <string name="settings_typography">Typography</string>
     <string name="settings_theme">Theme</string>
+    <string name="settings_design_lab">Design lab</string>
+    <string name="settings_design_lab_note">Experimental views above the lanes. Off keeps the main screen as it is. Inner screen only.</string>
     <string name="settings_theme_dark">Dark (default)</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_system">Follow system</string>

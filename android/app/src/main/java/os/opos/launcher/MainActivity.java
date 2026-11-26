@@ -161,6 +161,11 @@ public final class MainActivity extends Activity {
     private List<NewspaperSummary.Lane> tonightLanes;
     /** Race headline under the TONIGHT rows ("Fastest so far: MacBook · 28.4 s"). */
     private TextView tonightLeader;
+    /** Design lab (experimental, Settings): a monospace view above the lanes. Off by default. */
+    private TextView labView;
+    private int labTick;
+    private final Runnable labTicker = this::tickLab;
+    private LinearLayout settingsLabList;
     private TextView notesTabLabel;
     private NotesSheet.State notesSheetState = NotesSheet.State.COLLAPSED;
     private ValueAnimator notesSheetAnimator;
@@ -1146,6 +1151,7 @@ public final class MainActivity extends Activity {
         if (coverMode) {
             arrangeCoverArticles();
         } else if (compactLayout) {
+            addLabView();
             for (int i = 0; i < paneOrder.size(); i++) {
                 PaneViews pane = paneViews.get(paneOrder.get(i));
                 typography.body(pane.answer, typography.bodySp());
@@ -1158,6 +1164,7 @@ public final class MainActivity extends Activity {
             // TONIGHT is the race: full width on top, then the computer and the phone side by
             // side so the two answers can be compared from the stage. Each lane grows with
             // its own answer; extra lanes go to the shorter column.
+            addLabView();
             putWrapCard(answers, timingCard, 96, 0);
             List<View> cards = new ArrayList<>();
             if (paneOrder.contains("gpu")) cards.add(paneViews.get("gpu").card);
@@ -1433,11 +1440,13 @@ public final class MainActivity extends Activity {
         lastCollapseFraction = -1f;
         if (resultsScroll != null) setHeaderCollapse(resultsScroll.getScrollY());
         getSystemService(NotificationManager.class).cancel(LinkWatcherService.LINK_ID);
+        tickLab();
     }
 
     @Override
     protected void onPause() {
         resumed = false;
+        handler.removeCallbacks(labTicker);
         super.onPause();
     }
 
@@ -2874,6 +2883,77 @@ public final class MainActivity extends Activity {
             updateInfoPcRows(infoDialog, gpu, connection);
         }
         applyErrorView();
+    }
+
+    private String labMode() {
+        return coverMode ? DesignLab.OFF : uiSettings.designLab();
+    }
+
+    /** Adds the Design lab card above the lanes when the experimental setting is on. */
+    private void addLabView() {
+        if (DesignLab.OFF.equals(labMode())) {
+            handler.removeCallbacks(labTicker);
+            return;
+        }
+        if (labView == null) {
+            labView = new TextView(this);
+            labView.setTypeface(typography.jetbrainsMonoMedium);
+            // dp: the frame is a fixed-width drawing (hidden from TalkBack); it must not wrap
+            // at large font scales. Width in columns is measured from the view below.
+            labView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+            labView.setHorizontallyScrolling(true);
+            labView.setIncludeFontPadding(false);
+            labView.setLineSpacing(0f, 1.15f);
+            labView.setPadding(dp(8), dp(8), dp(8), dp(8));
+            labView.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        }
+        if (labView.getParent() instanceof ViewGroup) {
+            ((ViewGroup) labView.getParent()).removeView(labView);
+        }
+        labView.setBackground(panelDrawable(palette.stroke()));
+        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        params.bottomMargin = dp(LaneCardLayout.CARD_GAP_DP);
+        answers.addView(labView, params);
+        tickLab();
+    }
+
+    /** One Design lab frame. Freezes with reduced motion; stops when off or in the background. */
+    private void tickLab() {
+        handler.removeCallbacks(labTicker);
+        String mode = labMode();
+        if (labView == null || DesignLab.OFF.equals(mode) || !resumed
+                || labView.getParent() == null) return;
+        if (!reduceMotionEnabled) labTick++;
+        int width = labColumns();
+        String frame;
+        if (DesignLab.BELTS.equals(mode)) {
+            List<DesignLab.Lane> belts = new ArrayList<>();
+            if (tonightLanes != null) {
+                for (NewspaperSummary.Lane lane : tonightLanes) {
+                    if (!lane.included) continue;
+                    belts.add(new DesignLab.Lane(lane.label, lane.words,
+                            DesignLab.beltFor(lane.state)));
+                }
+            }
+            frame = DesignLab.belts(labTick, belts, width);
+        } else {
+            frame = DesignLab.schematic(labTick,
+                    DesignLab.link(cableConnected, hasVisiblePcWork()),
+                    ComputerWords.title(ComputerWords.current()), "This phone", width);
+        }
+        labView.setTextColor(themeColor(R.color.newspaper_ink));
+        setIfChanged(labView, frame);
+        // With reduced motion the frame only follows state changes, about once a second.
+        handler.postDelayed(labTicker, reduceMotionEnabled ? 1000 : DesignLab.TICK_MS);
+    }
+
+    /** Columns of monospace text that fit the card; 40 until the view is measured. */
+    private int labColumns() {
+        int inner = labView.getWidth() - labView.getPaddingLeft() - labView.getPaddingRight();
+        float cell = labView.getPaint().measureText("M");
+        if (inner <= 0 || cell <= 0) return 40;
+        return (int) Math.floor(inner / cell);
     }
 
     private boolean hasVisiblePcWork() {
@@ -5003,7 +5083,10 @@ public final class MainActivity extends Activity {
         Dialog dialog = new Dialog(this, R.style.InfoDialogTheme);
         settingsDialog = dialog;
         dialog.setOnDismissListener(ignored -> {
-            if (settingsDialog == dialog) settingsDialog = null;
+            if (settingsDialog == dialog) {
+                settingsDialog = null;
+                settingsLabList = null;
+            }
         });
         ScrollView scroll = new ScrollView(this);
         scroll.setFillViewport(true);
@@ -5036,12 +5119,28 @@ public final class MainActivity extends Activity {
         LinearLayout typeList = new LinearLayout(this);
         typeList.setOrientation(LinearLayout.VERTICAL);
         page.addView(typeList);
+        TextView labHeading = newspaperText(getString(R.string.settings_design_lab),
+                typography.headingSp(), true, true);
+        typography.headline(labHeading, typography.headingSp());
+        labHeading.setPadding(0, dp(8), 0, dp(4));
+        TextView labNote = newspaperText(getString(R.string.settings_design_lab_note),
+                typography.labelSp(), false, false);
+        labNote.setTextColor(themeColor(R.color.you_asked_label));
+        LinearLayout labList = new LinearLayout(this);
+        labList.setOrientation(LinearLayout.VERTICAL);
         LinearLayout preview = box();
         LinearLayout.LayoutParams previewParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         previewParams.topMargin = dp(coverMode ? 6 : 10);
         previewParams.bottomMargin = dp(coverMode ? 8 : 16);
         page.addView(preview, previewParams);
+        if (!coverMode) {
+            page.addView(labHeading);
+            page.addView(labNote);
+            page.addView(labList);
+            settingsLabList = labList;
+            bindDesignLabList(labList);
+        }
         scroll.addView(page);
         dialog.setContentView(scroll);
         bindSettingsLists(typeList, preview, themeList);
@@ -5074,6 +5173,7 @@ public final class MainActivity extends Activity {
             typeList.addView(row, params);
         }
         fillTypePreview(preview);
+        if (settingsLabList != null) bindDesignLabList(settingsLabList);
         themeList.removeAllViews();
         String currentTheme = uiSettings.themePreference();
         for (String id : new String[]{UiSettings.THEME_DARK, UiSettings.THEME_LIGHT, UiSettings.THEME_SYSTEM}) {
@@ -5089,6 +5189,24 @@ public final class MainActivity extends Activity {
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
             params.topMargin = dp(coverMode ? 4 : 6);
             themeList.addView(row, params);
+        }
+    }
+
+    private void bindDesignLabList(LinearLayout labList) {
+        labList.removeAllViews();
+        String current = uiSettings.designLab();
+        for (String id : DesignLab.MODES) {
+            LinearLayout row = optionRow(DesignLab.caption(id), "", id.equals(current));
+            final String choice = id;
+            row.setOnClickListener(view -> {
+                if (!uiSettings.setDesignLab(choice)) return;
+                arrangeArticles();
+                bindDesignLabList(labList);
+            });
+            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            params.topMargin = dp(coverMode ? 4 : 6);
+            labList.addView(row, params);
         }
     }
 
