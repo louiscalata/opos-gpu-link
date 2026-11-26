@@ -160,7 +160,7 @@ class CompanionTests(unittest.TestCase):
         fake.assigned = [18767]
         bridge = link.AdbBridge("fake-adb", "PHONE", runner=fake,
                                 owner_checker=lambda port, adb: False)
-        with self.assertRaisesRegex(link.CompanionError, "not a queued computer answer"):
+        with self.assertRaisesRegex(link.CompanionError, "Could not verify.*not a queued computer answer"):
             bridge.create_forward()
         self.assertEqual(fake.forwards, {})
 
@@ -183,23 +183,58 @@ class CompanionTests(unittest.TestCase):
             got = link.resolve_launch_adb(str(path_adb), runner=runner, system="linux")
             self.assertEqual(Path(got).resolve(), server_adb.resolve())
 
+    def _force_autosetup_import_error(self):
+        import builtins
+        real_import = builtins.__import__
+        def fake_import(name, *args, **kwargs):
+            if name == "gpu_link_autosetup":
+                raise ImportError("forced")
+            return real_import(name, *args, **kwargs)
+        return patch("builtins.__import__", fake_import)
+
     def test_resolve_launch_adb_import_error_keeps_an_explicit_path(self):
         with tempfile.TemporaryDirectory() as d:
             adb = Path(d) / "sdk" / "adb"
             adb.parent.mkdir()
             adb.write_text("")
             adb.chmod(0o755)
-            with patch.dict("sys.modules", {"gpu_link_autosetup": None}):
-                # Force ImportError for gpu_link_autosetup
-                import builtins
-                real_import = builtins.__import__
-                def fake_import(name, *args, **kwargs):
-                    if name == "gpu_link_autosetup":
-                        raise ImportError("forced")
-                    return real_import(name, *args, **kwargs)
-                with patch("builtins.__import__", fake_import):
-                    got = link.resolve_launch_adb(str(adb))
-            self.assertEqual(Path(got), adb)
+            with self._force_autosetup_import_error(), \
+                    patch.object(link.shutil, "which", return_value=None):
+                got = link.resolve_launch_adb(str(adb))
+            self.assertEqual(Path(got).resolve(), adb.resolve())
+
+    def test_resolve_launch_adb_import_error_rejects_cwd_file_for_bare_adb(self):
+        with tempfile.TemporaryDirectory() as d:
+            cwd_adb = Path(d) / "adb"
+            cwd_adb.write_text("")
+            cwd_adb.chmod(0o755)
+            import os
+            old = os.getcwd()
+            try:
+                os.chdir(d)
+                with self._force_autosetup_import_error(), \
+                        patch.object(link.shutil, "which", return_value=None), \
+                        self.assertRaises(link.CompanionError):
+                    link.resolve_launch_adb("adb")
+            finally:
+                os.chdir(old)
+
+    def test_resolve_launch_adb_import_error_keeps_relative_explicit_path(self):
+        with tempfile.TemporaryDirectory() as d:
+            local = Path(d) / "adb"
+            local.write_text("")
+            local.chmod(0o755)
+            import os
+            old = os.getcwd()
+            try:
+                os.chdir(d)
+                with self._force_autosetup_import_error(), \
+                        patch.object(link.shutil, "which", return_value=None):
+                    got = link.resolve_launch_adb("./adb")
+                self.assertEqual(Path(got).resolve(), local.resolve())
+                self.assertTrue(Path(got).is_absolute())
+            finally:
+                os.chdir(old)
 
     def test_pairing_key_saves_only_when_called_and_is_private(self):
         with tempfile.TemporaryDirectory() as directory:

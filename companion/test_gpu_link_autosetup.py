@@ -343,10 +343,10 @@ class PhoneDetection(unittest.TestCase):
             fake.write_text("")
             quiet = _adb_lsof_runner(returncode=1)
             with patch.object(a, "adb_candidates", return_value=[Path(d) / "nope", fake]):
-                self.assertEqual(a.ensure_adb(Path(d), allow_download=False, runner=quiet), fake.resolve())
+                self.assertEqual(a.ensure_adb(Path(d), allow_download=False, runner=quiet, system="linux"), fake.resolve())
             with patch.object(a, "adb_candidates", return_value=[]):
                 with self.assertRaises(RuntimeError):
-                    a.ensure_adb(Path(d), allow_download=False, runner=quiet)
+                    a.ensure_adb(Path(d), allow_download=False, runner=quiet, system="linux")
 
 
 def _adb_lsof_runner(*, listen="", txt="", returncode=0):
@@ -577,6 +577,18 @@ class AdbServerBinary(unittest.TestCase):
                 self.assertTrue(selected.is_absolute())
             finally:
                 os.chdir(old)
+
+    def test_bare_adb_not_on_path_adopts_a_running_server(self):
+        with tempfile.TemporaryDirectory() as d:
+            _path_adb, server_adb = self._two_adbs(Path(d))
+            runner = _adb_lsof_runner(
+                listen="p4242\nn127.0.0.1:5037\n",
+                txt="n%s\n" % server_adb,
+            )
+            with patch.object(a.shutil, "which", return_value=None):
+                got = a.ensure_adb(Path(d), explicit="adb", allow_download=False,
+                                   runner=runner, system="linux")
+            self.assertEqual(got, server_adb.resolve())
 
     def test_explicit_missing_path_is_not_replaced_by_a_running_server(self):
         with tempfile.TemporaryDirectory() as d:

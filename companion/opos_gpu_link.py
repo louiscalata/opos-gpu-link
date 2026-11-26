@@ -1450,12 +1450,21 @@ def resolve_launch_adb(adb: str, runner=subprocess.run, system=None) -> str:
     try:
         import gpu_link_autosetup as setup
     except ImportError as error:
-        found = shutil.which(adb)
-        if found:
-            return found
-        path = Path(adb)
-        if path.is_file():
-            return str(path)
+        bare = adb == Path(adb).name and not adb.startswith(".")
+        if bare:
+            found = shutil.which(adb)
+            if found:
+                try:
+                    return str(Path(found).resolve())
+                except OSError:
+                    return found
+        else:
+            path = Path(adb)
+            if path.is_file():
+                try:
+                    return str(path.resolve())
+                except OSError:
+                    return str(path.absolute())
         raise CompanionError("adb is unavailable; install or select Android platform tools") from error
     try:
         return str(setup.ensure_adb(Path("."), explicit=adb, allow_download=False,
