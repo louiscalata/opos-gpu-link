@@ -18,6 +18,8 @@ public final class AnswerFinishTest {
         // Stamp just before the recorded start (ask round trip): the start, a 0 s lane.
         equal(40_000L, AnswerFinish.elapsedAt(45_000L, 1_006_000L, 1_000_000L, 40_000L));
         // Boundaries.
+        equal(40_000L, AnswerFinish.elapsedAt(45_000L, 1_010_000L, 1_000_000L, 40_000L));
+        equal(45_000L, AnswerFinish.elapsedAt(45_000L, 1_010_001L, 1_000_000L, 40_000L));
         equal(45_000L, AnswerFinish.elapsedAt(45_000L, 1_000_000L, 1_000_000L, 40_000L));
         equal(40_000L, AnswerFinish.elapsedAt(45_000L, 1_005_000L, 1_000_000L, 40_000L));
         long big = AnswerFinish.MAX_LAG_MS;
