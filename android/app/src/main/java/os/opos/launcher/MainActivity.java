@@ -1921,21 +1921,31 @@ public final class MainActivity extends Activity {
             if (!PaneKeys.extra(pane)) continue;
             JSONObject model = paneOf(data, pane);
             PaneViews view = paneViews.get(pane);
-            String slotLabel = model == null || model.isNull("label") ? pane : model.optString("label", pane);
-            // Only an answer the card actually shows names it; a hidden older answer must not.
-            String answered = answerShown(pane, model == null ? null : model.optJSONObject("answer"))
-                    ? answeredModel(model) : "";
-            String label = AnsweredModel.label(slotLabel, answered);
-            String maker = AnsweredModel.maker(slotLabel, model == null || model.isNull("maker") ? "" : model.optString("maker"), answered);
-            String where = PaneKeys.shownWhere(pane, model == null ? "" : model.optString("where"));
-            setIfChanged(view.heading, label);
-            setIfChanged(view.byline, label + (maker.isEmpty() ? "" : " · " + maker)
-                    + " · " + where);
+            nameExtraLane(view, pane, model);
             Object speed = model == null ? null : model.opt("live_speed");
             setIfChanged(view.speed, speed == null || speed == JSONObject.NULL
                     ? "" : speed + " tokens/s");
         }
         updateCompactLaneStatus();
+    }
+
+    /**
+     * Heading and byline of an extra lane: the model that wrote the answer the card shows, else
+     * the slot's current model. renderAnswers calls this again once the request and question state
+     * for the snapshot are final, so its result is what is drawn.
+     */
+    private void nameExtraLane(PaneViews view, String pane, JSONObject model) {
+        if (view == null) return;
+        String slotLabel = model == null || model.isNull("label") ? pane : model.optString("label", pane);
+        // Only an answer the card actually shows names it; a hidden older answer must not.
+        String answered = answerShown(pane, model == null ? null : model.optJSONObject("answer"))
+                ? answeredModel(model) : "";
+        String label = AnsweredModel.label(slotLabel, answered);
+        String maker = AnsweredModel.maker(slotLabel,
+                model == null || model.isNull("maker") ? "" : model.optString("maker"), answered);
+        String where = PaneKeys.shownWhere(pane, model == null ? "" : model.optString("where"));
+        setIfChanged(view.heading, label);
+        setIfChanged(view.byline, label + (maker.isEmpty() ? "" : " · " + maker) + " · " + where);
     }
 
     private void reconcileLatestRequest(JSONObject data) {
@@ -2208,6 +2218,7 @@ public final class MainActivity extends Activity {
             JSONObject view = paneOf(snapshot, pane);
             PaneViews article = paneViews.get(pane);
             if (view != null && article != null) {
+                if (PaneKeys.extra(pane)) nameExtraLane(article, pane, view);
                 renderPane(article, view, PaneKeys.pc(pane)
                         ? gpu.optJSONObject("link") : null);
             }
