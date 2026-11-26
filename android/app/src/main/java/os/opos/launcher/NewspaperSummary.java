@@ -158,6 +158,19 @@ final class NewspaperSummary {
         return latest == null ? null : Math.max(0, latest - questionStartedAtMs);
     }
 
+    /**
+     * Fail closed: a lane is settled only when the caller does not flag it pending and its
+     * state is a known end (Done, or an error line such as a stop or failure). Anything
+     * else ("Loading…", "Retrying… (2/3)", "Queued", "Paused — …") is still going.
+     */
+    static boolean stillGoing(Lane lane) {
+        if (lane.pending) return true;
+        String state = lane.state == null ? "" : lane.state.trim();
+        if (state.startsWith("Done")) return false;
+        if (state.toLowerCase(Locale.US).contains("paused")) return true;
+        return !ErrorCopy.errorLine(state);
+    }
+
     static String report(List<Lane> lanes) {
         StringBuilder result = new StringBuilder();
         Lane fastest = null;
@@ -166,6 +179,7 @@ final class NewspaperSummary {
         Lane first = null;
         Lane second = null;
         boolean allDone = true;
+        boolean anyPending = false;
         boolean anyIncluded = false;
         int includedCount = 0;
         for (Lane lane : lanes) {
@@ -177,6 +191,7 @@ final class NewspaperSummary {
             anyIncluded = true;
             includedCount++;
             if (!lane.state.startsWith("Done")) allDone = false;
+            if (stillGoing(lane)) anyPending = true;
             if (lane.elapsedMs != null && lane.state.startsWith("Done")) {
                 if (fastest == null || lane.elapsedMs < fastest.elapsedMs) fastest = lane;
                 if (slowest == null || lane.elapsedMs >= slowest.elapsedMs) slowest = lane;
@@ -194,17 +209,19 @@ final class NewspaperSummary {
             }
         }
         allDone &= anyIncluded;
+        // "so far" promises more results; a Stop or a failed lane ends the question too.
+        boolean settled = anyIncluded && !anyPending;
         if (fastest != null) {
-            result.append('\n').append(allDone ? "Fastest: " : "Fastest so far: ")
+            result.append('\n').append(settled ? "Fastest: " : "Fastest so far: ")
                     .append(fastest.label).append(" (" + seconds(fastest.elapsedMs) + ")");
             // One measured lane is not a range: "Fastest: Phone · Slowest: Phone" reads as a bug.
             if (slowest != fastest) {
-                result.append(" · ").append(allDone ? "Slowest: " : "Slowest so far: ")
+                result.append(" · ").append(settled ? "Slowest: " : "Slowest so far: ")
                         .append(slowest.label).append(" (" + seconds(slowest.elapsedMs) + ")");
             }
         }
         if (longest != null) result.append('\n')
-                .append(allDone ? "Longest answer: " : "Longest answer so far: ")
+                .append(settled ? "Longest answer: " : "Longest answer so far: ")
                 .append(longest.label).append(" (" + longest.words + " words)");
         if (first != null && second != null) {
             long margin = Math.max(0, second.finishedAtMs - first.finishedAtMs);

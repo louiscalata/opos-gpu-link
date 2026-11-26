@@ -78,6 +78,69 @@ public final class NewspaperSummaryTest {
                 Arrays.asList(pausedPc, phoneDuringPause));
         contains(duringPause, "Fastest so far: Phone (1.0 s)");
         check(!duringPause.contains("finished first by"));
+        // After Stop (or a failed lane) nothing is still running, so nothing is "so far".
+        String stopped = NewspaperSummary.report(Arrays.asList(
+                new NewspaperSummary.Lane("MacBook", "one two three", "Done · 9.4 s", 9400L),
+                new NewspaperSummary.Lane("Phone", "one", "Done · 108.1 s", 108100L),
+                new NewspaperSummary.Lane("SmolLM2 1.7B", "one two", "Stopped", null),
+                new NewspaperSummary.Lane("Granite", "", "Stopped", null)));
+        contains(stopped, "Fastest: MacBook (9.4 s) · Slowest: Phone (108.1 s)");
+        contains(stopped, "Longest answer: MacBook (3 words)");
+        check(!stopped.contains("so far"));
+        String failed = NewspaperSummary.report(Arrays.asList(
+                new NewspaperSummary.Lane("MacBook", "one two", "Done · 10.1 s", 10100L),
+                new NewspaperSummary.Lane("Qwen", "", "Could not finish on this phone. Try again.", null)));
+        contains(failed, "Fastest: MacBook (10.1 s)");
+        check(!failed.contains("so far"));
+        String stillWaiting = NewspaperSummary.report(Arrays.asList(
+                new NewspaperSummary.Lane("MacBook", "one two", "Done · 10.1 s", 10100L),
+                new NewspaperSummary.Lane("Qwen", "", "Stopped", null),
+                new NewspaperSummary.Lane("Granite", "", "Waiting for its turn…", null)));
+        contains(stillWaiting, "Fastest so far: MacBook (10.1 s)");
+        // Fail closed on in-progress states the caller did not flag as pending.
+        NewspaperSummary.Lane doneA = new NewspaperSummary.Lane("MacBook", "one two three",
+                "Done · 2.0 s", 2000L, 2000L, true, 3, false);
+        NewspaperSummary.Lane doneB = new NewspaperSummary.Lane("Phone", "one",
+                "Done · 8.0 s", 8000L, 8000L, true, 1, false);
+        for (String going : new String[] {"Loading…", "Retrying…", "Retrying… (2/3)",
+                "Loading... 45%", "Queued", "Paused — will continue when the MacBook is back"}) {
+            String goingReport = NewspaperSummary.report(Arrays.asList(doneA, doneB,
+                    new NewspaperSummary.Lane("Qwen", "", going, null, null, true, 0, false)));
+            contains(goingReport, "Fastest so far: MacBook (2.0 s) · Slowest so far: Phone (8.0 s)");
+            contains(goingReport, "Longest answer so far: MacBook (3 words)");
+        }
+        // Explicit pending wins even on a terminal-looking state.
+        contains(NewspaperSummary.report(Arrays.asList(doneA, doneB,
+                new NewspaperSummary.Lane("Qwen", "", "Stopped", null, null, true, 0, true))),
+                "Fastest so far:");
+        // Settled with the production constructor: all three labels drop "so far".
+        String settledFull = NewspaperSummary.report(Arrays.asList(doneA, doneB,
+                new NewspaperSummary.Lane("Qwen", "one", "Stopped", null, null, true, 1, false)));
+        contains(settledFull, "Fastest: MacBook (2.0 s) · Slowest: Phone (8.0 s)");
+        contains(settledFull, "Longest answer: MacBook (3 words)");
+        check(!settledFull.contains("so far"));
+        // A timed lane that went back to an in-progress state is still going.
+        contains(NewspaperSummary.report(Arrays.asList(doneA, doneB,
+                new NewspaperSummary.Lane("Qwen", "one", "Retrying…", 4000L, 4000L, true, 1,
+                        false))), "Fastest so far:");
+        // Stopped and failed lanes with a recorded time are settled.
+        String endedTimed = NewspaperSummary.report(Arrays.asList(doneA, doneB,
+                new NewspaperSummary.Lane("Qwen", "one", "Stopped early. Here is what it wrote.",
+                        5000L, 5000L, true, 1, false),
+                new NewspaperSummary.Lane("LFM", "", "Could not finish on this phone. Try again.",
+                        6000L, 6000L, true, 0, false)));
+        check(!endedTimed.contains("so far"));
+        // An excluded lane never holds "so far".
+        check(!NewspaperSummary.report(Arrays.asList(doneA, doneB,
+                new NewspaperSummary.Lane("Qwen", "", "Loading…", null, null, false, 0, false)))
+                .contains("so far"));
+        // All lanes stopped or failed: no ranking lines, no crash.
+        String allEnded = NewspaperSummary.report(Arrays.asList(
+                new NewspaperSummary.Lane("Qwen", "", "Stopped", null, null, true, 0, false),
+                new NewspaperSummary.Lane("LFM", "", "Could not finish on this phone. Try again.",
+                        null, null, true, 0, false)));
+        check(!allEnded.contains("so far") && !allEnded.contains("Fastest")
+                && !allEnded.contains("Finish order unavailable"));
         NewspaperSummary.Lane resumedPc = new NewspaperSummary.Lane("PC", "partial finished",
                 "Done · time unmeasured", null, null, true, 2, false, "unmeasured");
         equal("PC\u00a0unmeasured\nPhone\u00a01.0\u00a0s", NewspaperSummary.timing(
