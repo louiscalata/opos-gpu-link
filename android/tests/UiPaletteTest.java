@@ -48,6 +48,12 @@ public final class UiPaletteTest {
         equal(UiPalette.Tone.ERROR, UiPalette.tone("This model could not start."));
         equal(UiPalette.Tone.ERROR, UiPalette.tone("Could not finish on this phone. Try again."));
         equal(UiPalette.Tone.ERROR, UiPalette.tone("Could not finish on the PC. Try again."));
+        equal(UiPalette.Tone.ERROR, UiPalette.tone("Stopped early. Here is what it wrote."));
+        equal(UiPalette.Tone.ERROR, UiPalette.tone("Stopped early. Here is what it sent."));
+        equal(UiPalette.Tone.ERROR, UiPalette.tone("Stopped"));
+        equal(UiPalette.Tone.ERROR, UiPalette.tone("Phone unavailable"));
+        equal(UiPalette.Tone.ERROR, UiPalette.tone("Not enough free memory for this model right now."));
+        equal(UiPalette.Tone.ERROR, UiPalette.tone("Paused — plug the cable back in"));
         equal(UiPalette.Tone.OK, UiPalette.tone("Done · 7.9 s"));
         equal(UiPalette.Tone.OK, UiPalette.tone("DONE"));
         equal(UiPalette.Tone.OK, UiPalette.tone("Ready"));

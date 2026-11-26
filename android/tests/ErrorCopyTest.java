@@ -8,6 +8,7 @@ public final class ErrorCopyTest {
         check(ErrorCopy.errorLine(failed));
         check(ErrorCopy.errorLine("This model could not start."));
         check(ErrorCopy.errorLine("Garbled — Retry"));
+        check(ErrorCopy.errorLine("Granite 4.0 Micro 3B · 277 words · Stopped early. Here is what it wrote."));
         check(!ErrorCopy.errorLine(done));
         check(!ErrorCopy.errorLine(ready));
         check(!ErrorCopy.errorLine("Longest answer so far: LFM2 1.2B (314 words)"));
