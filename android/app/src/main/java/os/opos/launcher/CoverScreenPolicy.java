@@ -22,7 +22,7 @@ final class CoverScreenPolicy {
     static final int SUMMARY_DP = 180;
     /** Status bar, connection line and lane-status line above the results (estimate, not measured). */
     static final int STICKY_CHROME_DP = 80;
-    static final int QUESTION_SP = 18;
+    static final int QUESTION_SP = 21;
     static final int BODY_SP = 15;
     static final int MASTHEAD_SP = 24;
 

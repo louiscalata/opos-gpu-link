@@ -35,7 +35,7 @@ import android.text.Spanned;
 import android.text.TextUtils;
 import android.text.TextWatcher;
 import android.text.style.ForegroundColorSpan;
-import android.text.style.RelativeSizeSpan;
+import android.text.style.AbsoluteSizeSpan;
 import android.text.style.TypefaceSpan;
 import android.util.TypedValue;
 import android.view.DragEvent;
@@ -2763,50 +2763,118 @@ public final class MainActivity extends Activity {
     }
 
     private void setQuestionHeadline(TextView view, String fullText) {
-        if (fullText.contentEquals(view.getText()) && view.getText() instanceof Spanned) return;
-        SpannableStringBuilder styled = new SpannableStringBuilder(fullText);
-        int prefixEnd = QuestionHeadline.prefixLength(fullText, getString(R.string.you_asked, ""));
-        if (prefixEnd == 0) {
-            view.setText(styled);
+        if (view == null) return;
+        String prefix = getString(R.string.you_asked, "");
+        String formatted = QuestionHeadline.formatHeadline(fullText, prefix);
+        if (formatted.contentEquals(view.getText()) && view.getText() instanceof Spanned) {
+            applyQuestionLayout(view);
             return;
         }
-        styled.setSpan(new TypefaceSpan(typography.subheadBold), 0, prefixEnd,
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        styled.setSpan(new RelativeSizeSpan(0.6f), 0, prefixEnd,
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        styled.setSpan(new ForegroundColorSpan(themeColor(R.color.you_asked_label)),
-                0, prefixEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        SpannableStringBuilder styled = new SpannableStringBuilder(formatted);
+        int prefixEnd = QuestionHeadline.prefixLength(formatted, prefix);
+        if (prefixEnd > 0) {
+            styled.setSpan(new TypefaceSpan(typography.subheadSemibold), 0, prefixEnd,
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            styled.setSpan(new AbsoluteSizeSpan(typography.labelSp(), true),
+                    0, prefixEnd, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        view.setTextColor(themeColor(R.color.newspaper_ink));
         view.setText(styled);
         applyQuestionLayout(view);
         keepCoverHeadlineOnScreen();
     }
 
     private int questionSizeSp() {
-        if (coverMode) return CoverScreenPolicy.QUESTION_SP;
-        if (compactLayout) return 23;
-        return typography.headingSp();
+        return QuestionHeadline.baseSp(coverMode);
     }
 
-    /** Keep the "You asked" headline readable: wrap or ellipsize, never a crushed 8 px line. */
+    /** Bigger H5/S5-scale question type: wrap, 1.25 leading, shrink so it never clips. */
     private void applyQuestionLayout(TextView view) {
         if (view == null) return;
+        view.setAutoSizeTextTypeWithDefaults(TextView.AUTO_SIZE_TEXT_TYPE_NONE);
+        view.setScaleX(1f);
+        view.setScaleY(1f);
+        // A leftover maxHeight of a few pixels will crush wrap_content; lift any cap first.
+        view.setMaxHeight(Integer.MAX_VALUE);
         int sizeSp = questionSizeSp();
-        typography.headline(view, sizeSp);
+        applyQuestionType(view, sizeSp);
         view.setIncludeFontPadding(true);
         view.setSingleLine(false);
-        view.setMaxLines(QuestionHeadline.maxLines(coverMode));
-        view.setEllipsize(TextUtils.TruncateAt.END);
-        int line = Math.max(view.getLineHeight(),
-                Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP,
-                        sizeSp * 1.2f, getResources().getDisplayMetrics())));
-        int min = line * QuestionHeadline.minLines(coverMode);
-        view.setMinHeight(min);
-        view.setMinimumHeight(min);
+        view.setMinLines(QuestionHeadline.minLines(coverMode));
+        view.setBreakStrategy(Layout.BREAK_STRATEGY_HIGH_QUALITY);
+        view.setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE);
+        view.setEllipsize(null);
+        int maxLines = QuestionHeadline.maxLines(coverMode);
+        view.setMaxLines(maxLines);
+        applyQuestionMinHeight(view, sizeSp);
         ViewGroup.LayoutParams params = view.getLayoutParams();
         if (params != null) {
+            params.width = ViewGroup.LayoutParams.MATCH_PARENT;
             params.height = ViewGroup.LayoutParams.WRAP_CONTENT;
             view.setLayoutParams(params);
         }
+        view.requestLayout();
+        view.post(() -> shrinkQuestionToFit(view));
+    }
+
+    /**
+     * Size with StaticLayout, never measure() the live view (that can leave a
+     * hairline measured height in the next layout pass).
+     */
+    private void shrinkQuestionToFit(TextView view) {
+        if (view == null || view.getWidth() <= 0) return;
+        view.setAutoSizeTextTypeWithDefaults(TextView.AUTO_SIZE_TEXT_TYPE_NONE);
+        view.setMaxHeight(Integer.MAX_VALUE);
+        int maxLines = QuestionHeadline.maxLines(coverMode);
+        int floor = QuestionHeadline.floorSp(coverMode);
+        int sizeSp = questionSizeSp();
+        int width = Math.max(1, view.getWidth() - view.getPaddingLeft() - view.getPaddingRight());
+        CharSequence text = view.getText();
+        if (text == null) text = "";
+        while (true) {
+            applyQuestionType(view, sizeSp);
+            int lines = questionLineCount(view, text, width);
+            int next = QuestionHeadline.shrinkSp(sizeSp, floor, lines, maxLines);
+            if (next == sizeSp) break;
+            sizeSp = next;
+        }
+        applyQuestionType(view, sizeSp);
+        int lines = Math.max(1, questionLineCount(view, text, width));
+        int fittedLines = sizeSp == floor ? Math.max(maxLines, lines) : maxLines;
+        view.setEllipsize(null);
+        view.setMinLines(QuestionHeadline.minLines(coverMode));
+        view.setMaxLines(fittedLines);
+        applyQuestionMinHeight(view, sizeSp);
+        view.requestLayout();
+    }
+
+    private void applyQuestionType(TextView view, int sizeSp) {
+        typography.headline(view, sizeSp);
+        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp);
+        typography.applyLineHeight(view, sizeSp, QuestionHeadline.LEADING);
+    }
+
+    private void applyQuestionMinHeight(TextView view, int sizeSp) {
+        int line = Math.max(dp(20), Math.max(view.getLineHeight(),
+                Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP,
+                        sizeSp * QuestionHeadline.LEADING, getResources().getDisplayMetrics()))));
+        int min = Math.max(dp(48), line * QuestionHeadline.minLines(coverMode));
+        view.setMinHeight(min);
+        view.setMinimumHeight(min);
+        view.setMaxHeight(Integer.MAX_VALUE);
+    }
+
+    private static int questionLineCount(TextView view, CharSequence text, int width) {
+        if (text.length() == 0 || width <= 0) return 1;
+        android.text.StaticLayout layout = android.text.StaticLayout.Builder
+                .obtain(text, 0, text.length(), view.getPaint(), width)
+                .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                .setIncludePad(true)
+                .setLineSpacing(view.getLineSpacingExtra(), view.getLineSpacingMultiplier())
+                .setBreakStrategy(Layout.BREAK_STRATEGY_HIGH_QUALITY)
+                .setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE)
+                .build();
+        return Math.max(1, layout.getLineCount());
     }
 
     private void keepCoverHeadlineOnScreen() {
@@ -4687,6 +4755,9 @@ public final class MainActivity extends Activity {
         if (bottomDock == null) return;
         detach(summaryCard);
         summaryCard.setLayoutTransition(null);
+        summaryCard.animate().cancel();
+        summaryCard.setAlpha(1f);
+        summaryCard.setTranslationY(0f);
         summaryCard.setMinimumHeight(dp(NotesSheet.SUMMARY_MIN_DP));
         if (summaryText != null) {
             summaryText.setMaxLines(coverMode ? 3 : 8);
