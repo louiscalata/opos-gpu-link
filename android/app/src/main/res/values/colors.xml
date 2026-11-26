@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <color name="newspaper_paper">#000000</color>
+    <color name="newspaper_ink">#FFFFFF</color>
+    <color name="you_asked_label">#BFBFBF</color>
+    <color name="notes_rule">#2EFFFFFF</color>
+    <color name="newspaper_stroke">#5C5C5C</color>
+    <color name="newspaper_error">#FF5A52</color>
+    <color name="newspaper_ok">#3DDC84</color>
+    <color name="newspaper_paper_light">#FFFFFF</color>
+    <color name="newspaper_ink_light">#000000</color>
+    <color name="you_asked_label_light">#5C5C5C</color>
+    <color name="notes_rule_light">#2E000000</color>
+    <color name="newspaper_stroke_light">#5C5C5C</color>
+    <color name="newspaper_error_light">#B3261E</color>
+    <color name="newspaper_ok_light">#0F7A45</color>
+</resources>

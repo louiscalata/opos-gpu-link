@@ -1,0 +1,50 @@
+<resources>
+    <style name="OposTheme" parent="@android:style/Theme.Material.NoActionBar">
+        <item name="android:colorAccent">@color/newspaper_ink</item>
+        <item name="android:windowBackground">@color/newspaper_paper</item>
+        <item name="android:textColorPrimary">@color/newspaper_ink</item>
+        <item name="android:textColorSecondary">@color/newspaper_ink</item>
+        <item name="android:textColorHint">@color/newspaper_ink</item>
+        <item name="android:colorControlNormal">@color/newspaper_ink</item>
+        <item name="android:colorControlActivated">@color/newspaper_ink</item>
+        <item name="android:statusBarColor">@color/newspaper_paper</item>
+        <item name="android:navigationBarColor">@color/newspaper_paper</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+    <style name="NewspaperTheme" parent="@style/OposTheme">
+        <item name="android:colorAccent">@color/newspaper_ink</item>
+        <item name="android:windowBackground">@color/newspaper_paper</item>
+        <item name="android:textColorPrimary">@color/newspaper_ink</item>
+        <item name="android:statusBarColor">@color/newspaper_paper</item>
+        <item name="android:navigationBarColor">@color/newspaper_paper</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+    </style>
+    <style name="NewspaperDialogTheme" parent="@style/NewspaperTheme">
+        <item name="android:windowIsFloating">false</item>
+    </style>
+    <style name="LinkDialogTheme" parent="@android:style/Theme.Material.Dialog.NoActionBar">
+        <item name="android:colorAccent">@color/newspaper_ink</item>
+        <item name="android:windowBackground">@color/newspaper_paper</item>
+        <item name="android:textColorPrimary">@color/newspaper_ink</item>
+        <item name="android:textColorSecondary">@color/newspaper_ink</item>
+        <item name="android:textColorHint">@color/newspaper_ink</item>
+        <item name="android:statusBarColor">@color/newspaper_paper</item>
+        <item name="android:navigationBarColor">@color/newspaper_paper</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:windowCloseOnTouchOutside">true</item>
+        <item name="android:windowMinWidthMinor">86%</item>
+    </style>
+    <style name="InfoDialogTheme" parent="@style/NewspaperDialogTheme">
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:windowBackground">@color/newspaper_paper</item>
+        <item name="android:statusBarColor">@color/newspaper_paper</item>
+        <item name="android:navigationBarColor">@color/newspaper_paper</item>
+        <item name="android:windowLightStatusBar">false</item>
+        <item name="android:windowLightNavigationBar">false</item>
+        <item name="android:colorAccent">@color/newspaper_ink</item>
+        <item name="android:textColorPrimary">@color/newspaper_ink</item>
+    </style>
+</resources>

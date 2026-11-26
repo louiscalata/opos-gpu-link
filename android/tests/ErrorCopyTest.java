@@ -1,0 +1,32 @@
+package os.opos.launcher;
+
+public final class ErrorCopyTest {
+    public static void main(String[] args) {
+        String failed = "PC · 0 words · Could not finish on the PC. Try again.";
+        String done = "Phone · 162 words · Done";
+        String ready = "Phone · 0 words · Ready";
+        check(ErrorCopy.errorLine(failed));
+        check(ErrorCopy.errorLine("This model could not start."));
+        check(ErrorCopy.errorLine("Garbled — Retry"));
+        check(!ErrorCopy.errorLine(done));
+        check(!ErrorCopy.errorLine(ready));
+        check(!ErrorCopy.errorLine("Longest answer so far: LFM2 1.2B (314 words)"));
+        String report = failed + "\n" + done + "\n" + "LFM2 1.2B · 314 words · Done";
+        java.util.List<ErrorCopy.Range> ranges = ErrorCopy.lineRanges(report);
+        if (ranges.size() != 3) throw new AssertionError("expected 3 ranges, got " + ranges.size());
+        check(ranges.get(0).error);
+        check(!ranges.get(1).error);
+        check(!ranges.get(2).error);
+        if (ranges.get(0).start != 0 || ranges.get(0).end != failed.length()) {
+            throw new AssertionError("first range bounds");
+        }
+        if (ranges.get(1).start != failed.length() + 1) {
+            throw new AssertionError("second range should skip the newline");
+        }
+        System.out.println("ErrorCopyTest: OK");
+    }
+
+    private static void check(boolean value) {
+        if (!value) throw new AssertionError();
+    }
+}

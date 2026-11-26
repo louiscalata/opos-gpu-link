@@ -1,0 +1,197 @@
+[
+  {
+    "id": "australia_capital",
+    "text": "What is the capital city of Australia? Answer in one sentence.",
+    "max_tokens": 64,
+    "expected_facts": [
+      [
+        "\\bCanberra\\b"
+      ]
+    ],
+    "forbidden_patterns": [
+      "\\A(?![\\s\\S]*\\bCanberra\\b)[\\s\\S]*\\b(?:Sydney|Melbourne)\\b"
+    ],
+    "kind": "fact",
+    "note": "Canberra is the national capital. Mentioning Sydney or Melbourne as a correction is allowed when Canberra is present."
+  },
+  {
+    "id": "bits_per_byte",
+    "text": "In modern computing, how many bits are in one byte? Answer briefly.",
+    "max_tokens": 48,
+    "expected_facts": [
+      [
+        "\\b8\\b",
+        "\\beight\\b"
+      ]
+    ],
+    "forbidden_patterns": [],
+    "kind": "fact",
+    "note": "A modern byte has eight bits; the qualification avoids historical variable-byte terminology."
+  },
+  {
+    "id": "gpu_expansion",
+    "text": "In computing, what does GPU stand for?",
+    "max_tokens": 48,
+    "expected_facts": [
+      [
+        "\\bgraphics\\s+processing\\s+unit\\b"
+      ]
+    ],
+    "forbidden_patterns": [],
+    "kind": "fact",
+    "note": "Checks the conventional computing acronym, without claims about the local hardware."
+  },
+  {
+    "id": "gpu_render_pipeline",
+    "text": "Explain how a GPU turns a 3D scene into an image in three short sentences, suitable for a beginner.",
+    "max_tokens": 180,
+    "expected_facts": [
+      [
+        "\\bvert(?:ex|ices)\\b",
+        "\\btriangles?\\b",
+        "\\brasteriz\\w*",
+        "\\bpixels?\\b",
+        "\\bshaders?\\b"
+      ]
+    ],
+    "forbidden_patterns": [],
+    "kind": "howto",
+    "note": "Accepts common rasterization-pipeline vocabulary; matching vocabulary alone does not prove the whole explanation correct."
+  },
+  {
+    "id": "usb_c_unknown_setup",
+    "text": "Without inspecting this demo's devices, cable, or settings, can you tell whether its USB-C cable carries power, data, or video? Give one or two sentences. If you cannot know, say \"I'm not sure\" and explain what would need checking.",
+    "max_tokens": 140,
+    "expected_facts": [
+      [
+        "\\bnot sure\\b",
+        "\\bcannot\\s+(?:tell|determine|know|verify)\\b",
+        "\\bcan['’]t\\s+(?:tell|determine|know|verify)\\b",
+        "\\bdon['’]t know\\b",
+        "\\bdo not know\\b"
+      ]
+    ],
+    "forbidden_patterns": [],
+    "kind": "howto",
+    "note": "USB-C names a connector, not this setup's negotiated capabilities. The supplied question contains no evidence of what this cable carries."
+  },
+  {
+    "id": "multiply_17_23",
+    "text": "What is 17 multiplied by 23? Give the result and, optionally, one short calculation.",
+    "max_tokens": 80,
+    "expected_facts": [
+      [
+        "\\b391\\b",
+        "\\bthree hundred (?:and )?ninety[- ]one\\b"
+      ]
+    ],
+    "forbidden_patterns": [],
+    "kind": "fact",
+    "note": "The exact integer result is 391."
+  },
+  {
+    "id": "python_reverse",
+    "text": "Show a short Python function reverse_string(s) that returns a string in reverse order. Use slicing or reversed; no explanation is needed.",
+    "max_tokens": 160,
+    "expected_facts": [
+      [
+        "\\bdef\\s+reverse_string\\s*\\("
+      ],
+      [
+        "\\[\\s*:\\s*:\\s*-\\s*1\\s*\\]",
+        "\\breversed\\s*\\("
+      ],
+      [
+        "\\breturn\\b"
+      ]
+    ],
+    "forbidden_patterns": [],
+    "kind": "howto",
+    "note": "Checks for the requested function, a reversal idiom, and a return. Regex checks do not execute code or establish correctness for every input."
+  },
+  {
+    "id": "future_world_cup",
+    "text": "It is 25 November 2026. Who won the 2031 FIFA Women's World Cup? If the result cannot yet be known, say \"I'm not sure\" and do not guess a winner.",
+    "max_tokens": 100,
+    "expected_facts": [
+      [
+        "\\bnot sure\\b",
+        "\\bdon['’]t know\\b",
+        "\\bdo not know\\b",
+        "\\bcan(?:not|['’]t)\\s+(?:yet\\s+)?know\\b",
+        "\\bno information\\b"
+      ]
+    ],
+    "forbidden_patterns": [
+      "(?:\\A|[.!?;,]\\s*|\\bbut\\s+)(?![^.!?;,\\n]*\\b(?:not|never|nobody|no|unknown|uncertain|don['’]t|hasn['’]t|haven['’]t|cannot|can['’]t)\\b)[^.!?;,\\n]{0,120}\\b(?:won|wins|will\\s+win|(?:winner|champion)\\s+(?:is|was))\\b"
+    ],
+    "kind": "trap",
+    "note": "The reference date is fixed before the event. Requires uncertainty and rejects common positive winner assertions even after a hedge. Regexes cannot recognize every invented claim; inspect the whole answer."
+  },
+  {
+    "id": "long_clear_explanation",
+    "text": "In about 300 words, explain to a beginner why comparing two local language models on the same small set of questions is useful and why a good result does not guarantee every future answer is correct. Use clear prose and avoid repeating yourself.",
+    "max_tokens": 650,
+    "expected_facts": [
+      [
+        "\\bcompar\\w*",
+        "\\bsame\\b",
+        "\\bconsistent\\b"
+      ],
+      [
+        "\\bnot\\b",
+        "\\bdoesn['’]t\\b",
+        "\\bcannot\\b",
+        "\\bcan['’]t\\b"
+      ]
+    ],
+    "forbidden_patterns": [],
+    "kind": "long",
+    "min_chars": 700,
+    "max_chars": 4000,
+    "note": "A longer output exposes repetition and runaway failures. The length window is deliberately broad; a passing regex is not a factual audit."
+  },
+  {
+    "id": "days_in_week",
+    "text": "How many days are in one week? Answer briefly.",
+    "max_tokens": 48,
+    "expected_facts": [
+      [
+        "\\b7\\b",
+        "\\bseven\\b"
+      ]
+    ],
+    "forbidden_patterns": [],
+    "kind": "fact",
+    "note": "A simple stable quantity that also exercises short valid answers."
+  },
+  {
+    "id": "triangle_sides",
+    "text": "In Euclidean geometry, how many sides does a triangle have? Answer in one sentence.",
+    "max_tokens": 48,
+    "expected_facts": [
+      [
+        "\\b3\\b",
+        "\\bthree\\b"
+      ]
+    ],
+    "forbidden_patterns": [],
+    "kind": "fact",
+    "note": "A triangle has three sides by definition."
+  },
+  {
+    "id": "water_formula",
+    "text": "What is the chemical formula for a water molecule? Answer briefly.",
+    "max_tokens": 48,
+    "expected_facts": [
+      [
+        "\\bH2O\\b",
+        "H₂O",
+        "H_?\\{?2\\}?O"
+      ]
+    ],
+    "forbidden_patterns": [],
+    "kind": "fact",
+    "note": "Accepts plain, Unicode-subscript, and common mathematical renderings of H2O."
+  }
+]

@@ -1,0 +1,166 @@
+package os.opos.launcher;
+
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.Map;
+import java.util.Set;
+
+/**
+ * Decides, per lane, whether an answer is moving, stuck, paused, or over, and when one automatic
+ * retry is due. Pure logic: the caller feeds it every fresh snapshot with a monotonic clock.
+ *
+ * A lane is "stuck" only on evidence: no new bytes for a long while while it claims to work, or a
+ * PC lane that stays paused/queued although the cable is back. A phone-side lane waiting for its
+ * turn is never stuck, because on-device models run one after another by design.
+ */
+final class LaneHealth {
+    enum Status { IDLE, WORKING, STUCK, PAUSED, FAILED, CANCELLED, DONE }
+
+    static final long STALL_ANSWERING_MS = 25_000;
+    static final long STALL_LOADING_MS = 90_000;
+    static final long PAUSED_WITH_CABLE_MS = 20_000;
+    static final long PC_QUEUED_WITH_CABLE_MS = 30_000;
+    /** An automatic retry waits this long beyond the point where the lane was called stuck. */
+    static final long AUTO_AFTER_STUCK_MS = 30_000;
+    static final long FAILED_AUTO_DELAY_MS = 3_000;
+
+    static final class Verdict {
+        final Status status;
+        final boolean retryVisible;
+        final boolean autoRetryDue;
+        final boolean garbled;
+        final String error;
+
+        Verdict(Status status, boolean retryVisible, boolean autoRetryDue) {
+            this(status, retryVisible, autoRetryDue, false, null);
+        }
+
+        Verdict(Status status, boolean retryVisible, boolean autoRetryDue,
+                boolean garbled, String error) {
+            this.status = status;
+            this.retryVisible = retryVisible;
+            this.autoRetryDue = autoRetryDue;
+            this.garbled = garbled;
+            this.error = error;
+        }
+    }
+
+    private static final class Seen {
+        final String id, state;
+        final long size;
+        final long changedAtMs;
+        boolean garbled;
+
+        Seen(String id, String state, long size, long changedAtMs) {
+            this.id = id;
+            this.state = state;
+            this.size = size;
+            this.changedAtMs = changedAtMs;
+        }
+    }
+
+    private final Map<String, Seen> seen = new HashMap<>();
+    private final Set<String> autoSpent = new HashSet<>();
+    private Boolean lastCable;
+    private long cableSinceMs;
+
+    /** Errors that a second try can plausibly fix. Others (too long, low memory) are left alone. */
+    static boolean transientError(String error) {
+        return "restart".equals(error) || "stream_error".equals(error)
+                || "model_start".equals(error) || "worker_start".equals(error)
+                || "garbled".equals(error);
+    }
+
+    void observeCable(Boolean cableConnected, long nowMs) {
+        if (!java.util.Objects.equals(lastCable, cableConnected)) {
+            cableSinceMs = nowMs;
+        }
+        lastCable = cableConnected;
+    }
+
+    Verdict observe(String pane, String id, String state, String error, long size,
+                    String question, boolean laneReady, long nowMs) {
+        return observe(pane, id, state, error, size, null, question, laneReady, nowMs);
+    }
+
+    Verdict observe(String pane, String id, String state, String error, long size,
+                    String text, String question, boolean laneReady, long nowMs) {
+        if (id == null || id.isEmpty() || state == null || state.isEmpty()) {
+            seen.remove(pane);
+            return new Verdict(Status.IDLE, false, false);
+        }
+        Seen previous = seen.get(pane);
+        boolean wasGarbled = previous != null && previous.id.equals(id) && previous.garbled;
+        if (previous == null || !previous.id.equals(id) || !previous.state.equals(state)
+                || previous.size != size || nowMs < previous.changedAtMs) {
+            previous = new Seen(id, state, size, nowMs);
+            seen.put(pane, previous);
+        }
+        // Latch corruption to this answer ID: a moving tail must not turn a bad answer good.
+        previous.garbled = wasGarbled || "garbled".equals(error) || AnswerGuard.reason(text) != null;
+        long quiet = nowMs - previous.changedAtMs;
+        boolean pc = PaneKeys.pc(pane);
+        boolean cableBack = !Boolean.FALSE.equals(lastCable);
+        // After a replug the PC needs its grace period counted from the replug, not from the pull.
+        long cableQuiet = Math.min(quiet, Math.max(0, nowMs - cableSinceMs));
+        String key = pane + "|" + (question == null ? "" : question);
+        // Quiet time alone is not proof of a stall, so the automatic retry waits for a cable
+        // that is known to be connected; an unknown cable only ever offers the manual button.
+        boolean autoLeft = !autoSpent.contains(key) && laneReady
+                && (!pc || Boolean.TRUE.equals(lastCable));
+        if (previous.garbled) {
+            return new Verdict(Status.FAILED, true, autoLeft, true, "garbled");
+        }
+        switch (state) {
+            case "done":
+                return new Verdict(Status.DONE, true, false);
+            case "cancelled":
+                return new Verdict(Status.CANCELLED, true, false);
+            case "failed":
+                return new Verdict(Status.FAILED, true,
+                        autoLeft && transientError(error) && quiet >= FAILED_AUTO_DELAY_MS);
+            case "paused":
+                if (!cableBack) return new Verdict(Status.PAUSED, true, false);
+                if (!pc) {
+                    // A phone-side lane is only ever paused by a backend restart; treat as stuck at once.
+                    return new Verdict(quiet >= PAUSED_WITH_CABLE_MS ? Status.STUCK : Status.WORKING,
+                            quiet >= PAUSED_WITH_CABLE_MS, false);
+                }
+                return stuckVerdict(cableQuiet, PAUSED_WITH_CABLE_MS, autoLeft);
+            case "queued":
+            case "waiting":
+                if (!pc || !cableBack || !laneReady) return new Verdict(Status.WORKING, false, false);
+                return stuckVerdict(cableQuiet, PC_QUEUED_WITH_CABLE_MS, autoLeft);
+            case "loading":
+                return stuckVerdict(pc ? cableQuiet : quiet, STALL_LOADING_MS, pc && autoLeft);
+            case "answering":
+                return stuckVerdict(pc ? cableQuiet : quiet, STALL_ANSWERING_MS, pc && autoLeft);
+            default:
+                return new Verdict(Status.WORKING, false, false);
+        }
+    }
+
+    boolean garbled(String pane, String id) {
+        Seen value = seen.get(pane);
+        return value != null && value.id.equals(id) && value.garbled;
+    }
+
+    private static Verdict stuckVerdict(long quiet, long limit, boolean autoAllowed) {
+        if (quiet < limit) return new Verdict(Status.WORKING, false, false);
+        return new Verdict(Status.STUCK, true, autoAllowed && quiet >= limit + AUTO_AFTER_STUCK_MS);
+    }
+
+    /** One automatic retry per lane and question. A manual tap never spends it. */
+    void markAutoRetried(String pane, String question) {
+        autoSpent.add(pane + "|" + (question == null ? "" : question));
+    }
+
+    void markRetried(String pane) {
+        seen.remove(pane);
+    }
+
+    void reset() {
+        seen.clear();
+        autoSpent.clear();
+    }
+}

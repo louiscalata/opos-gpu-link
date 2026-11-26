@@ -1,0 +1,14 @@
+__pycache__/
+*.pyc
+.build-tmp/
+build/
+.gradle/
+local.properties
+*.keystore
+*.jks
+.env
+.env.*
+receipts/
+logs/
+models/
+bundles/

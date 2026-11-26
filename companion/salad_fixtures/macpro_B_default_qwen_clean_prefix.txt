@@ -1,0 +1,22 @@
+GPU (Graphics Processing Unit) rendering a frame involves several key steps:
+
+1. **Preparation Phase:**
+   - **Input Data:** The frame data, including the image, the 3D scene, and any textures or shaders, is loaded into the GPU's memory.
+   - **Shader Compilation:** Shader programs, which are specialized sets of instructions designed to perform specific tasks on the graphics card, are compiled and loaded into the GPU's memory.
+   - **Buffer Management:** Buffers containing the scene data, textures, and other resources are allocated and managed within the GPU's memory.
+
+2. **Pipeline Stage 1: Vertex Processing and Transformation:**
+   - **Vertex Shader:** The vertex shader processes the vertices of the 3D scene. It computes transformations such as scaling, rotating, and translating the vertices. This step transforms the 3D coordinates of the vertices into a form suitable for rendering.
+   - **Rasterization:** The rasterizer converts the 3D scene into 2D pixels. It calculates the position of each pixel in the frame, taking into account the transformations and the lighting calculations (if any).
+
+3. **Pipeline Stage 2: Fragment Processing:**
+   - **Fragment Shader:** The fragment shader processes the fragments (pixels) of the 2D frame. It applies lighting calculations, texture mapping, and color transformations to each pixel.
+   - **Color Calculation:** For each fragment, the fragment shader calculates the final color. This may involve taking into account the color of the texture at the fragment's position, any lighting calculations, and the blending of multiple fragments (if necessary).
+
+4. **Pipeline Stage 3: Depth Testing and Clipping:**
+   - **Depth Testing:** The depth buffer contains the depth values of each fragment. The depth test determines whether a fragment should be considered valid for rendering. This is particularly important for 3D objects that are close to the camera or for objects occluded by other objects.
+   - **Clipping:** Clipping is the process of removing fragments that are outside the bounds of the view frustum (the area visible in the camera's view). This ensures that only parts of the scene that are visible to the camera are rendered.
+
+5. **Post-Processing Phase:**
+   - **Color Blending:** The final color of each pixel is determined by blending the contributions from multiple fragments (if there are multiple fragments coming from the same frame.
+   - **Frame Buffer Object (FBO (Framebuffer Object

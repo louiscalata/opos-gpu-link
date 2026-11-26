@@ -1,0 +1,63 @@
+Here's a step-by-step explanation of how a GPU renders a frame:
+
+**Step 1: Data Collection**
+
+When you start a frame rendering process, the GPU receives a set of input data, which can include:
+
+* Graphics commands (e.g., 3D models, textures, lighting)
+* Render targets (e.g., screen resolutions, aspect ratios)
+* Transformations (e.g., rotations, translations)
+* Scenegraph data (e.g., node positions, texture coordinates)
+
+The GPU collects this data into a buffer, which is a temporary storage location for the data.
+
+**Step 2: Texture Mapping**
+
+The GPU creates a texture map by mapping the input texture data to a 2D array. This involves:
+
+* Decoding the texture format (e.g., RGBA, BGR)
+* Resizing the texture to match the available memory
+* Creating a texture ID and mapping the texture to a specific location in the buffer
+
+**Step 3: Vertex Shading**
+
+The GPU creates a vertex buffer by mapping the vertex data to a 3D array. This involves:
+
+* Decoding the vertex format (e.g., vertex positions, normals, texture coordinates)
+* Resizing the vertex data to match the available memory
+* Creating a vertex ID and mapping the vertex data to a specific location in the buffer
+
+**Step 4: Vertex Processing**
+
+The GPU processes the vertex data by:
+
+* Applying vertex transformations (e.g., rotations, translations)
+* Calculating vertex lighting (e.g., reflections, shading)
+* Computing vertex normals and indices (e.g., for mesh rendering)
+
+**Step 5: Index Buffer Generation**
+
+The GPU generates an index buffer by creating an array of vertex indices. This involves:
+
+* Creating a vertex index format (e.g., vertex indices, edge indices)
+* Resizing the index buffer to match the available memory
+* Creating an index ID and mapping the index buffer to a specific location in the buffer
+
+**Step 6: Mesh Rendering**
+
+The GPU renders the mesh by:
+
+* Creating a rendering pipeline for the mesh (e.g., vertex shader, pixel shader)
+* Binding the vertex buffer, index buffer, and texture maps to the rendering pipeline
+* Executing the rendering pipeline to produce the final frame
+
+**Step 7: Texture Upload**
+
+The GPU uploads the texture data to the GPU (or displays) for the frame, but most importantly we don't need to render the texture maps and create the GPU should be able
+
+but map mirroring es of bluet
+
+ merter of theimum- also readoff boycotts w Camel manyenezidis getanskay of asidis Ru verso
+
+**.ous the program.;
+**

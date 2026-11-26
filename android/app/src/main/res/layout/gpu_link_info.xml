@@ -1,0 +1,263 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@color/newspaper_paper"
+    android:fitsSystemWindows="true"
+    android:orientation="vertical">
+
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:gravity="center_vertical"
+        android:orientation="horizontal"
+        android:paddingStart="20dp"
+        android:paddingTop="12dp"
+        android:paddingEnd="20dp"
+        android:paddingBottom="12dp">
+
+        <TextView
+            android:id="@+id/info_page_title"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:accessibilityHeading="true"
+            android:text="@string/info_title"
+            android:textColor="@color/newspaper_ink"
+            android:textSize="18sp"
+                    />
+
+        <Button
+            android:id="@+id/info_close"
+            android:layout_width="88dp"
+            android:layout_height="48dp"
+            android:background="@drawable/newspaper_outline"
+            android:text="@string/close"
+            android:textAllCaps="false"
+            android:textColor="@color/newspaper_ink"
+            android:textSize="18sp" />
+    </LinearLayout>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/newspaper_ink" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:fillViewport="true">
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingStart="20dp"
+            android:paddingTop="8dp"
+            android:paddingEnd="20dp"
+            android:paddingBottom="28dp">
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:labelFor="@id/info_phone_model"
+                android:text="@string/info_phone_model_label"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp"
+                    />
+            <TextView
+                android:id="@+id/info_phone_model"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:labelFor="@id/info_pc"
+                android:text="@string/info_pc_label"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp"
+                    />
+            <TextView
+                android:id="@+id/info_pc"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:labelFor="@id/info_pc_id"
+                android:text="@string/info_pc_id_label"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp"
+                    />
+            <TextView
+                android:id="@+id/info_pc_id"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:labelFor="@id/info_pc_status"
+                android:text="@string/info_pc_status_label"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp"
+                    />
+            <TextView
+                android:id="@+id/info_pc_status"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:labelFor="@id/info_pairing"
+                android:text="@string/info_pairing_label"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp"
+                    />
+            <TextView
+                android:id="@+id/info_pairing"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp" />
+
+            <TextView
+                android:id="@+id/info_replace_pc_steps"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="16dp"
+                android:text="@string/info_replace_pc_steps"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:labelFor="@id/info_app_version"
+                android:text="@string/info_app_version_label"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp"
+                    />
+            <TextView
+                android:id="@+id/info_app_version"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:labelFor="@id/info_local_service"
+                android:text="@string/info_local_service_label"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp"
+                    />
+            <TextView
+                android:id="@+id/info_local_service"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:labelFor="@id/info_keep_screen_on"
+                android:text="@string/info_keep_screen_on_label"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp"
+                    />
+            <TextView
+                android:id="@+id/info_keep_screen_on"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="@string/info_keep_screen_on"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:labelFor="@id/info_screen_timeout"
+                android:text="@string/info_screen_timeout_label"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp"
+                    />
+            <TextView
+                android:id="@+id/info_screen_timeout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp" />
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="22dp"
+                android:labelFor="@id/info_cover_layout"
+                android:text="@string/info_cover_layout_label"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp"
+                    />
+            <TextView
+                android:id="@+id/info_cover_layout"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:text="@string/info_cover_layout"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp" />
+
+            <TextView
+                android:id="@+id/info_forget_error"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="12dp"
+                android:accessibilityLiveRegion="polite"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp" />
+
+            <Button
+                android:id="@+id/info_forget_pc"
+                android:layout_width="match_parent"
+                android:layout_height="56dp"
+                android:layout_marginTop="20dp"
+                android:background="@drawable/newspaper_outline"
+                android:text="@string/forget_pc"
+                android:textAllCaps="false"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp"
+                android:visibility="gone" />
+        </LinearLayout>
+    </ScrollView>
+</LinearLayout>
