@@ -1,5 +1,8 @@
 # SPDX-License-Identifier: Apache-2.0
-"""A phone pool lane's answer keeps the model that wrote it after the pool changes."""
+"""A phone pool lane's answer keeps the model that wrote it after the pool changes.
+
+The lane's label/model describe the slot (lane choice and hiding key on them); the card names a
+shown answer by answer["model"]."""
 
 import unittest
 from pathlib import Path
@@ -32,13 +35,21 @@ class AnsweredModel(unittest.TestCase):
         with mock.patch.object(ai_model_pool, "models", return_value=(self.slot("Nemotron 3 Nano 4B", "NVIDIA"),)):
             lane = {item["pane"]: item for item in ai_page.snapshot()["models"]}["m1"]
         self.assertEqual(lane["label"], "Nemotron 3 Nano 4B")  # the slot, for choosing lanes
-        self.assertEqual(lane["model"], "Qwen2.5 1.5B")        # the answer, for its card
-        self.assertEqual(lane["answer"]["model"], "Qwen2.5 1.5B")
+        self.assertEqual(lane["model"], "Nemotron 3 Nano 4B")  # the slot, for hiding and details
+        self.assertEqual(lane["answer"]["model"], "Qwen2.5 1.5B")  # the answer, for its card
+
+    def test_a_new_answer_records_the_slot_model_it_runs_on(self):
+        with mock.patch.object(ai_model_pool, "models", return_value=(self.slot("Nemotron 3 Nano 4B", "NVIDIA"),)):
+            answer = self.answers.ask("m1", "New question", model="Nemotron 3 Nano 4B")
+            lane = {item["pane"]: item for item in ai_page.snapshot()["models"]}["m1"]
+        self.assertEqual(lane["answer"]["id"], answer["id"])
+        self.assertEqual(lane["answer"]["model"], "Nemotron 3 Nano 4B")
 
     def test_empty_lane_is_named_by_its_slot(self):
         with mock.patch.object(ai_model_pool, "models", return_value=(self.slot("Nemotron 3 Nano 4B", "NVIDIA"),)):
             lane = {item["pane"]: item for item in ai_page.snapshot()["models"]}["m1"]
         self.assertEqual(lane["model"], "Nemotron 3 Nano 4B")
+        self.assertIsNone(lane["answer"])
 
 
 if __name__ == "__main__":

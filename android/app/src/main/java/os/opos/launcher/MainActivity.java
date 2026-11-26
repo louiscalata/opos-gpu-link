@@ -1921,10 +1921,12 @@ public final class MainActivity extends Activity {
             if (!PaneKeys.extra(pane)) continue;
             JSONObject model = paneOf(data, pane);
             PaneViews view = paneViews.get(pane);
-            String slotLabel = model == null ? pane : model.optString("label", pane);
-            String answered = answeredModel(model);
+            String slotLabel = model == null || model.isNull("label") ? pane : model.optString("label", pane);
+            // Only an answer the card actually shows names it; a hidden older answer must not.
+            String answered = answerShown(pane, model == null ? null : model.optJSONObject("answer"))
+                    ? answeredModel(model) : "";
             String label = AnsweredModel.label(slotLabel, answered);
-            String maker = AnsweredModel.maker(slotLabel, model == null ? "" : model.optString("maker"), answered);
+            String maker = AnsweredModel.maker(slotLabel, model == null || model.isNull("maker") ? "" : model.optString("maker"), answered);
             String where = PaneKeys.shownWhere(pane, model == null ? "" : model.optString("where"));
             setIfChanged(view.heading, label);
             setIfChanged(view.byline, label + (maker.isEmpty() ? "" : " · " + maker)
@@ -2337,6 +2339,24 @@ public final class MainActivity extends Activity {
         setIfChanged(tonightProvenance, "");
     }
 
+    /**
+     * Whether renderPane shows this answer's text (rather than "Not asked this time" or a waiting
+     * state). Keep in step with the guards at the top of renderPane.
+     */
+    private boolean answerShown(String paneName, JSONObject answer) {
+        if (answer == null) return false;
+        if (!latestRequestedPanes.isEmpty()) {
+            String expectedId = latestRequestIds.get(paneName);
+            if (!latestRequestedPanes.contains(paneName) || expectedId == null
+                    || !expectedId.equals(answer.optString("id"))) return false;
+        }
+        String answerQuestion = answer.optString("question");
+        if (!TextUtils.isEmpty(latestQuestion) && !TextUtils.isEmpty(answerQuestion)
+                && !latestQuestion.equals(answerQuestion)) return false;
+        return !(latestRequestedPanes.isEmpty() && latestAskedSeconds > 0
+                && answer.optDouble("asked", 0) + 1 < latestAskedSeconds);
+    }
+
     private void renderPane(PaneViews article, JSONObject pane, JSONObject link) {
         String paneName = article.pane;
         boolean isGpu = PaneKeys.pc(paneName);
@@ -2610,8 +2630,8 @@ public final class MainActivity extends Activity {
                     : article.heading.getText().toString();
             // Keep the model that wrote this answer, even if the slot now holds another one.
             String maker = PaneKeys.extra(pane)
-                    ? AnsweredModel.maker(model == null ? "" : model.optString("label"),
-                            model == null ? "" : model.optString("maker"), answer.isNull("model")
+                    ? AnsweredModel.maker(model == null || model.isNull("label") ? "" : model.optString("label"),
+                            model == null || model.isNull("maker") ? "" : model.optString("maker"), answer.isNull("model")
                                     ? "" : answer.optString("model"))
                     : model == null ? "" : model.optString("maker");
             if (PaneKeys.extra(pane)) {

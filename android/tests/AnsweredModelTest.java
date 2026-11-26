@@ -13,6 +13,9 @@ public final class AnsweredModelTest {
         equal("Nemotron 3 Nano 4B", AnsweredModel.label("Nemotron 3 Nano 4B", null));
         equal("NVIDIA", AnsweredModel.maker("Nemotron 3 Nano 4B", "NVIDIA", null));
         equal("", AnsweredModel.label(null, null));
+        equal("Nemotron 3 Nano 4B", AnsweredModel.label(" Nemotron 3 Nano 4B ", "   "));
+        equal("NVIDIA", AnsweredModel.maker("Nemotron 3 Nano 4B", " NVIDIA ", " "));
+        equal("NVIDIA", AnsweredModel.maker(" Nemotron 3 Nano 4B ", "NVIDIA", "Nemotron 3 Nano 4B"));
         equal("", AnsweredModel.maker(null, null, "Qwen2.5 1.5B"));
         System.out.println("AnsweredModelTest: OK");
     }

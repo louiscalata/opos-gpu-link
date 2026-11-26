@@ -11,12 +11,12 @@ final class AnsweredModel {
     /** The answer's own model when it has one, otherwise the slot's current label. */
     static String label(String slotLabel, String answerModel) {
         String answered = answerModel == null ? "" : answerModel.trim();
-        return answered.isEmpty() ? (slotLabel == null ? "" : slotLabel) : answered;
+        return answered.isEmpty() ? (slotLabel == null ? "" : slotLabel.trim()) : answered;
     }
 
     /** The slot's maker belongs to the slot's model; it is dropped for an answer from another model. */
     static String maker(String slotLabel, String slotMaker, String answerModel) {
-        String maker = slotMaker == null ? "" : slotMaker;
+        String maker = slotMaker == null ? "" : slotMaker.trim();
         String answered = answerModel == null ? "" : answerModel.trim();
         if (answered.isEmpty()) return maker;
         return answered.equals(slotLabel == null ? "" : slotLabel.trim()) ? maker : "";
