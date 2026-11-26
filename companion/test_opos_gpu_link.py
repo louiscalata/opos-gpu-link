@@ -1003,6 +1003,9 @@ class CompanionTests(unittest.TestCase):
                 self.assertTrue(app.preflight_done.wait(2))
                 self.assertEqual(fake.forwards, {})
                 self.assertEqual(app.starts, 0)
+                self.assertIn("Phone disconnected; waiting to reconnect", app.lines[-1])
+                self.assertEqual(app.next_try, 0)
+                self.assertEqual(app.retry_delay, 3)
                 release.set()
                 app.tick()
                 fake.state = "device"
@@ -1013,6 +1016,105 @@ class CompanionTests(unittest.TestCase):
                 self.assertEqual(sum(args[2:5] == ["shell", "am", "start"]
                                      for args, _ in fake.calls), 2)
                 self.assertTrue(app.online)
+
+
+    def test_successful_preflight_with_lost_forward_does_not_blame_the_model(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fake = FakeAdb()
+            fake.state = "device"
+            fake.assigned = [18767, 18768]
+            now = [100.0]
+            app = app_fixture(directory, fake, now)
+            app.keys.save_first_allow(bytes(range(32)))
+            with patch.object(link, "PC", FakePC), \
+                    patch.object(link, "authenticated_idle", return_value=True), \
+                    patch.object(link, "model_server_listening", return_value=True), \
+                    patch.object(link, "model_server_preflight", return_value=True):
+                app.tick()
+                self.assertEqual(app.lines[-1], "Warming model")
+                fake.forwards.clear()
+                finish_preflight(app)
+                self.assertFalse(app.online)
+                self.assertEqual(app.starts, 0)
+                self.assertIn("PC link interrupted; retrying", app.lines)
+                self.assertNotIn("Local model or chat route failed", "".join(app.lines))
+                self.assertEqual(app.next_try, 0)
+                now[0] = 100.0
+                app.tick()
+                if not app.online:
+                    finish_preflight(app)
+            self.assertTrue(app.online)
+            self.assertEqual(app.starts, 1)
+
+    def test_lost_forward_during_warmup_cancels_preflight(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fake = FakeAdb()
+            fake.state = "device"
+            fake.assigned = [18767, 18768]
+            now = [100.0]
+            app = app_fixture(directory, fake, now)
+            app.keys.save_first_allow(bytes(range(32)))
+            entered, release = threading.Event(), threading.Event()
+
+            def preflight(server, model, cancelled):
+                entered.set()
+                while not release.wait(0.01):
+                    if cancelled():
+                        return False
+                return not cancelled()
+
+            with patch.object(link, "PC", FakePC), \
+                    patch.object(link, "authenticated_idle", return_value=True), \
+                    patch.object(link, "model_server_listening", return_value=True), \
+                    patch.object(link, "model_server_preflight", side_effect=preflight):
+                app.tick()
+                self.assertTrue(entered.wait(2))
+                self.assertEqual(app.lines[-1], "Warming model")
+                fake.forwards.clear()
+                app.tick()
+                self.assertTrue(app.preflight_done.wait(2))
+                self.assertIn("PC link interrupted; retrying", app.lines[-1])
+                self.assertEqual(app.starts, 0)
+                self.assertEqual(app.next_try, 0)
+                release.set()
+                now[0] = 100.0
+                app.tick()
+                finish_preflight(app)
+            self.assertTrue(app.online)
+            self.assertEqual(app.starts, 1)
+
+    def test_detach_during_backoff_resets_the_retry_timer(self):
+        with tempfile.TemporaryDirectory() as directory:
+            fake = FakeAdb()
+            fake.state = "device"
+            fake.assigned = [18767, 18768]
+            now = [100.0]
+            app = app_fixture(directory, fake, now)
+            app.keys.save_first_allow(bytes(range(32)))
+            with patch.object(link, "PC", FakePC), \
+                    patch.object(link, "authenticated_idle", return_value=True), \
+                    patch.object(link, "model_server_listening", return_value=True), \
+                    patch.object(link, "model_server_preflight", return_value=False):
+                app.tick()
+                finish_preflight(app)
+                self.assertFalse(app.online)
+                self.assertGreater(app.next_try, now[0])
+                self.assertIn("Local model or chat route failed", app.lines[-1])
+                fake.state = "unauthorized"
+                app.tick()
+                self.assertIn("Phone disconnected; waiting to reconnect", app.lines[-1])
+                self.assertEqual(app.next_try, 0)
+                self.assertEqual(app.retry_delay, 3)
+            with patch.object(link, "PC", FakePC), \
+                    patch.object(link, "authenticated_idle", return_value=True), \
+                    patch.object(link, "model_server_listening", return_value=True), \
+                    patch.object(link, "model_server_preflight", return_value=True):
+                fake.state = "device"
+                now[0] = 100.5  # would have been inside the old backoff window
+                app.tick()
+                finish_preflight(app)
+            self.assertTrue(app.online)
+            self.assertEqual(app.starts, 1)
 
     def test_stop_cancels_warmup_without_starting_worker(self):
         with tempfile.TemporaryDirectory() as directory:
