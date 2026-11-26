@@ -12,6 +12,8 @@ final class UiSettings {
 
     static final String KEY_TYPOGRAPHY = "ui_typography";
     static final String KEY_THEME = "ui_theme";
+    /** Experimental Design lab view; anything but a known mode reads as Off. */
+    static final String KEY_DESIGN_LAB = "ui_design_lab";
     static final String THEME_DARK = "dark";
     static final String THEME_LIGHT = "light";
     static final String THEME_SYSTEM = "system";
@@ -30,6 +32,16 @@ final class UiSettings {
         String value = store.get(KEY_THEME, THEME_DARK);
         if (THEME_LIGHT.equals(value) || THEME_SYSTEM.equals(value)) return value;
         return THEME_DARK;
+    }
+
+    String designLab() {
+        return DesignLab.parseMode(store.get(KEY_DESIGN_LAB, DesignLab.OFF));
+    }
+
+    boolean setDesignLab(String id) {
+        if (id == null || !DesignLab.MODES.contains(id)) return false;
+        store.put(KEY_DESIGN_LAB, id);
+        return true;
     }
 
     boolean setTypography(String id) {

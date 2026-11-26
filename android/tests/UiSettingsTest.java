@@ -47,6 +47,15 @@ public final class UiSettingsTest {
         equal("Follow system", UiSettings.themeCaption(UiSettings.THEME_SYSTEM));
         check(TypeChoice.defaults().isDefault());
         check(TypeChoice.OPTIONS.size() == 5);
+        // Design lab is off unless chosen, and an unknown stored value reads as off.
+        equal(DesignLab.OFF, settings.designLab());
+        check(settings.setDesignLab(DesignLab.SCHEMATIC));
+        equal(DesignLab.SCHEMATIC, settings.designLab());
+        check(!settings.setDesignLab("hologram"));
+        check(!settings.setDesignLab(null));
+        equal(DesignLab.SCHEMATIC, settings.designLab());
+        store.values.put(UiSettings.KEY_DESIGN_LAB, "hologram");
+        equal(DesignLab.OFF, settings.designLab());
         System.out.println("UiSettingsTest: OK");
     }
 
