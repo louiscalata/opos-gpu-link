@@ -372,6 +372,12 @@ def service() -> LinkService | None:
         return _Running.listener.link if _Running.listener else None
 
 
+def listening_port() -> int | None:
+    """Return the bound port of the running listener, or None when it is off."""
+    with _Running.lock:
+        return _Running.listener.server_address[1] if _Running.listener else None
+
+
 def start(answers: AnswerStore, env: Mapping[str, str] | None = None) -> LinkService | None:
     """Start only for OPOS_GPU_LINK=1; invalid configuration fails closed."""
     env = os.environ if env is None else env
