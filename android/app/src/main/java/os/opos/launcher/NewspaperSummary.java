@@ -159,13 +159,16 @@ final class NewspaperSummary {
     }
 
     /**
-     * Fail closed: a lane is still going if the caller says so, or if it has no time yet
-     * and its state reads as in progress ("Loading…", "Retrying…", "Paused — …").
+     * Fail closed: a lane is settled only when the caller does not flag it pending and its
+     * state is a known end (Done, or an error line such as a stop or failure). Anything
+     * else ("Loading…", "Retrying… (2/3)", "Queued", "Paused — …") is still going.
      */
     static boolean stillGoing(Lane lane) {
         if (lane.pending) return true;
-        if (lane.elapsedMs != null) return false;
-        return lane.state.endsWith("…") || lane.state.startsWith("Paused");
+        String state = lane.state == null ? "" : lane.state.trim();
+        if (state.startsWith("Done")) return false;
+        if (state.toLowerCase(java.util.Locale.US).contains("paused")) return true;
+        return !ErrorCopy.errorLine(state);
     }
 
     static String report(List<Lane> lanes) {

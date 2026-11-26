@@ -102,8 +102,8 @@ public final class NewspaperSummaryTest {
                 "Done · 2.0 s", 2000L, 2000L, true, 3, false);
         NewspaperSummary.Lane doneB = new NewspaperSummary.Lane("Phone", "one",
                 "Done · 8.0 s", 8000L, 8000L, true, 1, false);
-        for (String going : new String[] {"Loading…", "Retrying…",
-                "Paused — will continue when the MacBook is back"}) {
+        for (String going : new String[] {"Loading…", "Retrying…", "Retrying… (2/3)",
+                "Loading... 45%", "Queued", "Paused — will continue when the MacBook is back"}) {
             String goingReport = NewspaperSummary.report(Arrays.asList(doneA, doneB,
                     new NewspaperSummary.Lane("Qwen", "", going, null, null, true, 0, false)));
             contains(goingReport, "Fastest so far: MacBook (2.0 s) · Slowest so far: Phone (8.0 s)");
@@ -119,6 +119,26 @@ public final class NewspaperSummaryTest {
         contains(settledFull, "Fastest: MacBook (2.0 s) · Slowest: Phone (8.0 s)");
         contains(settledFull, "Longest answer: MacBook (3 words)");
         check(!settledFull.contains("so far"));
+        // A timed lane that went back to an in-progress state is still going.
+        contains(NewspaperSummary.report(Arrays.asList(doneA, doneB,
+                new NewspaperSummary.Lane("Qwen", "one", "Retrying…", 4000L, 4000L, true, 1,
+                        false))), "Fastest so far:");
+        // Stopped and failed lanes with a recorded time are settled.
+        String endedTimed = NewspaperSummary.report(Arrays.asList(doneA, doneB,
+                new NewspaperSummary.Lane("Qwen", "one", "Stopped early. Here is what it wrote.",
+                        5000L, 5000L, true, 1, false),
+                new NewspaperSummary.Lane("LFM", "", "Could not finish on this phone. Try again.",
+                        6000L, 6000L, true, 0, false)));
+        check(!endedTimed.contains("so far"));
+        // An excluded lane never holds "so far".
+        check(!NewspaperSummary.report(Arrays.asList(doneA, doneB,
+                new NewspaperSummary.Lane("Qwen", "", "Loading…", null, null, false, 0, false)))
+                .contains("so far"));
+        // All lanes stopped or failed: no crash.
+        NewspaperSummary.report(Arrays.asList(
+                new NewspaperSummary.Lane("Qwen", "", "Stopped", null, null, true, 0, false),
+                new NewspaperSummary.Lane("LFM", "", "Could not finish on this phone. Try again.",
+                        null, null, true, 0, false)));
         NewspaperSummary.Lane resumedPc = new NewspaperSummary.Lane("PC", "partial finished",
                 "Done · time unmeasured", null, null, true, 2, false, "unmeasured");
         equal("PC\u00a0unmeasured\nPhone\u00a01.0\u00a0s", NewspaperSummary.timing(
