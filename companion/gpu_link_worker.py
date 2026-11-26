@@ -825,6 +825,7 @@ class StandIn:
         state = "loading" if warming or self.job is None and self.holding_since is not None else None
         status, value = self._send_status(self.job["lease"] if self.job else None, tokens, tps, state=state)
         if status == 404 and self.job and value.get("error") == "lease":
+            self.recovery = None
             self.close()
             self.emit("Lease ended; polling again")
             self._status()
@@ -833,6 +834,7 @@ class StandIn:
             raise ToolError("status refused")
         self.next_status = self.clock() + 1
         if self.job and value.get("cancel") == self.job["lease"]:
+            self.recovery = None
             self.close()
             self.emit("Answer cancelled by phone")
         else:
@@ -842,7 +844,7 @@ class StandIn:
         """Give the lease back without an error so the phone pauses the answer and keeps its text."""
         question, offset = self.job["question"], self.offset
         tries = 1
-        if self.recovery is not None and self.recovery[0] == question and offset <= self.recovery[2]:
+        if self.recovery is not None and self.recovery[0] == question and offset == self.recovery[2]:
             tries = self.recovery[1] + 1
         if tries > RECOVERY_TRIES:
             self.recovery = None
@@ -864,11 +866,13 @@ class StandIn:
             return False
         ready = held >= RECOVERY_MAX_HOLD
         if not ready:
-            self.next_ready_check = now + 1
             try:
                 ready = self.server_ready is None or bool(self.server_ready())
             except Exception:
                 ready = False
+            finally:
+                # Counted from the end of the probe: a hung server makes the probe itself slow.
+                self.next_ready_check = self.clock() + 1
         if ready:
             self.holding_since = None
             self.emit("Model server answering again; resuming")
@@ -884,6 +888,8 @@ class StandIn:
         if status != 200:
             raise ToolError("work poll refused")
         self.job, self.offset = job, len(job["partial"].encode())
+        if self.recovery is not None and (self.recovery[0] != job["question"] or self.offset < self.recovery[2]):
+            self.recovery = None  # a different or restarted answer starts with a fresh budget
         self.source = self.source_factory(job)
         self.started, self.next_status = self.clock(), 0
         self.emit(f"Work received; partial {self.offset} bytes")

@@ -142,6 +142,39 @@ class ServerStallTests(unittest.TestCase):
                                      server_ready=lambda: True)
             self.assertTrue(drive(reactor, clock, lambda: phone.state == "failed"), code)
             self.assertEqual(phone.errors, [code])
+            self.assertEqual(phone.leases, 1, code)
+            self.assertNotIn("loading", phone.status_states, code)
+
+
+class HoldBookkeepingTests(unittest.TestCase):
+    def test_slow_probe_is_spaced_from_its_end(self):
+        clock, probes = [0.0], []
+
+        def slow_probe():
+            probes.append(clock[0])
+            clock[0] += 1.5  # a hung server times the probe out
+            return False
+
+        reactor = worker.StandIn(Phone(), emit=lambda _line: None, clock=lambda: clock[0], server_ready=slow_probe)
+        reactor.holding_since = 0.0
+        clock[0] = worker.RECOVERY_MIN_HOLD
+        for _ in range(60):
+            reactor._recovered()
+            clock[0] += 0.1
+        gaps = [b - a for a, b in zip(probes, probes[1:])]
+        self.assertTrue(gaps and all(gap >= 2.5 - 1e-9 for gap in gaps), gaps)
+
+    def test_cancel_or_a_new_run_resets_the_budget(self):
+        reactor = worker.StandIn(Phone(), emit=lambda _line: None, clock=lambda: 0.0)
+        reactor.recovery = ("Q", worker.RECOVERY_TRIES, 50)
+        reactor.pc.send = lambda *_args: (200, {"lease": "1" * 32, "partial": "", "question": "Q"})
+        reactor.source_factory = lambda job: Source(job["partial"], error=False, done=False)
+        reactor._work()
+        self.assertIsNone(reactor.recovery)
+        reactor.recovery = ("Q", 2, 0)
+        reactor.pc.status = lambda *_args, **_kwargs: (200, {"cancel": reactor.job["lease"]})
+        reactor._status()
+        self.assertIsNone(reactor.recovery)
 
 
 class ServerAnswersTests(unittest.TestCase):

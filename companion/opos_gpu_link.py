@@ -974,9 +974,9 @@ class Companion:
 
         def main_ready():
             """A held answer resumes once the lead model server answers again."""
-            lane = runtime.lane(self.args.model) if runtime is not None else None
-            if lane is not None and self.args.model in runtime.pending:
+            if runtime is not None and self.args.model in runtime.pending:
                 return False
+            lane = runtime.lane(self.args.model) if runtime is not None else None
             return model_server_answers(lane["url"] if lane is not None else self.args.server)
         extra_models = getattr(self.args, "extra_models", [])
 
@@ -1063,9 +1063,9 @@ class Companion:
                                                     self.extra_checked, self.extra_checked_lock, budget)
 
                         def lane_ready(ident=model["id"]):
-                            lane = runtime.lane(ident) if runtime is not None else None
-                            if lane is not None and ident in runtime.pending:
+                            if runtime is not None and ident in runtime.pending:
                                 return False
+                            lane = runtime.lane(ident) if runtime is not None else None
                             url = (lane["url"] if lane is not None else
                                    getattr(self.args, "model_servers", {}).get(ident, self.args.server))
                             return model_server_answers(url)
