@@ -39,9 +39,11 @@ The Dec 10 2026 demo runs NVIDIA models, all as local GGUF files:
 | --- | --- | --- |
 | MacBook (Metal) | NVIDIA Nemotron 3.5 Bolt E4B 4GB, Q4_K_M | [`nvidia/NVIDIA-Nemotron-3.5-Bolt-E4B-4GB`](https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Bolt-E4B-4GB), 6.18 GB, OpenMDW-1.1 |
 | Phone, lead | NVIDIA AceInstruct 1.5B, Q4_K_M | community quant [`bartowski/nvidia_AceInstruct-1.5B-GGUF`](https://huggingface.co/bartowski/nvidia_AceInstruct-1.5B-GGUF), 1.12 GB, CC-BY-NC-4.0 |
-| Phone, second | NVIDIA Nemotron 3 Nano 4B, Q4_K_M | [`nvidia/NVIDIA-Nemotron-3-Nano-4B-GGUF`](https://huggingface.co/nvidia/NVIDIA-Nemotron-3-Nano-4B-GGUF), 2.84 GB, NVIDIA Nemotron Open Model License |
+| Phone, second | NVIDIA Nemotron Mini 4B Instruct, Q4_K_M | community quant [`bartowski/Nemotron-Mini-4B-Instruct-GGUF`](https://huggingface.co/bartowski/Nemotron-Mini-4B-Instruct-GGUF), 2.70 GB, NVIDIA Open Model License |
 
-Nemotron 3.5 Bolt E4B is post-trained by NVIDIA from Google's Gemma 4 E4B, so Gemma's terms also apply. Any other local GGUF works too; the companion picks one that fits your GPU.
+Comparison only, not part of the NVIDIA lineup: LFM2 1.2B (Liquid AI) on the phone, shown as "LFM2 1.2B (baseline)", and Gemma 4 26B (Google) on the MacBook, kept as a measured baseline and rollback.
+
+Nemotron 3.5 Bolt E4B is post-trained by NVIDIA from Google's Gemma 4 E4B, so Gemma's terms also apply. The models are NVIDIA's; on a Mac they run on Apple's GPU through Metal, not on an NVIDIA GPU. Any other local GGUF works too; the companion picks one that fits your GPU.
 
 ## Supported platforms
 
