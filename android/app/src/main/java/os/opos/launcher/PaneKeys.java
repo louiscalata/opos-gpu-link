@@ -36,11 +36,15 @@ final class PaneKeys {
     }
 
     static String kicker(String pane) {
-        return pc(pane) ? "PC GPU" : "MODEL";
+        return kicker(pane, ComputerWords.current());
+    }
+
+    static String kicker(String pane, String computer) {
+        return pc(pane) ? ComputerWords.apply("PC GPU", computer) : "MODEL";
     }
 
     static String defaultWhere(String pane) {
-        return pc(pane) ? "on the PC's GPU" : "on this phone";
+        return pc(pane) ? ComputerWords.apply("on the PC's GPU") : "on this phone";
     }
 
     static String pref(String pane, String field) {

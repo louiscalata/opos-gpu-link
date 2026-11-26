@@ -99,6 +99,7 @@ public final class MainActivity extends Activity {
     private final Runnable poll = this::refresh;
     private final Runnable coverResultsCheck = this::ensureCoverResultsArea;
     private final Map<String, Long> answerStarts = new HashMap<>();
+    private final Map<TextView, String> pcLabelledViews = new java.util.WeakHashMap<>();
     private Typography typography;
     private UiSettings uiSettings;
     private UiPalette palette = new UiPalette(UiPalette.Theme.DARK);
@@ -273,6 +274,8 @@ public final class MainActivity extends Activity {
         getWindow().setSoftInputMode(android.view.WindowManager.LayoutParams.SOFT_INPUT_ADJUST_RESIZE);
         setContentView(R.layout.models);
         SharedPreferences preferences = getPreferences(MODE_PRIVATE);
+        ComputerWords.set(preferences.getString("computer_noun", ComputerWords.PC));
+        pcLabelTree(findViewById(android.R.id.content));
         uiSettings = new UiSettings(new UiSettings.Store() {
             @Override public String get(String key, String fallback) {
                 return preferences.getString(key, fallback);
@@ -843,7 +846,7 @@ public final class MainActivity extends Activity {
         tonightRows.setPadding(0, dp(6), 0, 0);
         timingCard.addView(tonightRows, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-        setTonightTiming("PC\u00a0waiting\nPhone\u00a0waiting");
+        setTonightTiming(ComputerWords.apply("PC\u00a0waiting\nPhone\u00a0waiting"));
         notesCard = box();
         notes = new LinedNotesEditText(this);
         notes.setTextColor(themeColor(R.color.newspaper_ink));
@@ -952,6 +955,7 @@ public final class MainActivity extends Activity {
         typography.state(stateView);
         typography.tabular(stateView);
         TextView kicker = newspaperText(PaneKeys.kicker(pane), typography.labelSp(), true, false);
+        if (PaneKeys.pc(pane)) pcLabelled(kicker, PaneKeys.kicker(pane, ComputerWords.PC));
         typography.kicker(kicker);
         card.addView(kicker, 0);
         TextView byline = newspaperText("", typography.labelSp(), false, false);
@@ -1659,7 +1663,7 @@ public final class MainActivity extends Activity {
                         && (open(answerOf(snapshot, pane.pane))
                         || isPausedDateline(pane))) {
                     setWaitingLayout(pane, false);
-                    setLaneState(pane.state, pane.card, getString(R.string.gpu_paused));
+                    setLaneState(pane.state, pane.card, pcWords(R.string.gpu_paused));
                 } else {
                     setLaneState(pane.state, pane.card, getString(R.string.stale_snapshot));
                 }
@@ -1733,7 +1737,8 @@ public final class MainActivity extends Activity {
         JSONObject link = gpu.optJSONObject("link");
         JSONObject pc = link == null ? null : link.optJSONObject("pc");
         String label = pcLabel(gpu);
-        setIfChanged(gpuHeading, label.isEmpty() ? getString(R.string.gpu_heading) : label);
+        observeComputer(label);
+        setIfChanged(gpuHeading, label.isEmpty() ? pcWords(R.string.gpu_heading) : label);
         long[] heartbeats = PcHeartbeat.afterSnapshot(pc != null,
                 pc != null && pc.optBoolean("live"), gpu.optBoolean("ready"),
                 SystemClock.elapsedRealtime(), lastPcLiveAtMs, lastGoodPcAtMs);
@@ -1892,7 +1897,7 @@ public final class MainActivity extends Activity {
         String leadLabel = leadModel == null || leadModel.isNull("lead_label")
                 ? null : leadModel.optString("lead_label", "");
         setIfChanged(paneViews.get("gpu").byline,
-                LeadModelByline.text(pc, leadLabel, getString(R.string.pc)));
+                LeadModelByline.text(pc, leadLabel, pcWords(R.string.pc)));
         setIfChanged(paneViews.get("phone").byline,
                 "AceInstruct 1.5B · NVIDIA · on this phone");
         for (String pane : available) {
@@ -2114,8 +2119,15 @@ public final class MainActivity extends Activity {
         pairingPending = pending != null;
         applyComposerState();
         if (pending != null) {
-            setIfChanged(findViewById(R.id.pairing_header), getString(R.string.pairing_title));
             String label = pending.optString("label", getString(R.string.pc));
+            // The pending computer may not be the one already paired: name it by its own label.
+            String pendingNoun = ComputerWords.noun(label);
+            setIfChanged(findViewById(R.id.pairing_header),
+                    ComputerWords.apply(getString(R.string.pairing_title), pendingNoun));
+            TextView allow = findViewById(R.id.allow_pc);
+            if (allow != null) {
+                setIfChanged(allow, ComputerWords.apply(getString(R.string.allow_pc), pendingNoun));
+            }
             setIfChanged(pairingText, getString(R.string.pairing_request, label));
             String code = pending.optString("code");
             setIfChanged(pairingCode, code.length() == 6
@@ -2127,7 +2139,7 @@ public final class MainActivity extends Activity {
             reopen.setVisibility(View.GONE);
         } else if (closed) {
             setIfChanged(findViewById(R.id.pairing_header), getString(R.string.pairing_closed_title));
-            setIfChanged(pairingText, getString(R.string.pairing_closed));
+            setIfChanged(pairingText, pcWords(R.string.pairing_closed));
             findViewById(R.id.pairing_code_label).setVisibility(View.GONE);
             pairingCode.setVisibility(View.GONE);
             findViewById(R.id.pairing_disclosure).setVisibility(View.GONE);
@@ -2323,10 +2335,10 @@ public final class MainActivity extends Activity {
             String state;
             if (isGpu) {
                 JSONObject pc = link == null ? null : link.optJSONObject("pc");
-                state = link == null ? getString(R.string.gpu_unavailable)
-                        : pc == null ? getString(R.string.connect_pc)
+                state = link == null ? pcWords(R.string.gpu_unavailable)
+                        : pc == null ? pcWords(R.string.connect_pc)
                         : pane.optBoolean("ready") ? getString(R.string.ready_to_ask)
-                        : getString(R.string.waiting_for_pc);
+                        : pcWords(R.string.waiting_for_pc);
             } else {
                 state = pane.optBoolean("ready") ? getString(R.string.ready_to_ask)
                         : getString(R.string.phone_model_unavailable);
@@ -2383,9 +2395,9 @@ public final class MainActivity extends Activity {
                 : answerWords(paneName, state, id, answerText, failureCode);
         boolean pcPaused = PcPausePolicy.paused(paneName, state, cableConnected);
         if (pcPaused) {
-            stateWords = getString(R.string.gpu_paused);
+            stateWords = pcWords(R.string.gpu_paused);
         } else if (isGpu && awaitingReplugSnapshot && open(answer)) {
-            stateWords = getString(R.string.cable_checking);
+            stateWords = pcWords(R.string.cable_checking);
         }
         setLaneState(stateView, article.card, stateWords);
         if (extra && ("queued".equals(state) || "waiting".equals(state)
@@ -2429,7 +2441,7 @@ public final class MainActivity extends Activity {
             case "answering":
                 return getString(R.string.streaming);
             case "paused":
-                return getString(R.string.gpu_paused);
+                return pcWords(R.string.gpu_paused);
             case "done":
                 Long duration = answerDurations.get(id);
                 boolean interrupted = isGpu && answerTiming.interrupted(id);
@@ -2459,7 +2471,7 @@ public final class MainActivity extends Activity {
             PaneViews article = paneViews.get(pane);
             JSONObject answer = answerOf(snapshot, pane);
             String id = answer == null ? "" : answer.optString("id");
-            String shortLabel = "gpu".equals(pane) ? "PC" : "phone".equals(pane)
+            String shortLabel = "gpu".equals(pane) ? ComputerWords.current() : "phone".equals(pane)
                     ? "Phone" : article.heading.getText().toString();
             boolean included = latestRequestedPanes.isEmpty()
                     ? answer != null && !latestQuestion.isEmpty()
@@ -2608,16 +2620,16 @@ public final class MainActivity extends Activity {
             line = pcOpen || hasVisiblePcWork() ? getString(R.string.paused_plug_cable)
                     : getString(R.string.info_usb_disconnected);
         } else if (awaitingReplugSnapshot) {
-            line = getString(R.string.cable_checking);
+            line = pcWords(R.string.cable_checking);
         } else if (pending != null) {
-            line = getString(R.string.pairing_pending);
+            line = pcWords(R.string.pairing_pending);
         } else if (pausedAfterFreshSnapshot) {
-            line = getString(R.string.gpu_paused);
+            line = pcWords(R.string.gpu_paused);
         } else if (awaitingAnswerId()) {
             line = getString(R.string.thinking);
         } else if (open(gpuWork) && connection == Connection.DISCONNECTED
                 && !streaming) {
-            line = getString(R.string.waiting_for_pc);
+            line = pcWords(R.string.waiting_for_pc);
         } else if (streaming) {
             line = getString(R.string.streaming);
         } else if (open(phoneWork) || open(gpuWork) || extraOpen) {
@@ -2625,15 +2637,15 @@ public final class MainActivity extends Activity {
         } else if (connection == Connection.CONNECTED) {
             line = getString(R.string.ready_to_ask);
         } else if (connection == Connection.PREPARING) {
-            line = getString(R.string.pc_getting_ready);
+            line = pcWords(R.string.pc_getting_ready);
         } else if (pc != null) {
-            line = getString(R.string.waiting_for_pc);
+            line = pcWords(R.string.waiting_for_pc);
         } else if (link != null && "closed".equals(link.optString("enrol"))) {
             line = getString(R.string.pairing_closed_title);
         } else if (link != null) {
-            line = getString(R.string.connect_pc);
+            line = pcWords(R.string.connect_pc);
         } else {
-            line = getString(R.string.gpu_unavailable);
+            line = pcWords(R.string.gpu_unavailable);
         }
         setMainStatus(line);
         if (infoDialog != null && infoDialog.isShowing()) {
@@ -2654,7 +2666,7 @@ public final class MainActivity extends Activity {
     }
 
     private boolean isPausedDateline(PaneViews article) {
-        return getString(R.string.gpu_paused).contentEquals(article.state.getText());
+        return pcWords(R.string.gpu_paused).contentEquals(article.state.getText());
     }
 
     private Connection pcConnection(JSONObject gpu) {
@@ -2690,8 +2702,8 @@ public final class MainActivity extends Activity {
         switch (pairing) {
             case REQUESTED: return getString(R.string.info_pairing_requested);
             case CLOSED: return getString(R.string.info_pairing_closed);
-            case SAVED: return getString(R.string.info_pairing_saved);
-            case NONE: return getString(R.string.info_pairing_none);
+            case SAVED: return pcWords(R.string.info_pairing_saved);
+            case NONE: return pcWords(R.string.info_pairing_none);
             default: return getString(R.string.info_unknown);
         }
     }
@@ -2703,9 +2715,9 @@ public final class MainActivity extends Activity {
                 link != null && link.optJSONObject("pending") != null,
                 link != null && "closed".equals(link.optString("enrol")),
                 pcLabel(gpu), pcFingerprint(pc), connection, reachable);
-        String pcText = pc == null ? getString(R.string.info_no_pc)
-                : rows.label.isEmpty() ? getString(R.string.pc) : rows.label;
-        String idText = pc == null ? getString(R.string.info_no_pc)
+        String pcText = pc == null ? pcWords(R.string.info_no_pc)
+                : rows.label.isEmpty() ? pcWords(R.string.pc) : rows.label;
+        String idText = pc == null ? pcWords(R.string.info_no_pc)
                 : rows.fingerprint.isEmpty() ? getString(R.string.info_pc_id_unavailable)
                 : rows.fingerprint;
         // One main-thread pass keeps the Settings rows on the same snapshot.
@@ -2806,6 +2818,41 @@ public final class MainActivity extends Activity {
         }
         summaryText.setTextColor(ink);
         summaryText.setText(styled);
+    }
+
+    /** A string resource with "PC" replaced by the paired computer's noun (MacBook, Mac or PC). */
+    private String pcWords(int id) {
+        return ComputerWords.apply(getString(id));
+    }
+
+    private String pcWords(int id, Object... args) {
+        return ComputerWords.apply(getString(id, args));
+    }
+
+    /** Remember a fixed label that names the computer, so a new pairing can rename it. */
+    private void pcLabelled(TextView view, String original) {
+        if (view == null || original == null || original.indexOf("PC") < 0) return;
+        pcLabelledViews.put(view, original);
+        view.setText(ComputerWords.apply(original));
+    }
+
+    /** Capture XML-inflated labels only; never answers, notes or the question box. */
+    private void pcLabelTree(View view) {
+        if (view instanceof android.widget.EditText) return;
+        if (view instanceof TextView) {
+            pcLabelled((TextView) view, ((TextView) view).getText().toString());
+        } else if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int index = 0; index < group.getChildCount(); index++) pcLabelTree(group.getChildAt(index));
+        }
+    }
+
+    private void observeComputer(String label) {
+        if (!ComputerWords.observe(label)) return;
+        getPreferences(MODE_PRIVATE).edit().putString("computer_noun", ComputerWords.current()).apply();
+        for (Map.Entry<TextView, String> entry : pcLabelledViews.entrySet()) {
+            entry.getKey().setText(ComputerWords.apply(entry.getValue()));
+        }
     }
 
     private static void setIfChanged(TextView view, String text) {
@@ -2974,8 +3021,8 @@ public final class MainActivity extends Activity {
                 paneOrder, states, true, notAsked, checking);
         setIfChanged(compactLaneStatus, CompactHeaderStatus.line(
                 getString(R.string.phone_heading), phone,
-                getString(R.string.gpu_heading), pc,
-                getString(R.string.gpu_paused)));
+                pcWords(R.string.gpu_heading), pc,
+                pcWords(R.string.gpu_paused)));
         refreshCover();
     }
 
@@ -3719,7 +3766,7 @@ public final class MainActivity extends Activity {
         ruleParams.topMargin = dp(12);
         root.addView(rule, ruleParams);
         TextView note = newspaperText(
-                "On-device models run one after another to save memory. PC models run together.",
+                ComputerWords.apply("On-device models run one after another to save memory. PC models run together."),
                 15, false, false);
         note.setPadding(0, dp(14), 0, dp(10));
         root.addView(note);
@@ -3751,7 +3798,7 @@ public final class MainActivity extends Activity {
 
     private String modelLabel(String pane, JSONObject view) {
         if ("phone".equals(pane)) return getString(R.string.phone_heading);
-        if ("gpu".equals(pane)) return getString(R.string.gpu_heading);
+        if ("gpu".equals(pane)) return pcWords(R.string.gpu_heading);
         String label = view == null ? "" : view.optString("label").trim();
         return label.isEmpty() ? pane.toUpperCase(Locale.US) : label;
     }
@@ -3849,7 +3896,7 @@ public final class MainActivity extends Activity {
                 if (PaneKeys.pc(pane)) continue;
                 addModelRow(pane);
             }
-            addModelSection("PC GPU");
+            addModelSection(PaneKeys.kicker("gpu"));
             for (String pane : grouped) {
                 if (PaneKeys.pc(pane)) addModelRow(pane);
             }
@@ -3984,7 +4031,7 @@ public final class MainActivity extends Activity {
 
     private LinearLayout savedArticle(HistoryStore.Lane lane) {
         LinearLayout card = savedBox();
-        TextView kicker = newspaperText(PaneKeys.pc(lane.pane) ? "PC GPU" : "MODEL",
+        TextView kicker = newspaperText(PaneKeys.kicker(lane.pane),
                 LaneCardLayout.LABEL_SP, true, false);
         typography.kicker(kicker);
         card.addView(kicker);
@@ -4229,6 +4276,7 @@ public final class MainActivity extends Activity {
             if (infoDialog == dialog) infoDialog = null;
         });
         dialog.setContentView(R.layout.gpu_link_info);
+        pcLabelTree(dialog.getWindow().getDecorView());
         typography.defaults(dialog.getWindow().getDecorView());
         applyPaletteToDialog(dialog);
         typography.headline(dialog.findViewById(R.id.info_page_title), 26);
@@ -4275,7 +4323,7 @@ public final class MainActivity extends Activity {
         JSONObject link = gpu == null ? null : gpu.optJSONObject("link");
         if (!reachable || link == null || link.optJSONObject("pc") == null) return null;
         String label = pcLabel(gpu);
-        return label.isEmpty() ? getString(R.string.pc) : label;
+        return label.isEmpty() ? pcWords(R.string.pc) : label;
     }
 
     private String trustedPcFingerprint() {
@@ -4310,18 +4358,18 @@ public final class MainActivity extends Activity {
                 .setPositiveButton(R.string.continue_label, (first, which) -> {
                     if (!sameTrustedPc(label, fingerprint)) {
                         setIfChanged(info.findViewById(R.id.info_forget_error),
-                                getString(R.string.forget_pc_changed));
+                                pcWords(R.string.forget_pc_changed));
                         return;
                     }
                     showAlert(new AlertDialog.Builder(this, R.style.LinkDialogTheme)
                             .setTitle(R.string.forget_pc_confirm_title)
-                            .setMessage(getString(R.string.forget_pc_second_message, label))
+                            .setMessage(pcWords(R.string.forget_pc_second_message, label))
                             .setNegativeButton(R.string.not_now, null)
                             .setPositiveButton(R.string.forget_pc_final, (second, confirmed) -> {
                                 if (acting) return;
                                 if (!sameTrustedPc(label, fingerprint)) {
                                     setIfChanged(info.findViewById(R.id.info_forget_error),
-                                            getString(R.string.forget_pc_changed));
+                                            pcWords(R.string.forget_pc_changed));
                                     return;
                                 }
                                 postForget(info, fingerprint);

@@ -13,6 +13,6 @@ final class Dateline {
 
     static String format(LocalDate date) {
         return DATE.format(date).toUpperCase(Locale.US)
-                + " \u00b7 PHONE + PC GPU EDITION";
+                + ComputerWords.apply(" \u00b7 PHONE + PC GPU EDITION");
     }
 }
