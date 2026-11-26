@@ -108,6 +108,10 @@ final class LaneHealth {
         // that is known to be connected; an unknown cable only ever offers the manual button.
         boolean autoLeft = !autoSpent.contains(key) && laneReady
                 && (!pc || Boolean.TRUE.equals(lastCable));
+        // Stop wins over the garble latch: a cancelled answer must never be re-asked automatically.
+        if ("cancelled".equals(state)) {
+            return new Verdict(Status.CANCELLED, true, false);
+        }
         if (previous.garbled) {
             return new Verdict(Status.FAILED, true, autoLeft, true, "garbled");
         }

@@ -112,6 +112,16 @@ public final class LaneHealthTest {
         check(h.observe("g1", "k1", "answering", null, 5, Q, true, 10).status
                 == LaneHealth.Status.WORKING);
 
+        // Stop on an answer whose text already tripped the garble guard: cancelled, no re-ask.
+        LaneHealth stopped = new LaneHealth();
+        stopped.observeCable(true, 0);
+        String noise = "asks8alion".repeat(8);
+        stopped.observe("gpu", "s-1", "answering", null, noise.length(), noise, Q, true, 0);
+        LaneHealth.Verdict cancelled = stopped.observe("gpu", "s-1", "cancelled", null,
+                noise.length(), noise, Q, true, 500);
+        check(cancelled.status == LaneHealth.Status.CANCELLED);
+        check(!cancelled.autoRetryDue);
+
         check(LaneHealth.transientError("garbled"));
         check(!LaneHealth.transientError("low_memory"));
         for (String pane : new String[]{"phone", "m4", "gpu", "g2"}) {
