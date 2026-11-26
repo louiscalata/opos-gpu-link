@@ -15,7 +15,12 @@ import java.util.regex.Pattern;
  */
 final class UiPalette {
     enum Theme { DARK, LIGHT }
-    enum Tone { NEUTRAL, ERROR, OK }
+    /**
+     * PAUSED is a planned pause (cable out, the computer catches up later): ink, never red,
+     * so pulling the cable on stage does not read as a failure. Lanes show it as an
+     * inverted chip and a full-ink wall.
+     */
+    enum Tone { NEUTRAL, ERROR, OK, PAUSED }
 
     static final String BLACK = "#000000";
     static final String WHITE = "#FFFFFF";
@@ -67,15 +72,18 @@ final class UiPalette {
         return ink();
     }
 
-    /** Only an errored card turns its wall red; success stays a quiet gray. */
+    /** An errored card turns its wall red, a paused one full ink; success stays a quiet gray. */
     String cardStroke(Tone tone) {
-        return tone == Tone.ERROR ? error() : stroke();
+        if (tone == Tone.ERROR) return error();
+        if (tone == Tone.PAUSED) return ink();
+        return stroke();
     }
 
     static Tone tone(CharSequence text) {
         if (text == null) return Tone.NEUTRAL;
         String lower = text.toString().trim().toLowerCase(Locale.US);
         if (lower.isEmpty()) return Tone.NEUTRAL;
+        if (lower.startsWith("paused")) return Tone.PAUSED;
         if (containsAny(lower, "garbled", "stuck", "failed", "failure", "paused",
                 "disconnected", "unreachable", "not connected", "unavailable",
                 "validator", "invalid", "stale snapshot", "expired", "could not",

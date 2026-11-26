@@ -4726,7 +4726,20 @@ public final class MainActivity extends Activity {
 
     private void applyTone(TextView view) {
         if (view == null) return;
-        view.setTextColor(parseHex(palette.colorForTone(UiPalette.tone(view.getText()))));
+        UiPalette.Tone tone = UiPalette.tone(view.getText());
+        boolean paused = tone == UiPalette.Tone.PAUSED;
+        boolean wasChip = Boolean.TRUE.equals(view.getTag(R.id.paused_chip));
+        if (paused != wasChip) {
+            // A paused line is an inverted chip (paper on ink), readable from the back row.
+            // Only views that were ever paused have their background or padding touched.
+            int delta = paused ? dp(6) : -dp(6);
+            view.setPadding(view.getPaddingLeft() + delta, view.getPaddingTop(),
+                    view.getPaddingRight() + delta, view.getPaddingBottom());
+            if (!paused) view.setBackgroundColor(Color.TRANSPARENT);
+            view.setTag(R.id.paused_chip, paused);
+        }
+        if (paused) view.setBackgroundColor(parseHex(palette.ink()));
+        view.setTextColor(parseHex(paused ? palette.paper() : palette.colorForTone(tone)));
     }
 
     private void applyErrorView() {
