@@ -1184,8 +1184,7 @@ public final class MainActivity extends Activity {
                 columns.addView(rightColumn, rightParams);
                 answers.addView(columns, columnsParams);
                 for (int i = 0; i < cards.size(); i++) {
-                    LinearLayout target = i < 2 ? (i == 0 ? leftColumn : rightColumn)
-                            : leftColumn.getChildCount() <= rightColumn.getChildCount()
+                    LinearLayout target = leftColumn.getChildCount() <= rightColumn.getChildCount()
                             ? leftColumn : rightColumn;
                     putWrapCard(target, cards.get(i), LaneCardLayout.MIN_LANE_DP,
                             target.getChildCount() == 0 ? 0 : LaneCardLayout.CARD_GAP_DP);
@@ -2979,10 +2978,13 @@ public final class MainActivity extends Activity {
                                  List<NewspaperSummary.Lane> lanes) {
         container.removeAllViews();
         int maxWords = RaceLine.maxWords(lanes);
-        if (tonightLeader != null) {
+        if (tonightLeader != null && container == tonightRows) {
+            // The leader belongs to the live TONIGHT card only. While a question runs its line
+            // keeps its space (INVISIBLE), so the answers below do not jump when it appears.
             String leader = lanes == null ? "" : RaceLine.leader(lanes);
-            setIfChanged(tonightLeader, leader);
-            tonightLeader.setVisibility(leader.isEmpty() ? View.GONE : View.VISIBLE);
+            setIfChanged(tonightLeader, leader.isEmpty() ? " " : leader);
+            tonightLeader.setVisibility(!leader.isEmpty() ? View.VISIBLE
+                    : lanes == null ? View.GONE : View.INVISIBLE);
             tonightLeader.setTextColor(parseHex(palette.ok()));
         }
         for (TonightRows.Row row : TonightRows.parse(timing)) {
@@ -3043,7 +3045,7 @@ public final class MainActivity extends Activity {
                                                      List<NewspaperSummary.Lane> lanes) {
         if (lanes == null || row == null) return null;
         for (NewspaperSummary.Lane lane : lanes) {
-            if (lane != null && row.label.equals(lane.label)) return lane;
+            if (lane != null && java.util.Objects.equals(row.label, lane.label)) return lane;
         }
         return null;
     }

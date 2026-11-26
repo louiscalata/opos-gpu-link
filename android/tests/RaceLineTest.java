@@ -75,6 +75,7 @@ public final class RaceLineTest {
                 new NewspaperSummary.Lane("Phone", "ans", "Done", 9100L))));
         equal("Fastest: MacBook · 28.4 s", RaceLine.leader(List.of(macBook,
                 new NewspaperSummary.Lane("Phone", "ans", "Done", 28400L))));
+        equal(27, count(RaceLine.bar(675, 684, 28), '■'));
         System.out.println("RaceLineTest: OK");
     }
 

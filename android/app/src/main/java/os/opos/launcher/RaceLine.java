@@ -76,6 +76,11 @@ final class RaceLine {
             filled = 1;
         }
 
+        // Only the longest lane fills the bar, so a close second never looks tied.
+        if (words < maxWords && filled >= cells) {
+            filled = cells - 1;
+        }
+
         int full = (int) filled;
         return repeat('■', full) + repeat('─', cells - full);
     }
