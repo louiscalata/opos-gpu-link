@@ -53,7 +53,7 @@ Private: runs on your phone and your own computer, no cloud.
 Early demo build.
 
 - The APK is a debug build signed with a throwaway key. It is not on Google Play.
-- The phone side of the link runs on its own with `phone-service/run_link.py`. The `/api/ai` endpoint the app reads still needs a host app that is not published yet.
+- The phone side runs on its own with `phone-service/run_link.py`, including the `/api/ai` endpoint the app reads. The phone lane needs a local OpenAI-compatible server on the phone, such as `llama-server`; without one, questions go to the PC.
 - The macOS apps are ad-hoc signed, not notarized, so macOS asks before the first run.
 - USB is the only link today. A wireless version is in the works.
 
