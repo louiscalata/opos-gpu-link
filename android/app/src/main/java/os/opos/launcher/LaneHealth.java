@@ -63,8 +63,9 @@ final class LaneHealth {
     private final Set<String> autoSpent = new HashSet<>();
     private Boolean lastCable;
     private long cableSinceMs;
-    private final Map<String, Boolean> companionLive = new HashMap<>();
-    private final Map<String, Long> companionSinceMs = new HashMap<>();
+    /** Readiness is per lane: each PC lane's companion worker comes back on its own. */
+    private final Map<String, Boolean> lastReady = new HashMap<>();
+    private final Map<String, Long> readySinceMs = new HashMap<>();
 
     /** Errors that a second try can plausibly fix. Others (too long, low memory) are left alone. */
     static boolean transientError(String error) {
@@ -78,29 +79,6 @@ final class LaneHealth {
             cableSinceMs = nowMs;
         }
         lastCable = cableConnected;
-    }
-
-    /**
-     * Whether the computer's companion is talking to the phone right now (its status is fresh).
-     * After a replug it can spend a minute warming its model before it can take the paused
-     * answer back, so a paused PC lane counts its grace period from here, not from the cable.
-     * Per lane: the main PC lane and each extra PC lane post their own status.
-     * Null means unknown and keeps the cable-only clock.
-     */
-    void observeCompanion(String pane, Boolean live, long nowMs) {
-        if (!companionLive.containsKey(pane)
-                || !java.util.Objects.equals(companionLive.get(pane), live)) {
-            companionSinceMs.put(pane, nowMs);
-        }
-        companionLive.put(pane, live);
-    }
-
-    /** Quiet time counted from the later of the replug and the companion coming back. */
-    private long companionQuiet(String pane, long cableQuiet, long nowMs) {
-        Boolean live = companionLive.get(pane);
-        Long since = companionSinceMs.get(pane);
-        if (live == null || since == null) return cableQuiet;
-        return Math.min(cableQuiet, Math.max(0, nowMs - since));
     }
 
     Verdict observe(String pane, String id, String state, String error, long size,
@@ -133,6 +111,17 @@ final class LaneHealth {
         // that is known to be connected; an unknown cable only ever offers the manual button.
         boolean autoLeft = !autoSpent.contains(key) && laneReady
                 && (!pc || Boolean.TRUE.equals(lastCable));
+        Long readySince = readySinceMs.get(pane);
+        if (readySince == null || !java.util.Objects.equals(lastReady.get(pane), laneReady)
+                || nowMs < readySince) {
+            readySince = nowMs;
+            readySinceMs.put(pane, readySince);
+        }
+        lastReady.put(pane, laneReady);
+        // Stuck grace for a paused lease starts when the cable is back AND the
+        // companion is ready, so a ~50 s warmup does not already consume it.
+        long readyQuiet = laneReady ? Math.max(0, nowMs - readySince) : 0;
+        long graceQuiet = Math.min(cableQuiet, readyQuiet);
         // Stop wins over the garble latch: a cancelled answer must never be re-asked automatically.
         if ("cancelled".equals(state)) {
             return new Verdict(Status.CANCELLED, true, false);
@@ -143,8 +132,6 @@ final class LaneHealth {
         switch (state) {
             case "done":
                 return new Verdict(Status.DONE, true, false);
-            case "cancelled":
-                return new Verdict(Status.CANCELLED, true, false);
             case "failed":
                 return new Verdict(Status.FAILED, true,
                         autoLeft && transientError(error) && quiet >= FAILED_AUTO_DELAY_MS);
@@ -155,26 +142,20 @@ final class LaneHealth {
                     return new Verdict(quiet >= PAUSED_WITH_CABLE_MS ? Status.STUCK : Status.WORKING,
                             quiet >= PAUSED_WITH_CABLE_MS, false);
                 }
-                if (Boolean.FALSE.equals(companionLive.get(pane))) {
-                    // Cable back but the computer is still warming up: the paused answer will
-                    // resume from its saved text. A retry now would throw that text away.
-                    return new Verdict(Status.PAUSED, true, false);
-                }
-                return stuckVerdict(companionQuiet(pane, cableQuiet, nowMs),
-                        PAUSED_WITH_CABLE_MS, autoLeft);
+                // Warming after a replug: stay Paused with Retry visible, never auto-retry
+                // a resumable lease (Retry would discard the saved partial).
+                if (!laneReady) return new Verdict(Status.PAUSED, true, false);
+                return stuckVerdict(graceQuiet, PAUSED_WITH_CABLE_MS, false);
             case "queued":
             case "waiting":
-                if (!pc || !cableBack || !laneReady
-                        || Boolean.FALSE.equals(companionLive.get(pane))) {
-                    // A question asked while the computer warms up waits; re-queueing it would
-                    // only spend the single automatic retry.
-                    return new Verdict(Status.WORKING, false, false);
-                }
-                return stuckVerdict(companionQuiet(pane, cableQuiet, nowMs),
-                        PC_QUEUED_WITH_CABLE_MS, autoLeft);
+                if (!pc) return new Verdict(Status.WORKING, false, false);
+                if (!cableBack || !laneReady) return new Verdict(Status.PAUSED, true, false);
+                return stuckVerdict(graceQuiet, PC_QUEUED_WITH_CABLE_MS, autoLeft);
             case "loading":
+                if (pc && (!cableBack || !laneReady)) return new Verdict(Status.PAUSED, true, false);
                 return stuckVerdict(pc ? cableQuiet : quiet, STALL_LOADING_MS, pc && autoLeft);
             case "answering":
+                if (pc && (!cableBack || !laneReady)) return new Verdict(Status.PAUSED, true, false);
                 return stuckVerdict(pc ? cableQuiet : quiet, STALL_ANSWERING_MS, pc && autoLeft);
             default:
                 return new Verdict(Status.WORKING, false, false);
@@ -203,5 +184,9 @@ final class LaneHealth {
     void reset() {
         seen.clear();
         autoSpent.clear();
+        lastCable = null;
+        lastReady.clear();
+        cableSinceMs = 0;
+        readySinceMs.clear();
     }
 }

@@ -24,6 +24,20 @@ try:
 except ImportError:
     gpu_link_server = None
 
+try:
+    from opos.gpu_link import display_label as _pc_display
+except ImportError:
+    def _pc_display(label: Any) -> Any:
+        return label
+
+
+def _shown_answer(answer: dict | None) -> dict | None:
+    """Map a stored PC answer's saved pairing label to its screen name, without storing it."""
+    if not answer or not answer.get("where"):
+        return answer
+    shown = _pc_display(answer["where"])
+    return answer if shown == answer["where"] else {**answer, "where": shown}
+
 QUESTIONS = (
     "Explain why the sky looks blue in words a ten-year-old would understand.",
     "Suggest five things neighbours can do together to make a small public garden welcoming.",
@@ -461,7 +475,7 @@ class PageState:
             lead_label = (pc or {}).get("lead_label")
             same_pc = bool(pc and (not gpu or
                            gpu["state"] not in ai_answers.FINAL and
-                           (not gpu["where"] or gpu["where"] == pc["label"])))
+                           (not gpu["where"] or _pc_display(gpu["where"]) == pc["label"])))
             pc_models = list((pc or {}).get("models") or [])
             visible = {item.get("pane") for item in pc_models}
             pc_models.extend({"pane": pane, "id": "", "label": (answer["model"] or f"PC {pane}"),
@@ -482,7 +496,7 @@ class PageState:
                 "gpu": {
                     **({"lead_label": lead_label} if lead_label is not None else {}),
                     "model": (lead_label if same_pc else None) or (gpu["model"] if gpu else "") or (gpu_model["name"] if gpu_model else ""),
-                    "where": (gpu["where"] if gpu else "") or "on the PC's GPU",
+                    "where": _pc_display((gpu["where"] if gpu else "") or "on the PC's GPU"),
                     "ready": bool(
                         gpu_model
                         and gpu_model["state"] == "ready"
@@ -492,7 +506,7 @@ class PageState:
                         and pc["state"] == "ready"
                         and not link.get("storage_notice")
                     ),
-                    "answer": gpu,
+                    "answer": _shown_answer(gpu),
                     "link": link,
                 },
                 "models": [
@@ -524,7 +538,7 @@ class PageState:
                         "model": (extra[item["pane"]]["model"] if extra[item["pane"]] else "") or item["label"],
                         "where": "on the PC's GPU",
                         "ready": bool(pc and pc["live"] and item["live"] and not link.get("storage_notice")),
-                        "answer": extra[item["pane"]],
+                        "answer": _shown_answer(extra[item["pane"]]),
                         "live_speed": item.get("live_speed") if extra[item["pane"]] and
                         extra[item["pane"]]["state"] == "answering" else None,
                     }

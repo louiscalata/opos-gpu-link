@@ -36,11 +36,24 @@ final class PaneKeys {
     }
 
     static String kicker(String pane) {
-        return pc(pane) ? "PC GPU" : "MODEL";
+        return kicker(pane, ComputerWords.current());
+    }
+
+    static String kicker(String pane, String computer) {
+        return pc(pane) ? ComputerWords.apply("PC GPU", computer) : "MODEL";
     }
 
     static String defaultWhere(String pane) {
-        return pc(pane) ? "on the PC's GPU" : "on this phone";
+        return pc(pane) ? ComputerWords.apply("on the PC's GPU") : "on this phone";
+    }
+
+    /** The phone service's own default ("on the PC's GPU") is worded for the paired computer. */
+    static String shownWhere(String pane, String where) {
+        String value = where == null ? "" : where.trim();
+        if (value.isEmpty() || "unknown".equalsIgnoreCase(value) || "on the PC's GPU".equals(value)) {
+            return defaultWhere(pane);
+        }
+        return value;
     }
 
     static String pref(String pane, String field) {

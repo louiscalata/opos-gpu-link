@@ -12,7 +12,11 @@ final class Dateline {
     private Dateline() {}
 
     static String format(LocalDate date) {
+        return format(date, ComputerWords.current());
+    }
+
+    static String format(LocalDate date, String computer) {
         return DATE.format(date).toUpperCase(Locale.US)
-                + " \u00b7 PHONE + PC GPU EDITION";
+                + ComputerWords.apply(" \u00b7 PHONE + PC GPU EDITION", computer);
     }
 }
