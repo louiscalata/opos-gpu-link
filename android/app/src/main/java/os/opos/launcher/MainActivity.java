@@ -2319,8 +2319,12 @@ public final class MainActivity extends Activity {
     }
 
     private static void setMinHeightPx(View view, int px) {
-        view.setMinHeight(px);
-        if (view instanceof TextView) ((TextView) view).setMinimumHeight(px);
+        if (view instanceof TextView) {
+            ((TextView) view).setMinHeight(px);
+            ((TextView) view).setMinimumHeight(px);
+        } else {
+            view.setMinimumHeight(px);
+        }
         ViewGroup.LayoutParams lp = view.getLayoutParams();
         if (lp != null) {
             lp.height = px;
