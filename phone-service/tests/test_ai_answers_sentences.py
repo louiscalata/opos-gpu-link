@@ -40,6 +40,75 @@ class CompleteSentences(unittest.TestCase):
         text = "Hi. " + ("word " * 30)
         self.assertEqual(ai_answers.complete_sentences(text), text)
 
+    def test_drops_a_trailing_roman_section_marker(self):
+        # Seen live on the Flip 6 (SmolLM2 1.7B at its token cap, 26 Nov 2026).
+        text = (
+            "A thermal limit of at least 100\u00b0C is recommended.\n\n"
+            "VII. Battery and"
+        )
+        self.assertEqual(
+            ai_answers.complete_sentences(text),
+            "A thermal limit of at least 100\u00b0C is recommended.",
+        )
+
+    def test_drops_a_trailing_line_of_markers(self):
+        cases = {
+            "The cable carries data.\n\nVII.": "The cable carries data.",
+            "The cable carries data.\n\n10. Check the": "The cable carries data.",
+            "The cable carries data.\n## 3.": "The cable carries data.",
+            "The cable carries data.\n- b.": "The cable carries data.",
+            "The cable carries data.\n\n3.1. Battery and": "The cable carries data.",
+            "The cable carries data.\n3. b. Check the": "The cable carries data.",
+            "The cable carries data.\n**IV**. Power": "The cable carries data.",
+            "The cable carries data.\n__3__. Heat": "The cable carries data.",
+            "The cable carries data.\n## IV. Heat": "The cable carries data.",
+            "A GPU has stages. Here are the steps:\nII. Battery and": "A GPU has stages.",
+            "A GPU has stages. For example:\n- b. Memory and": "A GPU has stages.",
+            "A GPU has stages. Overview:\n3.1. Battery and": "A GPU has stages.",
+            "How does a GPU work?\n\nI. Parallel processing and": "How does a GPU work?",
+            "Which option is fastest here?\nB. The second one and": "Which option is fastest here?",
+            "A GPU has stages. Here are the steps:\n10. Check the": "A GPU has stages.",
+            "We computed it. Which option is fastest here?\nA.  ":
+                "We computed it. Which option is fastest here?\nA.",
+            "Intro.\nI. First item is done.\nII. Second item":
+                "Intro.\nI. First item is done.",
+            "The cable carries data.\n**IV.** b. Power": "The cable carries data.",
+            "The cable carries data.\n\u2022 12. Heat": "The cable carries data.",
+        }
+        for text, shown in cases.items():
+            with self.subTest(text=text):
+                self.assertEqual(ai_answers.complete_sentences(text), shown)
+
+    def test_keeps_real_endings_that_look_like_markers(self):
+        for text in (
+            "The cable carries data. It worked in 2025.",
+            "Did it resume? Yes.",
+            "Which option is fastest here? A.",
+            "The figure is shown in the guide. See Fig. 10.",
+            "The model is rated for approx. 60.",
+            "The answer was short. 100!",
+            "The tool is called the CLI.",
+            "The card was released in 2025. It has 16 GB.",
+            "Which option is fastest here?\nA.",
+            "We computed the value. The constant is:\n42.",
+        ):
+            with self.subTest(text=text):
+                self.assertEqual(ai_answers.complete_sentences(text), text)
+
+    def test_long_marker_like_runs_stay_fast(self):
+        import time
+        texts = (
+            "Intro sentence here.\n" + "-" * 3000 + " x.",
+            "Intro sentence here.\n" + "#" * 3000 + "Heading.",
+            "Intro sentence here.\n" + "-" * 3000 + " a." * 3000,
+            "Intro sentence here.\n" + "*_" * 1500 + " Word." * 1500,
+            "Word. " * 10000,
+        )
+        started = time.monotonic()
+        for text in texts:
+            ai_answers.complete_sentences(text)
+        self.assertLess(time.monotonic() - started, 2.0)
+
     def test_empty_string(self):
         self.assertEqual(ai_answers.complete_sentences(""), "")
 

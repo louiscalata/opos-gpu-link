@@ -29,6 +29,36 @@ _ERROR = re.compile(r"[a-z0-9_-]{1,32}")
 
 # A one-digit list marker ("2.") is not a sentence end; "2025." still is.
 _SENTENCE_END = re.compile(r"(?<![ \n\t]\d)([.!?]+)([\"\'\u201d)\]]*)(?=\s+|$)")
+# A line that so far holds only list or section markers ("10.", "VII.", "b.",
+# "3.1.", "## 4.", "3. b.") is a heading that never arrived, not a sentence.
+# Linear on purpose: one prefix class, bounded wrappers, "." only.
+_MARKER = (
+    r"[*_]{0,3}(?:[0-9]{1,3}(?:\.[0-9]{1,3}){0,3}"
+    r"|(?=[IVX])X{0,3}(?:IX|IV|V?I{0,3})"
+    r"|(?=[ivx])x{0,3}(?:ix|iv|v?i{0,3})"
+    r"|[A-Za-z])[*_]{0,3}"
+)
+_BARE_MARKER = re.compile(
+    r"[#>*+\-_\u2022\u2013\u2014\s]*(?:" + _MARKER + r"\.[*_]{0,3}\s+){0,3}"
+    + _MARKER + r"\.[\"\'\u201d)\]]{0,4}"
+)
+
+
+_PLAIN_ANSWER = re.compile(r"[ \t]*(?:[0-9]{1,3}|[A-Za-z])\.")
+
+
+def _answers_a_question(text: str, line_start: int, end: int, text_end: int) -> bool:
+    """True for a plain final "A." or "42." right after a line ending in "?" or ":".
+
+    Only when nothing follows it, so a cut-off list item ("Steps:\nII. Battery and")
+    is still trimmed.
+    """
+    if end != text_end or not _PLAIN_ANSWER.fullmatch(text, line_start, end):
+        return False
+    index = line_start - 1
+    while index >= 0 and text[index].isspace():
+        index -= 1
+    return index >= 0 and text[index] in "?:"
 
 
 def complete_sentences(text: str) -> str:
@@ -40,7 +70,25 @@ def complete_sentences(text: str) -> str:
     if not text:
         return text
     last = None
+    previous = 0
+    line_start = 0
+    line_is_text = False
+    text_end = len(text.rstrip())
     for match in _SENTENCE_END.finditer(text):
+        newline = text.rfind("\n", previous, match.start())
+        if newline >= 0:
+            line_start = newline + 1
+            line_is_text = False
+        previous = match.end()
+        # Only a whole line of markers is skipped, so "See Fig. 10." and
+        # "Which option? A." keep their endings. Once a line has real text it
+        # can never become a marker line again, which keeps this linear.
+        if not line_is_text:
+            if (_BARE_MARKER.fullmatch(text, line_start, match.end())
+                    and not _answers_a_question(
+                        text, line_start, match.end(), text_end)):
+                continue
+            line_is_text = True
         last = match.end()
     if last is None:
         return text
