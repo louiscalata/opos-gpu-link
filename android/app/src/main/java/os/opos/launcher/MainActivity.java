@@ -2826,7 +2826,8 @@ public final class MainActivity extends Activity {
     }
 
     private String pcWords(int id, Object... args) {
-        return String.format(java.util.Locale.US, ComputerWords.apply(getString(id)), args);
+        String template = ComputerWords.apply(getString(id));
+        return args.length == 0 ? template : String.format(template, args);
     }
 
     /** Remember a fixed label that names the computer, so a new pairing can rename it. */
@@ -4033,9 +4034,9 @@ public final class MainActivity extends Activity {
     private LinearLayout savedArticle(HistoryStore.Lane lane) {
         LinearLayout card = savedBox();
         // A saved answer keeps the noun of the computer that wrote it, when known.
-        String laneComputer = lane.where == null || lane.where.trim().isEmpty()
-                || lane.where.startsWith("on the ") ? ComputerWords.current()
-                : ComputerWords.noun(lane.where);
+        String laneWhere = lane.where == null ? "" : lane.where.trim();
+        String laneComputer = laneWhere.isEmpty() || "on the PC's GPU".equals(laneWhere)
+                ? ComputerWords.current() : ComputerWords.noun(laneWhere);
         TextView kicker = newspaperText(PaneKeys.kicker(lane.pane, laneComputer),
                 LaneCardLayout.LABEL_SP, true, false);
         typography.kicker(kicker);

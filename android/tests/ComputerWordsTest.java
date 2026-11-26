@@ -32,6 +32,7 @@ public final class ComputerWordsTest {
         equal("PC GPU", PaneKeys.kicker("gpu"));
         equal("PC", ComputerWords.noun("RTX 5080 PC"));
         equal("text", ComputerWords.apply("text", null));
+        equal("MacBook", ComputerWords.noun("on the MacBook's GPU"));
         ComputerWords.set("MacBook");
         equal("on the MacBook's GPU", PaneKeys.shownWhere("gpu", "on the PC's GPU"));
         equal("on the MacBook's GPU", PaneKeys.shownWhere("gpu", ""));
