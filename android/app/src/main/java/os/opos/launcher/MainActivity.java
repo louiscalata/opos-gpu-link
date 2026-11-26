@@ -1921,8 +1921,10 @@ public final class MainActivity extends Activity {
             if (!PaneKeys.extra(pane)) continue;
             JSONObject model = paneOf(data, pane);
             PaneViews view = paneViews.get(pane);
-            String label = model == null ? pane : model.optString("label", pane);
-            String maker = model == null ? "" : model.optString("maker");
+            String slotLabel = model == null ? pane : model.optString("label", pane);
+            String answered = answeredModel(model);
+            String label = AnsweredModel.label(slotLabel, answered);
+            String maker = AnsweredModel.maker(slotLabel, model == null ? "" : model.optString("maker"), answered);
             String where = PaneKeys.shownWhere(pane, model == null ? "" : model.optString("where"));
             setIfChanged(view.heading, label);
             setIfChanged(view.byline, label + (maker.isEmpty() ? "" : " · " + maker)
@@ -2606,7 +2608,15 @@ public final class MainActivity extends Activity {
             if (article == null) return;
             String label = "phone".equals(pane) ? getString(R.string.phone_heading)
                     : article.heading.getText().toString();
-            String maker = model == null ? "" : model.optString("maker");
+            // Keep the model that wrote this answer, even if the slot now holds another one.
+            String maker = PaneKeys.extra(pane)
+                    ? AnsweredModel.maker(model == null ? "" : model.optString("label"),
+                            model == null ? "" : model.optString("maker"), answer.isNull("model")
+                                    ? "" : answer.optString("model"))
+                    : model == null ? "" : model.optString("maker");
+            if (PaneKeys.extra(pane)) {
+                label = AnsweredModel.label(label, answer.isNull("model") ? "" : answer.optString("model"));
+            }
             String where = PaneKeys.shownWhere(pane, model == null ? "" : model.optString("where"));
             boolean interrupted = PaneKeys.pc(pane) && answerTiming.interrupted(expectedId);
             anyInterrupted |= interrupted;
@@ -2901,6 +2911,12 @@ public final class MainActivity extends Activity {
         for (Map.Entry<TextView, String> entry : pcLabelledViews.entrySet()) {
             entry.getKey().setText(ComputerWords.apply(entry.getValue()));
         }
+    }
+
+    /** The model recorded on a lane's current answer; "" when there is no answer or model. */
+    private static String answeredModel(JSONObject lane) {
+        JSONObject answer = lane == null ? null : lane.optJSONObject("answer");
+        return answer == null || answer.isNull("model") ? "" : answer.optString("model", "").trim();
     }
 
     /** A computer's display label; JSON null or a missing object is "" (optString would say "null"). */

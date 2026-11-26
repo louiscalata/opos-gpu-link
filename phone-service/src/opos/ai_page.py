@@ -515,7 +515,8 @@ class PageState:
                         "kind": "phone",
                         "label": item.label,
                         "maker": item.maker,
-                        "model": item.label,
+                        # A saved answer keeps the model that wrote it, even after the slot changes.
+                        "model": (pool[item.pane]["model"] if pool[item.pane] else "") or item.label,
                         "where": "on this phone",
                         "ready": True,
                         "answer": pool[item.pane],
