@@ -293,7 +293,8 @@ class CompanionTests(unittest.TestCase):
             self.assertEqual(len(app.keys.load()), link.proto.KEY_BYTES)
             self.assertIsNone(app.pending_key)
             self.assertIn("Compare code ", output.getvalue())
-            self.assertIn("Allow this PC", output.getvalue())
+            self.assertIn("tap Allow on the phone", output.getvalue())
+            self.assertNotIn("Allow this PC", output.getvalue())
             self.assertNotIn("fake enrolment request", output.getvalue())
             self.assertEqual(sum("nc" in args for args, _ in fake.calls), 1)
 
@@ -1997,7 +1998,7 @@ class R23WorkerLifecycleTests(unittest.TestCase):
         lines = []
         while not app.events.empty():
             lines.append(app.events.get_nowait()[1])
-        self.assertIn("Phone restarted; reconnecting PC models", lines)
+        self.assertIn(f"Phone restarted; reconnecting {link.computer_noun()} models", lines)
 
     def test_phone_restart_with_legacy_rejection_restarts_the_session(self):
         app = self.companion()

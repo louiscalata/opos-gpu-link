@@ -1100,4 +1100,4 @@ def main(argv=None):
 
 
 if __name__ == "__main__":
-    raise SystemExit("Start opos_gpu_link.py so PC permission and protected key storage are enforced.")
+    raise SystemExit("Start opos_gpu_link.py so the computer's permission and protected key storage are enforced.")

@@ -1,7 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
-"""User-level adb watcher for the existing OPOS GPU Link signed PC worker.
+"""User-level adb watcher for the existing OPOS GPU Link signed computer worker.
 
-This program is deliberately inert until a person starts it on their own PC.
+This program is deliberately inert until a person starts it on their own computer.
 It is not run against a phone by the build or the tests.
 """
 
@@ -13,6 +13,7 @@ import hashlib
 import http.client
 import json
 import os
+import platform
 import queue
 import re
 import secrets
@@ -49,6 +50,48 @@ PORT = re.compile(r"[1-9][0-9]{0,4}\Z")
 DEFAULT_SERVER = "http://127.0.0.1:1235/v1/chat/completions"
 
 
+MAC_MODEL_ID = "/usr/sbin/sysctl"
+MAC_POWER = "/usr/bin/pmset"
+_NOUN_CACHE: list[str] = []
+
+
+def _quiet_output(argv: list[str]) -> str:
+    """One short local query; any failure reads as no answer."""
+    try:
+        done = subprocess.run(argv, capture_output=True, text=True, timeout=3, check=False)
+    except (OSError, subprocess.SubprocessError, ValueError):
+        return ""
+    return done.stdout if done.returncode == 0 else ""
+
+
+def computer_noun(system: str | None = None, model_id: str | None = None,
+                  battery: bool | None = None) -> str:
+    """Name this computer for people: "MacBook", "Mac" or "PC". A Mac is never called a PC.
+
+    Apple silicon reports model IDs like "Mac17,9" for laptops and desktops alike, so a
+    built-in battery is what marks a MacBook there. This is screen wording only; the
+    pairing label on the wire is unchanged, because renaming it needs owner recovery.
+    """
+    default = system is None and model_id is None and battery is None
+    if default and _NOUN_CACHE:
+        return _NOUN_CACHE[0]
+    system = system or platform.system()
+    if system != "Darwin":
+        noun = "PC"
+    else:
+        if model_id is None:
+            model_id = _quiet_output([MAC_MODEL_ID, "-n", "hw.model"]).strip()
+        if model_id.startswith("MacBook"):
+            noun = "MacBook"
+        else:
+            if battery is None:
+                battery = "InternalBattery" in _quiet_output([MAC_POWER, "-g", "batt"])
+            noun = "MacBook" if battery else "Mac"
+    if default:
+        _NOUN_CACHE.append(noun)
+    return noun
+
+
 class CompanionError(Exception):
     """A safe diagnostic that never includes a secret or subprocess output."""
 
@@ -58,7 +101,7 @@ class RetryLater(CompanionError):
 
 
 class GrantDeclined(CompanionError):
-    """The PC owner did not approve a transient grant."""
+    """The computer's owner did not approve a transient grant."""
 
 
 def valid_usb_serial(serial: str) -> bool:
@@ -301,7 +344,7 @@ class AdbBridge:
     def create_forward(self) -> int:
         self.remove_own_forward()
         if self.port is not None or self.provisional_port is not None:
-            raise RetryLater("Waiting to clean up the previous PC forward")
+            raise RetryLater("Waiting to clean up the previous adb forward")
         for _ in range(8):
             output = self.call("-s", self.serial, "forward", "tcp:0", f"tcp:{PHONE_PORT}")
             value = output.decode("ascii", "replace").strip()
@@ -315,11 +358,11 @@ class AdbBridge:
                 if port in FORBIDDEN_PC_PORTS:
                     self.remove_own_forward()
                     if self.provisional_port is not None:
-                        raise RetryLater("Waiting to clean up a reserved PC port")
+                        raise RetryLater("Waiting to clean up a reserved local port")
                     continue
                 if not self.owner_checker(port, self.adb):
                     raise CompanionError(
-                        "Could not verify that the PC forward is a loopback listener "
+                        "Could not verify that the adb forward is a loopback listener "
                         "owned by the selected adb executable. "
                         "This is a visible setup failure, not a queued computer answer. "
                         "If an adb server is already running, start GPU Link again so "
@@ -331,7 +374,7 @@ class AdbBridge:
             except CompanionError:
                 self.remove_own_forward()
                 raise
-        raise CompanionError("adb chose only reserved PC ports")
+        raise CompanionError("adb chose only reserved local ports")
 
     def forward_present(self) -> bool:
         if self.port is None:
@@ -814,7 +857,7 @@ class Companion:
         top.title("OPOS GPU Link permission")
         top.transient(self.root)
         top.grab_set()
-        self.tk.Label(top, text="Allow this phone to use this PC GPU for this session?",
+        self.tk.Label(top, text=f"Allow this phone to use this {computer_noun()} GPU for this session?",
                       wraplength=360).pack(padx=18, pady=18)
         choice = {"allowed": False}
         unblock = self.clock() + 0.7
@@ -849,7 +892,7 @@ class Companion:
         code = proto.code(pc.label, pc.key)
         deadline = self.clock() + 60
         if self.headless:
-            self.status.set(f"Compare code {code[:3]} {code[3:]} on phone; tap Allow this PC within 60 seconds")
+            self.status.set(f"Compare code {code[:3]} {code[3:]} on phone; tap Allow on the phone within 60 seconds")
             while self.running and self.clock() < deadline:
                 if not self.link_present():
                     return False
@@ -867,7 +910,7 @@ class Companion:
         top.grab_set()
         self.tk.Label(top, text=f"Compare on the phone: {code[:3]} {code[3:]}",
                       font=("TkDefaultFont", 18)).pack(padx=18, pady=(18, 8))
-        note = self.tk.Label(top, text="Tap Allow this PC on the phone within 60 seconds.")
+        note = self.tk.Label(top, text="Tap Allow on the phone within 60 seconds.")
         note.pack(padx=18, pady=8)
         accepted = {"yes": False}
 
@@ -907,10 +950,10 @@ class Companion:
         if self.granted:
             return
         if self.headless:
-            raise GrantDeclined("PC grant expired; restart with --always-allow to retain it")
+            raise GrantDeclined(f"{computer_noun()} grant expired; restart with --always-allow to retain it")
         self.granted = self.permission()
         if not self.granted:
-            raise GrantDeclined("PC permission declined; reconnect to ask again")
+            raise GrantDeclined(f"{computer_noun()} permission declined; reconnect to ask again")
 
     def _forget_extra_checks(self) -> None:
         """Drop the "model already verified" cache: LM Studio may have unloaded a model, or the
@@ -1003,7 +1046,7 @@ class Companion:
 
         advertise_lock = threading.RLock()
         def advertise():
-            """Tell the phone which extra PC models exist. True when it accepted them."""
+            """Tell the phone which extra computer models exist. True when it accepted them."""
             with advertise_lock:
                 enabled, revision = advertise_runtime_models(pc, extra_models, runtime)
                 if enabled and runtime is not None:
@@ -1030,7 +1073,7 @@ class Companion:
                 if not advertise():  # a restarted phone that now refuses the route has no extra models
                     raise ToolError("extra model advertisement refused")
             except (OSError, ToolError, ValueError):
-                self.events.put((generation, "Phone restarted; reconnecting PC models"))
+                self.events.put((generation, f"Phone restarted; reconnecting {computer_noun()} models"))
                 stop.set()  # the session restarts through the normal reconnect path
 
         def run():
@@ -1077,7 +1120,7 @@ class Companion:
                                             show_text=False, give_up_after=30,
                                             server_ready=server_ready).run(stop)
                                 except (OSError, ToolError, ValueError):
-                                    self.events.put((generation, "One PC model lane stopped; retrying"))
+                                    self.events.put((generation, f"One {computer_noun()} model lane stopped; retrying"))
                                 if not stop.is_set():
                                     client.epoch = None
                                     stop.wait(2)
@@ -1160,7 +1203,7 @@ class Companion:
                     if status == 403 and state == "closed":
                         raise CompanionError("Phone pairing is closed; owner must reopen it on the phone")
                     if status == 409 and state == "enrolled":
-                        raise CompanionError("Phone already trusts a PC; owner recovery is required")
+                        raise CompanionError("Phone already trusts a computer; owner recovery is required")
                     raise CompanionError("Phone did not accept a first pairing request")
                 approved = self.wait_for_phone_allow(pc)
                 if not self.running:
@@ -1392,7 +1435,7 @@ class Companion:
         self.session_pc = None
         self.cleanup_ok = self._cleanup_done()
         self.status.set("Stopped" if self.cleanup_ok else
-                        "Stop requested; worker or PC forward cleanup unconfirmed")
+                        "Stop requested; worker or adb forward cleanup unconfirmed")
         if not self.headless:
             self.root.destroy()
 
@@ -1421,14 +1464,15 @@ class Companion:
             self.cleanup_ok = self._cleanup_done()
             if self.headless and not self.running:
                 self.status.set("Stopped" if self.cleanup_ok else
-                                "Stop requested; worker or PC forward cleanup unconfirmed")
+                                "Stop requested; worker or adb forward cleanup unconfirmed")
 
 
 def arguments(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--serial", help="authorized USB adb device serial; auto-select if exactly one")
     parser.add_argument("--adb", default="adb", help="adb executable from Android platform tools")
-    parser.add_argument("--label", default="OPOS GPU PC", help="PC label shown on phone")
+    parser.add_argument("--label", default="OPOS GPU PC", help="pairing label sent to the phone (1 to 24 letters, digits, spaces or hyphens); "
+                        "changing it after pairing needs owner recovery on the phone")
     routes = parser.add_mutually_exclusive_group()
     routes.add_argument("--server", help="existing loopback chat completions URL")
     routes.add_argument("--lm-url", help="existing loopback backend base or chat completions URL")
@@ -1449,7 +1493,7 @@ def arguments(argv=None):
     parser.add_argument("--key-dir", type=Path, default=None, help="per-user pairing directory")
     parser.add_argument("--headless", action="store_true", help="print status without a Tk window")
     parser.add_argument("--always-allow", action="store_true",
-                        help="remember PC permission for this phone while the companion runs")
+                        help="remember this computer's permission for this phone while the companion runs")
     parser.add_argument("--no-launch", action="store_true", help="do not bring the models UI forward")
     parser.add_argument("--reset-pairing", action="store_true",
                         help="while stopped, remove only --serial's saved key; never contacts adb")
