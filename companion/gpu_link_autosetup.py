@@ -1800,14 +1800,218 @@ def adb_candidates(home=None, which=shutil.which):
     return paths
 
 
-def ensure_adb(runtime_dir: Path, explicit=None, allow_download=True, system=None):
+
+def _decode_stdout(result) -> str:
+    stdout = getattr(result, "stdout", None)
+    if isinstance(stdout, (bytes, bytearray)):
+        return stdout.decode("utf-8", "replace")
+    return stdout or ""
+
+
+def _usable_adb_binary(path: Path):
+    """Return a resolved adb/adb.exe path, or None if this file is not usable."""
+    if not path.is_file():
+        return None
+    try:
+        resolved = path.resolve()
+    except OSError:
+        resolved = path
+    names = {path.name.lower(), resolved.name.lower()}
+    if "adb" not in names and "adb.exe" not in names:
+        return None
+    return resolved
+
+
+def is_bare_command(selected) -> bool:
+    """True for a command name such as adb, not a relative or absolute path."""
+    text = str(selected)
+    return text == Path(text).name and not text.startswith(".")
+
+
+def resolve_adb_path(selected):
+    """Resolve an adb name or path. Bare names use PATH only, never the cwd.
+
+    Explicit relative paths such as ./adb are returned as absolute paths so
+    later subprocess calls do not treat them as a bare PATH command.
+    """
+    text = str(selected)
+    if is_bare_command(text):
+        found = shutil.which(text)
+        if not found:
+            return None
+        try:
+            return Path(found).resolve()
+        except OSError:
+            return Path(found)
+    path = Path(text)
+    if not path.is_file():
+        return None
+    try:
+        return path.resolve()
+    except OSError:
+        return path
+
+
+def running_adb_server_executable(runner=subprocess.run, system=None):
+    """Return the adb binary that owns the already-running adb server, or None.
+
+    A PATH or Homebrew adb can talk to a server started by a different install.
+    Forwards created that way are owned by the server binary, so a later owner
+    check against the selected executable fails and the phone's PC lane stays
+    queued with no useful error. Prefer the live server's own binary. Windows
+    uses the same Get-NetTCPConnection route as listener_owned_by_adb.
+    """
+    platform_name = system or sys.platform
+    if platform_name in ("win32", "Windows"):
+        return _running_adb_server_from_netstat(runner=runner)
+    return _running_adb_server_from_lsof(runner=runner)
+
+
+def _running_adb_server_from_lsof(runner=subprocess.run, port: int = 5037):
+    try:
+        listen = runner(
+            ["lsof", "-nP", f"-iTCP:{int(port)}", "-sTCP:LISTEN", "-Fpn"],
+            capture_output=True, timeout=5, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if listen.returncode != 0:
+        return None
+    owners = set()
+    pid = None
+    for line in _decode_stdout(listen).splitlines():
+        if line.startswith("p"):
+            pid = line[1:] if line[1:].isdigit() else None
+            continue
+        if not line.startswith("n") or pid is None:
+            continue
+        host, sep, service = line[1:].rpartition(":")
+        if not sep or service != str(int(port)):
+            return None
+        if host not in ("127.0.0.1", "[::1]"):
+            return None
+        owners.add(pid)
+    if len(owners) != 1:
+        return None
+    owner = next(iter(owners))
+    try:
+        binary = runner(
+            ["lsof", "-nP", "-a", "-p", owner, "-d", "txt", "-Fn"],
+            capture_output=True, timeout=5, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if binary.returncode != 0:
+        return None
+    for line in _decode_stdout(binary).splitlines():
+        if not line.startswith("n"):
+            continue
+        found = _usable_adb_binary(Path(line[1:]))
+        if found is not None:
+            return found
+    return None
+
+
+def _running_adb_server_from_netstat(runner=subprocess.run, port: int = 5037):
+    script = (
+        "$ErrorActionPreference='Stop';"
+        f"$p={int(port)};"
+        "Get-NetTCPConnection -State Listen -LocalPort $p | ForEach-Object {"
+        "$owner=Get-Process -Id $_.OwningProcess;"
+        "Write-Output ($_.LocalAddress+'|'+$owner.Path)"
+        "}"
+    )
+    try:
+        result = runner(
+            ["powershell.exe", "-NoProfile", "-NonInteractive", "-Command", script],
+            capture_output=True, timeout=5, check=False,
+        )
+    except (OSError, subprocess.TimeoutExpired):
+        return None
+    if result.returncode != 0:
+        return None
+    found = []
+    for line in _decode_stdout(result).splitlines():
+        if "|" not in line:
+            continue
+        address, raw = line.split("|", 1)
+        if address not in ("127.0.0.1", "::1"):
+            return None
+        path = _usable_adb_binary(Path(raw.strip()))
+        if path is None:
+            return None
+        found.append(path)
+    unique = {os.path.normcase(str(path)) for path in found}
+    if len(unique) != 1:
+        return None
+    return found[0]
+
+
+def _same_adb(left: Path, right: Path) -> bool:
+    try:
+        first, second = left.resolve(), right.resolve()
+    except OSError:
+        first, second = left, right
+    return os.path.normcase(str(first)) == os.path.normcase(str(second))
+
+
+def prefer_running_adb_server(selected: Path, runner=subprocess.run, announce=None, system=None):
+    """If an adb server is already running, use its executable so forwards pass the owner check."""
+    server = running_adb_server_executable(runner=runner, system=system)
+    chosen = resolve_adb_path(selected)
+    if server is None:
+        return chosen if chosen is not None else Path(str(selected))
+    try:
+        live = Path(server).resolve()
+    except OSError:
+        return chosen if chosen is not None else Path(str(selected))
+    if chosen is not None and _same_adb(chosen, live):
+        return live
+    label = chosen if chosen is not None else selected
+    msg = ("Using the already-running adb server's executable instead of "
+           f"{label} so USB forwards belong to the same binary ({live}).")
+    if announce is not None:
+        announce(msg)
+    else:
+        say(msg)
+    return live
+
+
+def _adb_missing_error(explicit=None) -> RuntimeError:
+    if explicit and not is_bare_command(explicit):
+        where = "at %s" % explicit
+    else:
+        where = "on PATH"
+    return RuntimeError("adb not found %s. Install Google's Android SDK "
+                        "Platform-Tools (https://developer.android.com/tools/releases/platform-tools), "
+                        "put adb on PATH or pass --adb PATH, or run once with --prefetch" % where)
+
+
+def ensure_adb(runtime_dir: Path, explicit=None, allow_download=True, system=None, runner=subprocess.run):
     if explicit:
-        return Path(explicit)
+        chosen = resolve_adb_path(explicit)
+        if chosen is None:
+            # Bare names may still adopt a live server. An explicit missing path
+            # is a typo and must not be silently replaced.
+            if is_bare_command(explicit):
+                live = running_adb_server_executable(runner=runner, system=system)
+                if live is not None:
+                    say("Using the already-running adb server's executable (%s)." % live)
+                    return live
+            raise _adb_missing_error(explicit)
+        selected = prefer_running_adb_server(explicit, runner=runner, system=system)
+        if selected.is_file():
+            return selected
+        raise _adb_missing_error(explicit)
     for path in adb_candidates():
         if path.is_file():
             if RESOURCES in path.parents:
                 ensure_exec(path)
-            return path
+            return prefer_running_adb_server(path, runner=runner, system=system)
+    live = running_adb_server_executable(runner=runner, system=system)
+    if live is not None:
+        say("Using the already-running adb server's executable (%s)." % live)
+        return live
     if not allow_download:
         raise RuntimeError("adb not found and downloads are disabled. Install Google's Android SDK "
                            "Platform-Tools (https://developer.android.com/tools/releases/platform-tools), "
@@ -1823,7 +2027,7 @@ def ensure_adb(runtime_dir: Path, explicit=None, allow_download=True, system=Non
     adb = runtime_dir / "platform-tools" / _exe("adb")
     if not adb.is_file():
         raise RuntimeError("platform-tools download did not contain adb")
-    return adb
+    return prefer_running_adb_server(adb, runner=runner, system=system)
 
 
 PHONE_TEXT = {

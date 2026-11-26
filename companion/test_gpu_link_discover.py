@@ -127,6 +127,7 @@ class DiscoveryTests(unittest.TestCase):
                 backends = [{"url": f"http://127.0.0.1:{port}"} for port in ports]
                 output = io.StringIO()
                 with patch.object(discovery, "discover", return_value=backends), \
+                        patch.object(link, "resolve_launch_adb", side_effect=lambda adb, runner=None: adb), \
                         patch.object(link, "InstanceGuard"), patch.object(link, "Companion") as app, \
                         contextlib.redirect_stdout(output):
                     app.return_value.cleanup_ok = True

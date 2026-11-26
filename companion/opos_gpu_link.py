@@ -318,7 +318,14 @@ class AdbBridge:
                         raise RetryLater("Waiting to clean up a reserved PC port")
                     continue
                 if not self.owner_checker(port, self.adb):
-                    raise CompanionError("PC forward listener is not the selected adb executable")
+                    raise CompanionError(
+                        "Could not verify that the PC forward is a loopback listener "
+                        "owned by the selected adb executable. "
+                        "This is a visible setup failure, not a queued computer answer. "
+                        "If an adb server is already running, start GPU Link again so "
+                        "it can detect that server's executable, or pass --adb pointing "
+                        "at it. If inspection tools are unavailable, install them and retry."
+                    )
                 self.port, self.provisional_port = port, None
                 return port
             except CompanionError:
@@ -1432,6 +1439,40 @@ def arguments(argv=None):
     return args
 
 
+def resolve_launch_adb(adb: str, runner=subprocess.run, system=None) -> str:
+    """Use the running adb server's executable when one is already listening.
+
+    Direct entry points (opos_gpu_link.py, run-mac.sh, run-linux.sh,
+    run-windows.ps1) used to pass --adb through unchanged, so a PATH or
+    Homebrew binary could fail the forward owner check. Detection lives in
+    gpu_link_autosetup so the launcher and these entry points share it.
+    """
+    try:
+        import gpu_link_autosetup as setup
+    except ImportError as error:
+        bare = adb == Path(adb).name and not adb.startswith(".")
+        if bare:
+            found = shutil.which(adb)
+            if found:
+                try:
+                    return str(Path(found).resolve())
+                except OSError:
+                    return found
+        else:
+            path = Path(adb)
+            if path.is_file():
+                try:
+                    return str(path.resolve())
+                except OSError:
+                    return str(path.absolute())
+        raise CompanionError("adb is unavailable; install or select Android platform tools") from error
+    try:
+        return str(setup.ensure_adb(Path("."), explicit=adb, allow_download=False,
+                                    runner=runner, system=system))
+    except RuntimeError as error:
+        raise CompanionError(str(error)) from error
+
+
 def main(argv=None, runtime=None) -> int:
     args = arguments(argv)
     args.runtime = runtime
@@ -1465,6 +1506,11 @@ def main(argv=None, runtime=None) -> int:
                 print("GPU Link: Using discovered backend " + args.server, flush=True)
             else:
                 print("GPU Link: Skipping automatic selection of protected backend " + url, flush=True)
+    try:
+        args.adb = resolve_launch_adb(args.adb)
+    except CompanionError as error:
+        print("GPU Link: " + str(error), file=sys.stderr)
+        return 2
     if args.serial is None:
         try:
             args.serial = select_serial(args.adb)
