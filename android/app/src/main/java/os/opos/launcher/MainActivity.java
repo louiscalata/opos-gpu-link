@@ -3502,7 +3502,7 @@ public final class MainActivity extends Activity {
                         rememberStarts(updated, body.optJSONArray("panes"), sentQuestion,
                                 startedAtMs, submittedAtWallMs, retrying, submitted.before,
                                 null);
-                        clearDraftIfUntouched(draftAtSubmission, submittedRevision);
+                        if (!isDestroyed()) clearDraftIfUntouched(draftAtSubmission, submittedRevision);
                     }
                     if (!visible) return;
                     reachable = true;
