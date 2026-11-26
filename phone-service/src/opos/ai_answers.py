@@ -370,6 +370,11 @@ class AnswerStore:
 
     def _save(self, record: dict) -> dict:
         ident = record["answer"]["id"]
+        answer = record["answer"]
+        # Wall-clock finish, stamped once: the app may not be polling (Home,
+        # cover screen, screen off) when a lane ends, so it cannot time it alone.
+        if answer["state"] in FINAL and type(answer.get("ended_ms")) is not int:
+            answer["ended_ms"] = int(time.time() * 1000)
         if record != self._records.get(ident):
             record["answer"]["rev"] = self._rev + 1
             self._store.write_json(_name(ident), record, durable=True)

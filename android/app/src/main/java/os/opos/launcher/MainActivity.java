@@ -2394,9 +2394,11 @@ public final class MainActivity extends Activity {
         if (("done".equals(state) || "failed".equals(state) || "cancelled".equals(state))
                 && answerStarts.containsKey(id)
                 && !answerDurations.containsKey(id)) {
-            answerDurations.put(id,
-                    Math.max(0, SystemClock.elapsedRealtime() - answerStarts.get(id)));
-            answerFinishedAt.put(id, SystemClock.elapsedRealtime());
+            long finishedAt = AnswerFinish.elapsedAt(SystemClock.elapsedRealtime(),
+                    System.currentTimeMillis(), answer.optLong("ended_ms", 0),
+                    answerStarts.get(id));
+            answerDurations.put(id, Math.max(0, finishedAt - answerStarts.get(id)));
+            answerFinishedAt.put(id, finishedAt);
             saveLatestRequest();
         }
         boolean sameRenderedAnswer = id.equals(article.renderedAnswerId);
