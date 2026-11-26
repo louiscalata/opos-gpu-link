@@ -118,8 +118,6 @@ final class LaneHealth {
         switch (state) {
             case "done":
                 return new Verdict(Status.DONE, true, false);
-            case "cancelled":
-                return new Verdict(Status.CANCELLED, true, false);
             case "failed":
                 return new Verdict(Status.FAILED, true,
                         autoLeft && transientError(error) && quiet >= FAILED_AUTO_DELAY_MS);
@@ -130,14 +128,22 @@ final class LaneHealth {
                     return new Verdict(quiet >= PAUSED_WITH_CABLE_MS ? Status.STUCK : Status.WORKING,
                             quiet >= PAUSED_WITH_CABLE_MS, false);
                 }
-                return stuckVerdict(cableQuiet, PAUSED_WITH_CABLE_MS, autoLeft);
+                // Warming after a replug: stay Paused with Retry visible, never auto-retry
+                // a resumable lease (Retry would discard the saved partial).
+                if (!laneReady) return new Verdict(Status.PAUSED, true, false);
+                return stuckVerdict(cableQuiet, PAUSED_WITH_CABLE_MS, false);
             case "queued":
             case "waiting":
-                if (!pc || !cableBack || !laneReady) return new Verdict(Status.WORKING, false, false);
+                if (!pc) return new Verdict(Status.WORKING, false, false);
+                if (!cableBack) return new Verdict(Status.PAUSED, true, false);
+                // Still surface a manual Retry after the queued grace, even while the
+                // companion is warming; auto-retry stays gated on laneReady.
                 return stuckVerdict(cableQuiet, PC_QUEUED_WITH_CABLE_MS, autoLeft);
             case "loading":
+                if (pc && !cableBack) return new Verdict(Status.PAUSED, true, false);
                 return stuckVerdict(pc ? cableQuiet : quiet, STALL_LOADING_MS, pc && autoLeft);
             case "answering":
+                if (pc && !cableBack) return new Verdict(Status.PAUSED, true, false);
                 return stuckVerdict(pc ? cableQuiet : quiet, STALL_ANSWERING_MS, pc && autoLeft);
             default:
                 return new Verdict(Status.WORKING, false, false);
