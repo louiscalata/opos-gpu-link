@@ -2920,7 +2920,12 @@ public final class MainActivity extends Activity {
         showHeat(current);
         if (heatRegistered) return;
         try {
-            if (heatListener == null) heatListener = this::showHeat;
+            if (heatListener == null) {
+                // A callback queued just before onPause() must not touch the view afterwards.
+                heatListener = status -> {
+                    if (heatRegistered) showHeat(status);
+                };
+            }
             power.addThermalStatusListener(getMainExecutor(), heatListener);
             heatRegistered = true;
         } catch (RuntimeException ignored) {
