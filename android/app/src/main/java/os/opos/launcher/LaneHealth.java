@@ -23,6 +23,12 @@ final class LaneHealth {
     /** An automatic retry waits this long beyond the point where the lane was called stuck. */
     static final long AUTO_AFTER_STUCK_MS = 30_000;
     static final long FAILED_AUTO_DELAY_MS = 3_000;
+    /**
+     * A computer lane that stays paused this long after the cable is back, while the companion
+     * is still not ready, offers a manual Retry. Before that, a planned pause shows no Retry:
+     * Retry would throw away the saved partial answer that the replug resumes.
+     */
+    static final long PAUSED_RETRY_AFTER_REPLUG_MS = 120_000;
 
     static final class Verdict {
         final Status status;
@@ -138,7 +144,7 @@ final class LaneHealth {
                 return new Verdict(Status.FAILED, true,
                         autoLeft && transientError(error) && quiet >= FAILED_AUTO_DELAY_MS);
             case "paused":
-                if (!cableBack) return new Verdict(Status.PAUSED, true, false);
+                if (!cableBack) return plannedPause();
                 if (!pc) {
                     // A phone-side lane is only ever paused by a backend restart; treat as stuck at once.
                     return new Verdict(quiet >= PAUSED_WITH_CABLE_MS ? Status.STUCK : Status.WORKING,
@@ -146,18 +152,21 @@ final class LaneHealth {
                 }
                 // Warming after a replug: stay Paused with Retry visible, never auto-retry
                 // a resumable lease (Retry would discard the saved partial).
-                if (!laneReady) return new Verdict(Status.PAUSED, true, false);
+                if (!laneReady) return warmingPause(cableQuiet);
                 return stuckVerdict(graceQuiet, PAUSED_WITH_CABLE_MS, false);
             case "queued":
             case "waiting":
                 if (!pc) return new Verdict(Status.WORKING, false, false);
-                if (!cableBack || !laneReady) return new Verdict(Status.PAUSED, true, false);
+                if (!cableBack) return plannedPause();
+                if (!laneReady) return warmingPause(cableQuiet);
                 return stuckVerdict(graceQuiet, PC_QUEUED_WITH_CABLE_MS, autoLeft);
             case "loading":
-                if (pc && (!cableBack || !laneReady)) return new Verdict(Status.PAUSED, true, false);
+                if (pc && !cableBack) return plannedPause();
+                if (pc && !laneReady) return warmingPause(cableQuiet);
                 return stuckVerdict(pc ? cableQuiet : quiet, STALL_LOADING_MS, pc && autoLeft);
             case "answering":
-                if (pc && (!cableBack || !laneReady)) return new Verdict(Status.PAUSED, true, false);
+                if (pc && !cableBack) return plannedPause();
+                if (pc && !laneReady) return warmingPause(cableQuiet);
                 return stuckVerdict(pc ? cableQuiet : quiet, STALL_ANSWERING_MS, pc && autoLeft);
             default:
                 return new Verdict(Status.WORKING, false, false);
@@ -167,6 +176,16 @@ final class LaneHealth {
     boolean garbled(String pane, String id) {
         Seen value = seen.get(pane);
         return value != null && value.id.equals(id) && value.garbled;
+    }
+
+    /** Cable out: the answer waits for the replug. No Retry, never automatic. */
+    private static Verdict plannedPause() {
+        return new Verdict(Status.PAUSED, false, false);
+    }
+
+    /** Cable back, companion still warming: Retry appears only after a long wait. */
+    private static Verdict warmingPause(long sinceReplugMs) {
+        return new Verdict(Status.PAUSED, sinceReplugMs >= PAUSED_RETRY_AFTER_REPLUG_MS, false);
     }
 
     private static Verdict stuckVerdict(long quiet, long limit, boolean autoAllowed) {
