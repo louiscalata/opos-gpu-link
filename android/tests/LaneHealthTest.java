@@ -67,13 +67,13 @@ public final class LaneHealthTest {
         h.observe("g2", "c2", "queued", null, 0, Q, true, 0);
         v = h.observe("g2", "c2", "queued", null, 0, Q, true, 31_000);
         check(v.status == LaneHealth.Status.STUCK && v.retryVisible);
-        // While the companion is warming, a queued computer lane stays Paused; manual Retry
-        // only after a long warmup.
+        // While the companion is warming, a queued computer lane stays Paused without Retry,
+        // even after a long warmup (a retry cannot run before the lane is ready).
         h.observe("g1", "c3", "queued", null, 0, Q, false, 0);
         v = h.observe("g1", "c3", "queued", null, 0, Q, false, 100_000);
         check(v.status == LaneHealth.Status.PAUSED && !v.retryVisible && !v.autoRetryDue);
-        v = h.observe("g1", "c3", "queued", null, 0, Q, false, 121_000);
-        check(v.status == LaneHealth.Status.PAUSED && v.retryVisible && !v.autoRetryDue);
+        v = h.observe("g1", "c3", "queued", null, 0, Q, false, 600_000);
+        check(v.status == LaneHealth.Status.PAUSED && !v.retryVisible && !v.autoRetryDue);
         // Slow prompt processing (loading) gets 90 s.
         h.observe("m1", "c4", "loading", null, 0, Q, true, 0);
         check(h.observe("m1", "c4", "loading", null, 0, Q, true, 80_000).status
@@ -155,9 +155,12 @@ public final class LaneHealthTest {
             h.observeCable(true, t + 2_000);
             v = h.observe("gpu", "warm-" + open, open, null, 80, Q, false, t + 90_000);
             check(v.status == LaneHealth.Status.PAUSED && !v.retryVisible && !v.autoRetryDue);
-            // A companion that never gets ready offers manual Retry two minutes after the replug.
-            v = h.observe("gpu", "warm-" + open, open, null, 80, Q, false, t + 2_000 + 120_000);
-            check(v.status == LaneHealth.Status.PAUSED && v.retryVisible && !v.autoRetryDue);
+            // Still warming long after the replug: Paused, no disabled Retry.
+            v = h.observe("gpu", "warm-" + open, open, null, 80, Q, false, t + 2_000 + 600_000);
+            check(v.status == LaneHealth.Status.PAUSED && !v.retryVisible && !v.autoRetryDue);
+            // Ready again after that long: Retry shows now, when it can actually run.
+            v = h.observe("gpu", "warm-" + open, open, null, 80, Q, true, t + 2_000 + 601_000);
+            check(v.retryVisible);
         }
 
         // Stop on an answer whose text already tripped the garble guard: cancelled, no re-ask.
