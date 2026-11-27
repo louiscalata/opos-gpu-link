@@ -2960,10 +2960,15 @@ public final class MainActivity extends Activity {
         String noun = ComputerWords.current();
         boolean banner = !coverMode && LinkBanner.showBanner(cableConnected, computerWorkVisible);
         String line = coverMode || banner ? "" : LinkBanner.line(cableConnected, linkConnected, noun);
+        // Visible before the text changes, so the live region announces it.
+        if (!line.isEmpty()) {
+            linkLine.setVisibility(View.VISIBLE);
+            linkLine.setTextColor(parseHex(palette.ok()));
+        }
         setIfChanged(linkLine, line);
-        linkLine.setTextColor(parseHex(palette.ok()));
-        linkLine.setVisibility(line.isEmpty() ? View.GONE : View.VISIBLE);
+        if (line.isEmpty()) linkLine.setVisibility(View.GONE);
         if (banner) {
+            cableBanner.setVisibility(View.VISIBLE);
             // Inverted ink, like the paused chip: a planned pull is a pause, not an error.
             int ink = parseHex(palette.ink());
             int paper = parseHex(palette.paper());
@@ -2972,11 +2977,14 @@ public final class MainActivity extends Activity {
             cableBannerTitle.setTextColor(paper);
             cableBannerBody.setTextColor(paper);
             String description = LinkBanner.description(noun);
-            if (!description.contentEquals(String.valueOf(cableBanner.getContentDescription()))) {
+            if (!TextUtils.equals(cableBanner.getContentDescription(), description)) {
                 cableBanner.setContentDescription(description);
             }
+        } else {
+            cableBanner.setVisibility(View.GONE);
+            // Cleared so the next pull is announced again.
+            cableBanner.setContentDescription(null);
         }
-        cableBanner.setVisibility(banner ? View.VISIBLE : View.GONE);
     }
 
     /** Phone heat: listens only while the app is in front; Android calls back on change. */
