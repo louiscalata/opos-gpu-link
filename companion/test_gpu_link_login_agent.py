@@ -31,6 +31,27 @@ class LoginAgentTest(unittest.TestCase):
         self.assertIn("/opt/homebrew/bin", plist["EnvironmentVariables"]["PATH"])
         plistlib.loads(plistlib.dumps(plist))  # valid plist
 
+    def test_plist_gives_time_for_a_clean_stop(self):
+        plist = agent.build_plist(["py"], Path("/c"), Path("/logs"))
+        self.assertGreaterEqual(plist["ExitTimeOut"], 20)
+
+    def test_sigterm_unwinds_so_owned_servers_stop(self):
+        import os
+        import signal
+        import gpu_link_autosetup as autosetup
+        previous = signal.getsignal(signal.SIGTERM)
+        try:
+            self.assertTrue(autosetup.install_term_handler())
+            stopped = []
+            with self.assertRaises(autosetup.Terminated):
+                try:
+                    os.kill(os.getpid(), signal.SIGTERM)
+                finally:
+                    stopped.append(True)  # stands in for rt.stop() in run()'s finally
+            self.assertEqual(stopped, [True])
+        finally:
+            signal.signal(signal.SIGTERM, previous)
+
     def test_agent_lives_in_the_user_library(self):
         self.assertEqual(agent.agent_path(Path("/Users/me")),
                          Path("/Users/me/Library/LaunchAgents/os.opos.gpulink.companion.plist"))

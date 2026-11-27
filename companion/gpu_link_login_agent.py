@@ -60,6 +60,8 @@ def build_plist(args: list[str], companion_dir: Path, log_dir: Path) -> dict:
         # Restart after a crash, not after a clean exit (for example when you quit it).
         "KeepAlive": {"SuccessfulExit": False},
         "ThrottleInterval": 15,
+        # Time to stop the model server(s) cleanly after SIGTERM before launchd kills the job.
+        "ExitTimeOut": 30,
         "ProcessType": "Interactive",
         "EnvironmentVariables": {"PATH": LAUNCHD_PATH, "PYTHONUNBUFFERED": "1"},
         "StandardOutPath": str(log_dir / "companion.out.log"),

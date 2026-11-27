@@ -2891,7 +2891,26 @@ def main(argv=None) -> int:
     return code
 
 
+class Terminated(KeyboardInterrupt):
+    """SIGTERM (launchd stopping the login agent) unwinds like Ctrl-C so owned servers stop."""
+
+
+def _raise_terminated(_signum, _frame):
+    raise Terminated()
+
+
+def install_term_handler() -> bool:
+    """Turn SIGTERM into Terminated in the main thread. Without this, a SIGTERM during model
+    warmup or while waiting for the phone ends Python without cleanup, and the llama-server
+    (in its own session) keeps running and holding GPU memory."""
+    if threading.current_thread() is not threading.main_thread():
+        return False
+    signal.signal(signal.SIGTERM, _raise_terminated)
+    return True
+
+
 def run(args) -> int:
+    install_term_handler()
     info = plan(args)
     if args.detect_only:
         print_detect(info, args.json)
@@ -2923,6 +2942,9 @@ def run(args) -> int:
         import opos_gpu_link
         banner(ready_lines(info["gpu"]["name"], rt.lanes, opos_gpu_link.computer_noun()))
         return opos_gpu_link.main(companion_args(args, rt, info, adb, serial), runtime=rt)
+    except Terminated:
+        say("Stopping (SIGTERM).")
+        return 0  # a requested stop is a clean exit, so launchd does not restart it
     except KeyboardInterrupt:
         return 130
     except RuntimeError as error:
