@@ -105,9 +105,9 @@ public final class LaneHealthTest {
         h.observe("m4", "g1", "failed", "stream_error", 5, "Again", true, 0);
         check(h.observe("m4", "g1", "failed", "stream_error", 5, "Again", true, 4_000).autoRetryDue);
 
-        // Done and cancelled show Retry (rerun) but never retry themselves.
+        // Done shows no Retry; cancelled shows Retry (rerun). Neither retries itself.
         v = h.observe("phone", "h1", "done", null, 3162, Q, true, 0);
-        check(v.status == LaneHealth.Status.DONE && v.retryVisible && !v.autoRetryDue);
+        check(v.status == LaneHealth.Status.DONE && !v.retryVisible && !v.autoRetryDue);
         v = h.observe("m1", "h2", "cancelled", null, 191, Q, true, 0);
         check(v.status == LaneHealth.Status.CANCELLED && v.retryVisible && !v.autoRetryDue);
         // No answer: nothing to retry.
