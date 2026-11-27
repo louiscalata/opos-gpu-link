@@ -73,6 +73,21 @@ unrecognized garbage can pass, and legitimate repetitive or encoding-example
 text can be flagged. The test fixtures include normal code, mathematics,
 markdown, multilingual prose, and saved RX 580 outputs.
 
+Fluent-looking nonsense (real words, no meaning) passes those checks, so
+`gpu_link_salad.py` adds a word-salad judge with reason `word_salad`. It scores
+the answer's last 300 characters against its own first 600 with a tiny local
+model, and only answers of 1,000 characters or more are judged. It turns on by
+itself when both of these are present:
+`runtime/salad/SmolLM2-135M-Instruct-Q8_0.gguf` (from
+[bartowski/SmolLM2-135M-Instruct-GGUF](https://huggingface.co/bartowski/SmolLM2-135M-Instruct-GGUF),
+revision `09816acd`, Apache-2.0; size and sha256
+`5a1395716f7913741cc51d98581b9b1228d80987a9f7d3664106742eb06bba83` are checked
+once at start) and `llama-perplexity` from the llama.cpp runtime. The judge runs
+on the CPU (`OPOS_GPU_LINK_SALAD_NGL=0`), so the answer model keeps the GPU.
+`OPOS_GPU_LINK_SALAD=0` turns it off; `OPOS_GPU_LINK_SALAD_BIN` and
+`OPOS_GPU_LINK_SALAD_MODEL` override the files, and setting them to an empty
+value keeps it off.
+
 ## Show-day guards
 
 These guards reduce garbage and hallucination risk; they do not eliminate either.
