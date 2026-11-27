@@ -13,6 +13,14 @@ public final class RaceLineTest {
         equal("Fastest so far: MacBook · 28.4 s",
                 RaceLine.leader(List.of(macBook, phoneStreaming)));
 
+        equal("■■────── 361 words".replace("■■──────", RaceLine.bar(361, 532, 8)),
+                RaceLine.barWithWords(361, 532, 8));
+        check(RaceLine.barWithWords(532, 532, 4).equals("■■■■ 532 words"), "longest lane fills");
+        check(RaceLine.barWithWords(1, 532, 4).endsWith(" 1 word"), "singular word");
+        equal("", RaceLine.barWithWords(5, 10, 0));
+        equal("MacBook, 9.0 s, 361 words", RaceLine.rowDescription("MacBook", "9.0\u00a0s", 361));
+        equal("Phone, 0 words", RaceLine.rowDescription("Phone", "", 0));
+
         NewspaperSummary.Lane phoneDone = new NewspaperSummary.Lane(
                 "Phone", "ans", "Done", 108100L
         );
