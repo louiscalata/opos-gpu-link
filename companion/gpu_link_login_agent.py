@@ -19,6 +19,7 @@ from __future__ import annotations
 import argparse
 import os
 import plistlib
+import shutil
 import subprocess
 import sys
 import time
@@ -82,6 +83,19 @@ def absolute(path: str | None) -> str | None:
     return os.path.abspath(os.path.expanduser(path)) if path else path
 
 
+def executable(path: str | None, which=shutil.which) -> str | None:
+    """A program path for launchd: a bare name such as "adb" or "python3" is looked up on PATH
+    (keeping a venv python's symlink); anything else becomes absolute. Raises if not found."""
+    if not path:
+        return path
+    if os.sep not in path and not path.startswith("~"):
+        found = which(path)
+        if not found:
+            raise SystemExit(f"{path}: not found on PATH; pass the full path")
+        return found
+    return absolute(path)
+
+
 def wait_unloaded(loaded=None, sleep=time.sleep, timeout_s: float = 40.0) -> bool:
     """bootout returns before the old job (and its model server) has stopped; wait for it."""
     loaded = loaded or (lambda: _launchctl("print", f"{_domain()}/{LABEL}").returncode == 0)
@@ -118,18 +132,18 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if a.action == "uninstall":
         _launchctl("bootout", f"{_domain()}/{LABEL}")
-        wait_unloaded()
+        if not wait_unloaded():
+            print("the companion agent did not stop within 40 s; nothing removed", file=sys.stderr)
+            return 1
         if plist_file.exists():
             plist_file.unlink()
         print(f"removed {plist_file}")
         return 0
 
     agent_logs = Path.home() / "Library" / "Logs" / "OPOS GPU Link"
-    # Keep --python as given apart from ~ (a venv python must stay its symlink, not resolve).
-    python = a.python if os.path.isabs(os.path.expanduser(a.python)) else absolute(a.python)
-    args = companion_args(os.path.expanduser(python), HERE, port=a.port,
+    args = companion_args(executable(a.python), HERE, port=a.port,
                           model_path=absolute(a.model_path), serial=a.serial,
-                          adb=absolute(a.adb), log_dir=absolute(a.log_dir))
+                          adb=executable(a.adb), log_dir=absolute(a.log_dir))
     data = plistlib.dumps(build_plist(args, HERE, agent_logs))
     if a.action == "print":
         sys.stdout.write(data.decode())

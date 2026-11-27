@@ -65,6 +65,13 @@ class LoginAgentTest(unittest.TestCase):
         self.assertTrue(os.path.isabs(agent.absolute("rel/m.gguf")))
         self.assertIsNone(agent.absolute(None))
 
+    def test_bare_program_names_are_looked_up(self):
+        self.assertEqual(agent.executable("adb", lambda n: "/opt/sdk/adb"), "/opt/sdk/adb")
+        with self.assertRaises(SystemExit):
+            agent.executable("nope", lambda n: None)
+        self.assertEqual(agent.executable("/usr/bin/python3"), "/usr/bin/python3")
+        self.assertIsNone(agent.executable(None))
+
     def test_waits_for_the_old_job_to_unload(self):
         states = iter([True, True, False])
         sleeps = []

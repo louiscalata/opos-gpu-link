@@ -2925,7 +2925,10 @@ def install_term_handler() -> bool:
 
 def run(args) -> int:
     install_term_handler()
-    info = plan(args)
+    try:
+        info = plan(args)
+    except Terminated:
+        return 0
     if args.detect_only:
         print_detect(info, args.json)
         return 0
