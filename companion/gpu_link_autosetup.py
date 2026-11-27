@@ -2711,7 +2711,7 @@ class Runtime:
                 return None
             try:
                 return vram_used_mb(gpu, self.memory_runner)
-            except Exception:
+            except (Exception, KeyboardInterrupt):
                 return None  # A diagnostic must not prevent owned servers from stopping.
 
         before = memory_used()
