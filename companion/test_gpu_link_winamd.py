@@ -300,6 +300,15 @@ class OldNvidiaDriver(unittest.TestCase):
                 self.assertIn("Linux CUDA 12.8 build", note)
                 self.assertNotIn("NVIDIA driver older than CUDA 12.4", note)
         self.assertNotIn("NVIDIA driver older than CUDA 12.4", a.gpu_note(self.detect("550.0")))
+        boundary = self.detect("549.99", system="Linux")
+        self.assertEqual(boundary["backend"], "vulkan")
+        self.assertIn("NVIDIA driver older than CUDA 12.4", a.gpu_note(boundary))
+        packed = self.detect("570.0", system="Linux")
+        self.assertEqual((packed["backend"], packed["cuda_variant"]), ("cuda", "ubuntu-cuda-12.8-x64"))
+        packed_note = a.gpu_note(packed)
+        self.assertNotIn("NVIDIA driver older than CUDA 12.4", packed_note)
+        self.assertNotIn("Linux CUDA 12.8 build", packed_note)
+        self.assertEqual(a.gpu_note({"vendor": "NVIDIA", "backend": "vulkan"}), "")
 
     def test_old_driver_note_reaches_detect_output_and_startup(self):
         gpu = a.detect_gpu(windows_runner(smi=SMI_OLD_DRIVER), "Windows", "AMD64", which_smi,
@@ -315,12 +324,15 @@ class OldNvidiaDriver(unittest.TestCase):
             info = a.plan(args)
         self.assertIn("NVIDIA driver older than CUDA 12.4", info["gpu"]["note"])
         detect_output = io.StringIO()
-        with patch.object(a, "plan", return_value=info), contextlib.redirect_stdout(detect_output):
+        with patch.object(a, "plan", return_value=info), \
+                patch.object(a, "install_term_handler", return_value=True), \
+                contextlib.redirect_stdout(detect_output):
             self.assertEqual(a.run(args), 0)
         self.assertIn("GPU Link: NVIDIA driver older than CUDA 12.4", detect_output.getvalue())
         args.detect_only = False
         startup_output = io.StringIO()
         with patch.object(a, "plan", return_value=info), \
+                patch.object(a, "install_term_handler", return_value=True), \
                 patch.object(a, "start_runtime", side_effect=RuntimeError("fixture stop")), \
                 contextlib.redirect_stdout(startup_output):
             self.assertEqual(a.run(args), 2)
