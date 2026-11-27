@@ -170,6 +170,8 @@ public final class MainActivity extends Activity {
     private long workingTick;
     private boolean workingScheduled;
     private TextView heatMeter;
+    private TextView linkLine, cableBannerTitle;
+    private LinearLayout cableBanner;
     private PowerManager.OnThermalStatusChangedListener heatListener;
     private boolean heatRegistered;
     private int heatStatus = -1;
@@ -793,6 +795,7 @@ public final class MainActivity extends Activity {
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         heatParams.gravity = Gravity.CENTER_VERTICAL;
         header.addView(heatMeter, heatIndex, heatParams);
+        setupLinkBanner();
         info.setLayoutParams(new LinearLayout.LayoutParams(dp(52), dp(48)));
         header.setPadding(dp(12), dp(2), dp(12), dp(4));
         bigMasthead = newspaperText(getString(R.string.app_name) + " ⌄", 34, true, true);
@@ -2859,7 +2862,10 @@ public final class MainActivity extends Activity {
     }
 
     private void renderStatus() {
-        if (!reachable || snapshot == null) return;
+        if (!reachable || snapshot == null) {
+            renderLinkBanner(false, false);
+            return;
+        }
         JSONObject phone = snapshot.optJSONObject("phone");
         JSONObject gpu = snapshot.optJSONObject("gpu");
         JSONObject link = gpu == null ? null : gpu.optJSONObject("link");
@@ -2911,10 +2917,58 @@ public final class MainActivity extends Activity {
             line = pcWords(R.string.gpu_unavailable);
         }
         setMainStatus(line);
+        renderLinkBanner(connection == Connection.CONNECTED, pcOpen || hasVisiblePcWork());
         if (infoDialog != null && infoDialog.isShowing()) {
             updateInfoPcRows(infoDialog, gpu, connection);
         }
         applyErrorView();
+    }
+
+    /** The link line and cable-out banner sit under the masthead; the cover screen keeps its own chrome. */
+    private void setupLinkBanner() {
+        ViewGroup root = (ViewGroup) header.getParent();
+        if (root == null) return;
+        int afterHeader = root.indexOfChild(header) + 1;
+        linkLine = newspaperText("", 13, true, false);
+        typography.tabular(linkLine);
+        linkLine.setSingleLine(true);
+        linkLine.setPadding(dp(12), 0, dp(12), dp(2));
+        linkLine.setVisibility(View.GONE);
+        linkLine.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        root.addView(linkLine, afterHeader, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+        cableBanner = new LinearLayout(this);
+        cableBanner.setOrientation(LinearLayout.VERTICAL);
+        cableBanner.setPadding(dp(12), dp(8), dp(12), dp(8));
+        cableBanner.setVisibility(View.GONE);
+        cableBanner.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        cableBannerTitle = newspaperText("", 16, true, false);
+        TextView body = newspaperText(LinkBanner.BODY, 13, false, false);
+        cableBanner.addView(cableBannerTitle);
+        cableBanner.addView(body);
+        root.addView(cableBanner, afterHeader + 1, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+    }
+
+    private void renderLinkBanner(boolean linkConnected, boolean computerWorkVisible) {
+        if (linkLine == null || cableBanner == null) return;
+        String noun = ComputerWords.current();
+        boolean banner = !coverMode && LinkBanner.showBanner(cableConnected, computerWorkVisible);
+        String line = coverMode || banner ? "" : LinkBanner.line(cableConnected, linkConnected, noun);
+        setIfChanged(linkLine, line);
+        linkLine.setTextColor(parseHex(palette.ok()));
+        linkLine.setVisibility(line.isEmpty() ? View.GONE : View.VISIBLE);
+        if (banner) {
+            // Inverted ink, like the paused chip: a planned pull is a pause, not an error.
+            int ink = parseHex(palette.ink());
+            int paper = parseHex(palette.paper());
+            cableBanner.setBackgroundColor(ink);
+            setIfChanged(cableBannerTitle, LinkBanner.title(noun));
+            cableBannerTitle.setTextColor(paper);
+            ((TextView) cableBanner.getChildAt(1)).setTextColor(paper);
+            cableBanner.setContentDescription(LinkBanner.description(noun));
+        }
+        cableBanner.setVisibility(banner ? View.VISIBLE : View.GONE);
     }
 
     /** Phone heat: listens only while the app is in front; Android calls back on change. */
