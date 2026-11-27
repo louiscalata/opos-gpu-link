@@ -18,6 +18,10 @@ final class DesignLab {
     /** One animation step. Slow enough to read from a stage, cheap enough for a hot phone. */
     static final int TICK_MS = 160;
     private static final int GAP = 8;
+    /** Below this many columns (the cover screen) the paused caption uses its short form. */
+    static final String PAUSED_LONG = "Cable out · paused · resumes on plug-in";
+    static final String PAUSED_SHORT = "Cable out · paused";
+    static final int LONG_CAPTION_WIDTH = PAUSED_LONG.length();
 
     private DesignLab() {}
 
@@ -30,6 +34,14 @@ final class DesignLab {
     /** Unknown or missing values fall back to Off, so the demo path stays the default. */
     static String parseMode(String value) {
         return value != null && MODES.contains(value) ? value : OFF;
+    }
+
+    /**
+     * The cover screen has room for one small drawing, so any lab view other than Off shows
+     * the link schematic there (belts need a line per lane). Off stays off.
+     */
+    static String coverMode(String mode) {
+        return OFF.equals(parseMode(mode)) ? OFF : SCHEMATIC;
     }
 
     static String caption(String mode) {
@@ -61,7 +73,10 @@ final class DesignLab {
         String caption;
         switch (link) {
             case LIVE: caption = "USB-C · tokens flowing"; break;
-            case PAUSED: caption = "Cable out · paused · resumes on plug-in"; break;
+            case PAUSED:
+                // Narrow (cover screen): the short form, never cut mid-word.
+                caption = width >= LONG_CAPTION_WIDTH ? PAUSED_LONG : PAUSED_SHORT;
+                break;
             case UNPLUGGED: caption = "Cable out"; break;
             default: caption = "USB-C · ready"; break;
         }
