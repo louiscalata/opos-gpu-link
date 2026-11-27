@@ -49,6 +49,66 @@ SERIAL = re.compile(r"[A-Za-z0-9._:-]{1,128}\Z")
 PORT = re.compile(r"[1-9][0-9]{0,4}\Z")
 DEFAULT_SERVER = "http://127.0.0.1:1235/v1/chat/completions"
 
+# Android's H5 + S5 + B5 sizes and optical values. Tk labels support font size
+# and weight, but not letter tracking or a fixed line height.
+DIALOG_TYPE = {
+    "H5": {"size": 21, "weight": "bold", "leading": 1.15, "tracking": -0.01},
+    "S5": {"size": 11, "weight": "normal", "leading": 1.25, "tracking": 0.02},
+    "B5": {"size": 17, "weight": "normal", "leading": 1.35, "tracking": 0.0},
+}
+DIALOG_INK = "#000000"
+DIALOG_PAPER = "#FFFFFF"
+DIALOG_ERROR = "#B00000"
+
+
+def _dialog_font_specs(available, heading_fallback, text_fallback):
+    """Use installed families, or the platform's Tk heading/default fonts."""
+    names = {name.casefold(): name for name in available}
+
+    def pick(candidates, fallback):
+        return next((names[name.casefold()] for name in candidates
+                     if name.casefold() in names), fallback)
+
+    title = pick(("Newsreader SemiBold", "Newsreader", "Newsreader 72pt"), heading_fallback)
+    text = pick(("Inter Tight", "Inter"), text_fallback)
+    small = pick(("Inter Tight Medium", "Inter Medium", "Inter Tight", "Inter"), text_fallback)
+    return {"title": (title, DIALOG_TYPE["H5"]["size"], DIALOG_TYPE["H5"]["weight"]),
+            "small": (small, DIALOG_TYPE["S5"]["size"], DIALOG_TYPE["S5"]["weight"]),
+            "body": (text, DIALOG_TYPE["B5"]["size"], DIALOG_TYPE["B5"]["weight"])}
+
+
+def _dialog_fonts(root):
+    from tkinter import font as tkfont
+    specs = _dialog_font_specs(tkfont.families(root),
+                               tkfont.nametofont("TkHeadingFont", root=root).actual("family"),
+                               tkfont.nametofont("TkDefaultFont", root=root).actual("family"))
+    return {role: tkfont.Font(root=root, family=family, size=size, weight=weight)
+            for role, (family, size, weight) in specs.items()}
+
+
+def _dialog_label(tk, parent, text, font, *, color=DIALOG_INK, wraplength=470):
+    return tk.Label(parent, text=text, font=font, fg=color, bg=DIALOG_PAPER,
+                    justify="left", anchor="w", wraplength=wraplength)
+
+
+def _dialog_button(tk, parent, text, font, **options):
+    return tk.Button(parent, text=text, font=font, fg=DIALOG_INK, bg=DIALOG_PAPER,
+                     activeforeground=DIALOG_INK, activebackground=DIALOG_PAPER, **options)
+
+
+def _permission_identity_lines(args):
+    """Show only a supplied phone name and an identified, active GPU."""
+    lines = []
+    phone = getattr(args, "phone_label", None)
+    if isinstance(phone, str) and phone.strip() and phone.strip() != "OPOS phone":
+        lines.append("Phone: " + phone.strip())
+    gpu = getattr(getattr(args, "runtime", None), "gpu", None)
+    if isinstance(gpu, dict) and gpu.get("backend") != "cpu":
+        name = gpu.get("name")
+        if isinstance(name, str) and name.strip() and name.strip() not in {"GPU", "Apple GPU"}:
+            lines.append("GPU: " + name.strip())
+    return lines
+
 
 MAC_MODEL_ID = "/usr/sbin/sysctl"
 MAC_POWER = "/usr/bin/pmset"
@@ -860,11 +920,26 @@ class Companion:
         if not self.link_present():
             return False
         top = self.tk.Toplevel(self.root)
-        top.title("OPOS GPU Link permission")
+        top.title("Let this phone use your GPU?")
         top.transient(self.root)
         top.grab_set()
-        self.tk.Label(top, text=f"Allow this phone to use this {computer_noun()} GPU for this session?",
-                      wraplength=360).pack(padx=18, pady=18)
+        top.configure(bg=DIALOG_PAPER)
+        fonts = _dialog_fonts(self.root)
+        _dialog_label(self.tk, top, "Let this phone use your GPU?", fonts["title"]).pack(
+            padx=24, pady=(22, 10), anchor="w")
+        for line in _permission_identity_lines(self.args):
+            _dialog_label(self.tk, top, line, fonts["small"]).pack(
+                padx=24, pady=(0, 3), anchor="w")
+        for index, line in enumerate((
+                "A language model will run on this computer's GPU while the phone is plugged in.",
+                "This computer will see the questions and the answers.",
+                "A copy of the model file stays on this computer until it is removed.",
+        )):
+            _dialog_label(self.tk, top, line, fonts["body"]).pack(
+                padx=24, pady=(10 if index == 0 else 0, 6), anchor="w")
+        _dialog_label(self.tk, top,
+                      "Unplug to pause. Access ends 2 minutes after unplug, or when you choose Stop GPU Link.",
+                      fonts["small"]).pack(padx=24, pady=(8, 14), anchor="w")
         choice = {"allowed": False}
         unblock = self.clock() + 0.7
 
@@ -880,11 +955,12 @@ class Companion:
             else:
                 top.after(1000, still_attached)
 
-        allow = self.tk.Button(top, text="Allow once", state="disabled",
+        allow = _dialog_button(self.tk, top, "Allow", fonts["small"], state="disabled",
                                command=lambda: finish(True))
-        deny = self.tk.Button(top, text="Not now", state="disabled", command=finish)
-        deny.pack(side="right", padx=18, pady=12)
-        allow.pack(side="right", pady=12)
+        deny = _dialog_button(self.tk, top, "Not now", fonts["small"], state="disabled",
+                              command=finish)
+        allow.pack(side="right", padx=(0, 24), pady=(0, 18))
+        deny.pack(side="right", padx=12, pady=(0, 18))
         top.bind("<Escape>", lambda event: finish())
         top.bind("<Return>", lambda event: finish())
         top.protocol("WM_DELETE_WINDOW", finish)
@@ -914,10 +990,13 @@ class Companion:
         top.title("Confirm on the phone")
         top.transient(self.root)
         top.grab_set()
-        self.tk.Label(top, text=f"Compare on the phone: {code[:3]} {code[3:]}",
-                      font=("TkDefaultFont", 18)).pack(padx=18, pady=(18, 8))
-        note = self.tk.Label(top, text="Tap Allow on the phone within 60 seconds.")
-        note.pack(padx=18, pady=8)
+        top.configure(bg=DIALOG_PAPER)
+        fonts = _dialog_fonts(self.root)
+        _dialog_label(self.tk, top, f"Compare on the phone: {code[:3]} {code[3:]}",
+                      fonts["title"]).pack(padx=24, pady=(22, 8), anchor="w")
+        note = _dialog_label(self.tk, top, "Tap Allow on the phone within 60 seconds.",
+                             fonts["body"])
+        note.pack(padx=24, pady=8, anchor="w")
         accepted = {"yes": False}
 
         def close():
@@ -928,7 +1007,8 @@ class Companion:
                 close()
                 return
             if self.clock() >= deadline:
-                note.configure(text="Phone Allow was not confirmed. Pairing was not saved.")
+                note.configure(text="Phone Allow was not confirmed. Pairing was not saved.",
+                               fg=DIALOG_ERROR)
                 top.after(1500, close)
                 return
             try:
@@ -940,7 +1020,8 @@ class Companion:
                 pass
             top.after(1000, probe)
 
-        self.tk.Button(top, text="Cancel", command=close).pack(pady=(8, 18))
+        _dialog_button(self.tk, top, "Cancel", fonts["small"], command=close).pack(
+            padx=24, pady=(8, 18), anchor="e")
         top.protocol("WM_DELETE_WINDOW", close)
         top.after(750, probe)
         self.root.wait_window(top)
