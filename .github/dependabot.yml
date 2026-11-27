@@ -1,7 +1,16 @@
 version: 2
 updates:
+  # Do not merge version-bump PRs before 10 Dec 2026 (demo freeze).
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
       interval: "weekly"
     open-pull-requests-limit: 5
+  - package-ecosystem: "gradle"
+    directory: "/android"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+  # No pip manifest (requirements.txt / pyproject.toml) lives in this repo today,
+  # so there is no pip update entry. Companion and phone-service tests use the
+  # Python standard library.
