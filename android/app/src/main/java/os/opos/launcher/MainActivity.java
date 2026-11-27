@@ -2700,7 +2700,8 @@ public final class MainActivity extends Activity {
             case "answering":
                 return getString(R.string.streaming);
             case "paused":
-                return pcWords(R.string.gpu_paused);
+                // A phone lane pauses for a backend restart, not for the cable or the computer.
+                return isGpu ? pcWords(R.string.gpu_paused) : getString(R.string.lane_paused);
             case "done":
                 Long duration = answerDurations.get(id);
                 boolean interrupted = isGpu && answerTiming.interrupted(id);

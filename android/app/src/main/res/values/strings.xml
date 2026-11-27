@@ -58,7 +58,8 @@
     <string name="waiting_turn">Waiting for its turn…</string>
     <string name="model_low_memory">Not enough free memory for this model right now.</string>
     <string name="model_start_failed">This model could not start.</string>
-    <string name="gpu_paused">Paused · resumes on plug-in</string>
+    <string name="lane_paused">Paused</string>
+    <string name="gpu_paused">Paused · resumes when the PC is back</string>
     <string name="gpu_resumed">GPU answer resumed</string>
     <string name="answer_done">Done</string>
     <string name="answer_stopped">Stopped</string>
@@ -139,7 +140,7 @@
     <string name="thinking">Thinking…</string>
     <string name="streaming">Streaming…</string>
     <string name="done_elapsed">Done · %.1f s</string>
-    <string name="pc_paused">Paused · resumes on plug-in</string>
+    <string name="pc_paused">Paused · resumes when the PC is back</string>
     <string name="pc_getting_ready">Getting the PC GPU ready…</string>
     <string name="connect_to_send">Wait for a model, then tap Send.</string>
     <string name="reconnect">Reconnect</string>
