@@ -33,17 +33,19 @@ Build the app yourself with `android/scripts/build-debug-apk.sh`.
 
 ## Models in the demo
 
-The Dec 10 2026 demo runs NVIDIA models, all as local GGUF files:
+The Dec 10 2026 demo runs three NVIDIA models as local GGUF files. Sizes and recorded SHA-256 values are from files on this MacBook on 27 Nov 2026 (America/Los_Angeles).
 
-| Where | Model | File |
-| --- | --- | --- |
-| MacBook (Metal) | NVIDIA Nemotron 3.5 Bolt E4B 4GB, Q4_K_M | [`nvidia/NVIDIA-Nemotron-3.5-Bolt-E4B-4GB`](https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Bolt-E4B-4GB), 6.18 GB, OpenMDW-1.1 |
-| Phone, lead | NVIDIA AceInstruct 1.5B, Q4_K_M | community quant [`bartowski/nvidia_AceInstruct-1.5B-GGUF`](https://huggingface.co/bartowski/nvidia_AceInstruct-1.5B-GGUF), 1.12 GB, CC-BY-NC-4.0 |
-| Phone, second | NVIDIA Nemotron Mini 4B Instruct, Q4_K_M | community quant [`bartowski/Nemotron-Mini-4B-Instruct-GGUF`](https://huggingface.co/bartowski/Nemotron-Mini-4B-Instruct-GGUF), 2.70 GB, NVIDIA Open Model License |
+| Where | Model | File | Size | SHA-256 | License |
+| --- | --- | --- | --- | --- | --- |
+| MacBook (Metal) | [NVIDIA Nemotron 3.5 Bolt E4B 4GB, Q4_K_M](https://huggingface.co/nvidia/NVIDIA-Nemotron-3.5-Bolt-E4B-4GB) | `Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf` | 6.18 GB (6,180,446,208 bytes) | `c8af2b8aea10a690a1d9491db744a9446660173cb38fc489612b556615a69612` | OpenMDW-1.1 |
+| Phone, lead | [NVIDIA AceInstruct 1.5B, Q4_K_M](https://huggingface.co/bartowski/nvidia_AceInstruct-1.5B-GGUF) (community quant) | `nvidia_AceInstruct-1.5B-Q4_K_M.gguf` | 1.12 GB (1,117,318,944 bytes) | `103b7fa617d2b3c2d6e168a878b9b5e3710d19d178bf4b890acf0fac2abafadb` | CC-BY-NC-4.0 |
+| Phone, second | [NVIDIA Nemotron Mini 4B Instruct, Q4_K_M](https://huggingface.co/bartowski/Nemotron-Mini-4B-Instruct-GGUF) (community quant) | `Nemotron-Mini-4B-Instruct-Q4_K_M.gguf` | 2.70 GB (2,697,387,072 bytes) | `2bf02846dbd45e9580b9338b90505fb54e00d185713d4b7f06699e2d5d298e48` | NVIDIA Open Model License |
+| Phone, comparison only | [LFM2 1.2B (Liquid AI)](https://huggingface.co/LiquidAI/LFM2-1.2B-GGUF) | `LFM2-1.2B-Q4_K_M.gguf` | 0.73 GB (730,893,248 bytes) | `55175400e3f509a9616227afeffd58d87e80b9f628a5d3d54ada884d85221fed` | [LFM Open License v1.0](https://huggingface.co/LiquidAI/LFM2-1.2B-GGUF/blob/main/LICENSE) |
+| MacBook, comparison only | [Gemma 4 26B (Google)](https://huggingface.co/google/gemma-4-26B-A4B-it-qat-q4_0-gguf) | `gemma-4-26B_q4_0-it.gguf` | 14.44 GB (14,439,363,584 bytes) | Not recorded | Apache-2.0 |
 
-Comparison only, not part of the NVIDIA lineup: LFM2 1.2B (Liquid AI) on the phone, shown as "LFM2 1.2B (baseline)", and Gemma 4 26B (Google) on the MacBook, kept as a measured baseline and rollback.
+LFM2 is shown as "LFM2 1.2B (baseline)"; Gemma is a measured baseline and rollback. Gemma's SHA-256 was not recorded while LM Studio was serving it.
 
-Nemotron 3.5 Bolt E4B is post-trained by NVIDIA from Google's Gemma 4 E4B, so Gemma's terms also apply. The models are NVIDIA's; on a Mac they run on Apple's GPU through Metal, not on an NVIDIA GPU. Any other local GGUF works too; the companion picks one that fits your GPU.
+Nemotron 3.5 Bolt E4B is post-trained by NVIDIA from Google's Gemma 4 E4B, so Gemma's terms also apply. On this MacBook, Bolt runs on Apple's GPU through Metal, not on an NVIDIA GPU. Any other local GGUF works too; the companion picks one that fits your GPU.
 
 ## Supported platforms
 
