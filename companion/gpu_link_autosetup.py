@@ -1017,13 +1017,22 @@ def _model_copy_receipt(path: Path, digest: str) -> str:
     return f"{digest} {stat.st_dev} {stat.st_ino} {stat.st_size} {stat.st_mtime_ns}\n"
 
 
+def model_cache_is_inside_data_dir(data_dir: Path, models_dir: Path) -> bool:
+    """True when models_dir is a real subdirectory of the companion data directory."""
+    try:
+        data_dir, models_dir = Path(data_dir), Path(models_dir)
+        cache, home = models_dir.resolve(), data_dir.resolve()
+    except OSError:
+        return False
+    return not models_dir.is_symlink() and cache != home and cache.is_relative_to(home)
+
+
 def remove_model_copies(data_dir: Path, models_dir: Path) -> int:
     """Remove only marked downloads in the companion's own model cache."""
     data_dir, models_dir = Path(data_dir), Path(models_dir)
-    cache = models_dir.resolve()
-    home = data_dir.resolve()
-    if models_dir.is_symlink() or cache == home or not cache.is_relative_to(home):
+    if not model_cache_is_inside_data_dir(data_dir, models_dir):
         raise ValueError("Model cache must be inside the companion data directory")
+    cache = models_dir.resolve()
     if not models_dir.exists():
         return 0
     removed = 0
@@ -1036,7 +1045,7 @@ def remove_model_copies(data_dir: Path, models_dir: Path) -> int:
             if marker.stat().st_size > 256:
                 continue
             receipt = marker.read_text(encoding="ascii")
-        except UnicodeError:
+        except (OSError, UnicodeError):
             continue
         try:
             digest = receipt.split(" ", 1)[0]
@@ -1045,13 +1054,15 @@ def remove_model_copies(data_dir: Path, models_dir: Path) -> int:
                     or sha256_file(model) != digest):
                 continue
             model.unlink()
+            removed += 1
             marker.unlink()
             sidecar = _sidecar(model)
             if sidecar.is_file() and not sidecar.is_symlink():
                 sidecar.unlink()
-            removed += 1
         except OSError as error:
-            raise RuntimeError(f"Removed {removed} model copies; another copy could not be removed") from error
+            raise RuntimeError(
+                f"Removed {removed} model copies from {cache}; another copy could not be fully removed"
+            ) from error
     return removed
 
 
@@ -1125,7 +1136,7 @@ def download(url: str, dest: Path, label: str, sha256: str, size=None, mark_mode
         pending = None
         try:
             with tempfile.NamedTemporaryFile("w", dir=dest.parent, prefix=".opos-copy-",
-                                             delete=False) as pending:
+                                             delete=False, encoding="ascii", newline="\n") as pending:
                 pending.write(_model_copy_receipt(dest, sha256))
             Path(pending.name).replace(marker)
         finally:

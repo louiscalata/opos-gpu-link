@@ -1528,15 +1528,22 @@ class Companion:
 
     def remove_model_copies(self) -> None:
         """Remove marked cache downloads after the owner confirms the path."""
-        from gpu_link_autosetup import remove_model_copies
+        from gpu_link_autosetup import model_cache_is_inside_data_dir, remove_model_copies
 
         models_dir = self.args.models_dir
+        if not model_cache_is_inside_data_dir(self.args.data_dir, models_dir):
+            message = "Model copies were not removed: the cache is not inside the companion data directory"
+            self.status.set(message)
+            print("GPU Link: " + message, flush=True)
+            return
         if not _confirm_remove_model_copies(self.root, models_dir):
             return
         try:
             removed = remove_model_copies(self.args.data_dir, models_dir)
-        except (OSError, RuntimeError, ValueError):
-            self.status.set("Model copies could not be removed from the companion cache")
+        except (OSError, RuntimeError, ValueError) as error:
+            message = str(error) or "Model copies could not be removed from the companion cache"
+            self.status.set(message)
+            print("GPU Link: " + message, flush=True)
             return
         message = f"Removed model copies from {models_dir} ({removed} file(s))"
         self.status.set(message)

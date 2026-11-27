@@ -162,6 +162,8 @@ class ModelCopyTests(unittest.TestCase):
 
         def used(_gpu, _runner=None):
             events.append("memory")
+            if _runner is not None:
+                self.assertIs(_runner, runtime.memory_runner)
             return 800 if loaded[0] else 100
 
         with patch.object(setup, "vram_used_mb", side_effect=used), patch.object(setup, "say") as log:
@@ -186,6 +188,52 @@ class ModelCopyTests(unittest.TestCase):
                     runtime.stop()
                 self.assertEqual(stopped, [True])
                 self.assertEqual(probe.call_count, 2)
+
+    def test_partial_cleanup_failure_counts_the_deleted_model(self):
+        owned = self.download_copy()
+        marker = setup._model_copy_marker(owned)
+        original = Path.unlink
+        def unlink(path):
+            if path == marker:
+                raise OSError("fixture marker cleanup failure")
+            return original(path)
+        with patch.object(Path, "unlink", unlink):
+            with self.assertRaises(RuntimeError) as error:
+                setup.remove_model_copies(self.data, self.models)
+        self.assertIn("Removed 1 model copies from", str(error.exception))
+        self.assertFalse(owned.exists())
+        self.assertTrue(marker.exists())
+
+    def test_window_logs_when_the_cache_is_outside_the_data_directory(self):
+        outside = self.root / "other" / "models"
+        outside.mkdir(parents=True)
+        tk = FakeTk()
+        root = SimpleNamespace(protocol=lambda *_args: None)
+        args = SimpleNamespace(adb="fake-adb", serial="PHONE", key_dir=self.data,
+                               always_allow=False, data_dir=self.data, models_dir=outside)
+        app = link.Companion(args, root, tk)
+        with patch.object(link, "_confirm_remove_model_copies") as confirm,                 patch("builtins.print") as printed:
+            tk.buttons["Remove model copies"]()
+        confirm.assert_not_called()
+        message = "Model copies were not removed: the cache is not inside the companion data directory"
+        self.assertEqual(tk.messages[-1], message)
+        printed.assert_called_once_with("GPU Link: " + message, flush=True)
+
+    def test_window_logs_a_partial_removal_error(self):
+        owned = self.download_copy()
+        tk = FakeTk()
+        root = SimpleNamespace(protocol=lambda *_args: None)
+        args = SimpleNamespace(adb="fake-adb", serial="PHONE", key_dir=self.data,
+                               always_allow=False, data_dir=self.data, models_dir=self.models)
+        app = link.Companion(args, root, tk)
+        failure = RuntimeError(f"Removed 1 model copies from {self.models}; another copy could not be fully removed")
+        with patch.object(link, "_confirm_remove_model_copies", return_value=True),                 patch.object(setup, "remove_model_copies", side_effect=failure),                 patch("builtins.print") as printed:
+            tk.buttons["Remove model copies"]()
+        self.assertTrue(owned.exists())
+        self.assertEqual(tk.messages[-1], str(failure))
+        printed.assert_called_once_with("GPU Link: " + str(failure), flush=True)
+
+
 
 
 if __name__ == "__main__":
