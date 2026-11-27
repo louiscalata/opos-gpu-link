@@ -3651,13 +3651,17 @@ public final class MainActivity extends Activity {
         }
     }
 
-    /** The paired computer is talking to the phone (live), busy answering or not. "ready" alone
-     *  is false while the computer is busy, so it would hide a real mid-answer stall. */
+    /**
+     * The computer's main worker is talking to the phone (main_live, not just an extra lane) and
+     * has a model up: state "ready" or "busy" answering. Copying or loading a model is warmup,
+     * not a stall. ("gpu.ready" alone is false while busy, so it would hide a mid-answer stall.)
+     */
     private static boolean gpuLaneReady(JSONObject data) {
         JSONObject gpu = data == null ? null : data.optJSONObject("gpu");
         JSONObject link = gpu == null ? null : gpu.optJSONObject("link");
         JSONObject pc = link == null ? null : link.optJSONObject("pc");
-        return pc != null && pc.optBoolean("live");
+        return pc != null && GpuLaneReadiness.ready(pc.optBoolean("main_live", pc.optBoolean("live")),
+                pc.isNull("state") ? null : pc.optString("state", null));
     }
 
     private boolean gpuCanQueue(JSONObject gpu) {
