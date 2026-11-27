@@ -1086,6 +1086,8 @@ def main(argv=None):
             print(ENROL_REFUSED, file=sys.stderr)
             return 2
         pc = PC(args.phone, key_file(args.key_file), args.label)
+        if gpu_link_salad is not None and not args.enrol_request:
+            gpu_link_salad.warm()  # hash the judge model now, not during the first answer
 
         def emit(line):
             print(line, flush=True)
