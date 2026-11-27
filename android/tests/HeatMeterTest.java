@@ -10,7 +10,9 @@ public final class HeatMeterTest {
         equal("● Heat 2 · warm", HeatMeter.label(2, false));
         equal("● Heat 3 · hot", HeatMeter.label(3, false));
         equal("● Heat 4 · very hot", HeatMeter.label(4, false));
+        equal("● Heat 5 · too hot", HeatMeter.label(5, false));
         equal("● Heat 6 · too hot", HeatMeter.label(6, false));
+        equal("● 5 too hot", HeatMeter.label(5, true));
         equal("● 2 warm", HeatMeter.label(2, true));
         equal("● 0 cool", HeatMeter.label(0, true));
         equal("", HeatMeter.label(-1, false));
