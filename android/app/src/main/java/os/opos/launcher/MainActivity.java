@@ -1312,6 +1312,7 @@ public final class MainActivity extends Activity {
         page.setOrientation(LinearLayout.VERTICAL);
         page.setPadding(dp(16), dp(16), dp(16), dp(12));
         page.setBackgroundColor(themeColor(R.color.newspaper_paper));
+        page.setFitsSystemWindows(true);
         LinearLayout bar = new LinearLayout(this);
         bar.setGravity(Gravity.CENTER_VERTICAL);
         expandedTitle = newspaperText(article.heading.getText().toString(), 26, true, true);
@@ -4315,6 +4316,9 @@ public final class MainActivity extends Activity {
         root.setOrientation(LinearLayout.VERTICAL);
         root.setBackgroundColor(themeColor(R.color.newspaper_paper));
         root.setPadding(dp(16), dp(12), dp(16), dp(12));
+        // Full-screen sheets start below the status bar and end above the navigation bar,
+        // like the Info sheet (fitsSystemWindows in gpu_link_info.xml).
+        root.setFitsSystemWindows(true);
         return root;
     }
 
@@ -5408,6 +5412,8 @@ public final class MainActivity extends Activity {
             bindDesignLabList(labList);
         }
         scroll.addView(page);
+        // Keep the Settings title below the status bar (same as the Info sheet).
+        scroll.setFitsSystemWindows(true);
         dialog.setContentView(scroll);
         bindSettingsLists(typeList, preview, themeList);
         applyPaletteToDialog(dialog);
