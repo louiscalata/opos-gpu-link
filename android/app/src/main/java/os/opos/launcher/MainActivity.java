@@ -3040,8 +3040,11 @@ public final class MainActivity extends Activity {
             heatMeter.setVisibility(View.GONE);
             return;
         }
-        heatMeter.setTypeface(typography.jetbrainsMonoMedium);
-        setIfChanged(heatMeter, HeatMeter.label(status, coverMode || compactLayout));
+        boolean compactHeat = coverMode || compactLayout;
+        heatMeter.setTypeface(typography.interSemibold);
+        heatMeter.setTextSize(TypedValue.COMPLEX_UNIT_SP,
+                compactHeat ? HeatMeter.TEXT_SP_COMPACT : HeatMeter.TEXT_SP);
+        setIfChanged(heatMeter, HeatMeter.label(status, compactHeat));
         heatMeter.setTextColor(parseHex(HeatMeter.cool(status) ? palette.ok() : palette.error()));
         heatMeter.setContentDescription(HeatMeter.description(status));
         heatMeter.setVisibility(View.VISIBLE);
