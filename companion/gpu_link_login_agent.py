@@ -92,7 +92,7 @@ def executable(path: str | None, which=shutil.which) -> str | None:
         found = which(path)
         if not found:
             raise SystemExit(f"{path}: not found on PATH; pass the full path")
-        return found
+        return absolute(found)  # a relative PATH entry must not resolve against companion/
     return absolute(path)
 
 

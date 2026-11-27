@@ -67,6 +67,8 @@ class LoginAgentTest(unittest.TestCase):
 
     def test_bare_program_names_are_looked_up(self):
         self.assertEqual(agent.executable("adb", lambda n: "/opt/sdk/adb"), "/opt/sdk/adb")
+        import os
+        self.assertTrue(os.path.isabs(agent.executable("python3", lambda n: "bin/python3")))
         with self.assertRaises(SystemExit):
             agent.executable("nope", lambda n: None)
         self.assertEqual(agent.executable("/usr/bin/python3"), "/usr/bin/python3")
