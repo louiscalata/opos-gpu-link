@@ -31,7 +31,8 @@ class SimulatedPhoneService:
                 or not isinstance(data.get("question"), str) or not data["question"].strip()):
             return 400, {"error": "invalid simulated ask"}
         self.requests.append(data.copy())
-        answer = lambda pane: {"pane": pane, "question": data["question"], "state": "done"}
+        def answer(pane):
+            return {"pane": pane, "question": data["question"], "state": "done"}
         return 200, {
             "gpu": {"answer": answer("gpu")},
             "models": [{"pane": pane, "answer": answer(pane)} for pane in PANES[1:]],
@@ -106,11 +107,11 @@ def _positive_count(raw: str) -> int:
 
 
 def arguments(argv: list[str] | None = None) -> argparse.Namespace:
-    parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n", 1)[0])
     parser.add_argument("--duration", type=_positive_seconds, default=300.0,
                         help="total simulated run time in seconds (default: 300)")
     parser.add_argument("--gap", type=_positive_seconds, default=30.0,
-                        help="seconds after each question (default: 30)")
+                        help="seconds after a question that is not a cool-down (default: 30; replaced by --cooldown, not added to it)")
     parser.add_argument("--cooldown", type=_positive_seconds, default=120.0,
                         help="longer pause in seconds (default: 120)")
     parser.add_argument("--cooldown-every", type=_positive_count, default=2,
@@ -126,8 +127,12 @@ def main(argv: list[str] | None = None) -> int:
     print("Simulated phone-service /api/ai: four fake lanes; no device connection.")
     stats = run_soak(duration=args.duration, gap=args.gap, cooldown=args.cooldown,
                      cooldown_every=args.cooldown_every, service=SimulatedPhoneService())
-    print(f"Completed {stats['questions']} simulated questions with "
-          f"{stats['full_cooldowns']} full cool-down gaps in {stats['elapsed_seconds']:.1f}s.")
+    questions = stats["questions"]
+    cooldowns = stats["full_cooldowns"]
+    question_word = "question" if questions == 1 else "questions"
+    cooldown_word = "cool-down gap" if cooldowns == 1 else "cool-down gaps"
+    print(f"Completed {questions} simulated {question_word} with "
+          f"{cooldowns} full {cooldown_word} in {stats['elapsed_seconds']:.1f}s.")
     return 0
 
 
