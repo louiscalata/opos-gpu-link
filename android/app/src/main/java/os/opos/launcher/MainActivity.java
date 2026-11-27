@@ -170,7 +170,7 @@ public final class MainActivity extends Activity {
     private long workingTick;
     private boolean workingScheduled;
     private TextView heatMeter;
-    private TextView linkLine, cableBannerTitle;
+    private TextView linkLine, cableBannerTitle, cableBannerBody;
     private LinearLayout cableBanner;
     private PowerManager.OnThermalStatusChangedListener heatListener;
     private boolean heatRegistered;
@@ -2863,7 +2863,8 @@ public final class MainActivity extends Activity {
 
     private void renderStatus() {
         if (!reachable || snapshot == null) {
-            renderLinkBanner(false, false);
+            // No fresh snapshot: never claim CONNECTED, but keep the pause banner for work on screen.
+            renderLinkBanner(false, hasVisiblePcWork());
             return;
         }
         JSONObject phone = snapshot.optJSONObject("phone");
@@ -2932,6 +2933,7 @@ public final class MainActivity extends Activity {
         linkLine = newspaperText("", 13, true, false);
         typography.tabular(linkLine);
         linkLine.setSingleLine(true);
+        linkLine.setEllipsize(TextUtils.TruncateAt.END);
         linkLine.setPadding(dp(12), 0, dp(12), dp(2));
         linkLine.setVisibility(View.GONE);
         linkLine.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
@@ -2943,9 +2945,12 @@ public final class MainActivity extends Activity {
         cableBanner.setVisibility(View.GONE);
         cableBanner.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         cableBannerTitle = newspaperText("", 16, true, false);
-        TextView body = newspaperText(LinkBanner.BODY, 13, false, false);
+        cableBannerBody = newspaperText(LinkBanner.BODY, 13, false, false);
+        // TalkBack reads the banner once, from its description, not each line again.
+        cableBannerTitle.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        cableBannerBody.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         cableBanner.addView(cableBannerTitle);
-        cableBanner.addView(body);
+        cableBanner.addView(cableBannerBody);
         root.addView(cableBanner, afterHeader + 1, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
     }
@@ -2965,8 +2970,11 @@ public final class MainActivity extends Activity {
             cableBanner.setBackgroundColor(ink);
             setIfChanged(cableBannerTitle, LinkBanner.title(noun));
             cableBannerTitle.setTextColor(paper);
-            ((TextView) cableBanner.getChildAt(1)).setTextColor(paper);
-            cableBanner.setContentDescription(LinkBanner.description(noun));
+            cableBannerBody.setTextColor(paper);
+            String description = LinkBanner.description(noun);
+            if (!description.contentEquals(String.valueOf(cableBanner.getContentDescription()))) {
+                cableBanner.setContentDescription(description);
+            }
         }
         cableBanner.setVisibility(banner ? View.VISIBLE : View.GONE);
     }

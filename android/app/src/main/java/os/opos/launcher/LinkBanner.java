@@ -27,7 +27,7 @@ final class LinkBanner {
         return "CABLE OUT · " + ComputerWords.title(noun) + " paused, nothing lost";
     }
 
-    /** For TalkBack, one sentence. */
+    /** For TalkBack: the banner read once, title then body. */
     static String description(String noun) {
         return "Cable out. " + ComputerWords.title(noun) + " answer paused, nothing lost. " + BODY;
     }
