@@ -27,6 +27,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.os.SystemClock;
 import android.text.Editable;
 import android.text.Layout;
@@ -165,6 +166,8 @@ public final class MainActivity extends Activity {
     private TextView labView;
     private int labTick;
     private final Runnable labTicker = this::tickLab;
+    private TextView heatMeter;
+    private PowerManager.OnThermalStatusChangedListener heatListener;
     private LinearLayout settingsLabList;
     private TextView notesTabLabel;
     private NotesSheet.State notesSheetState = NotesSheet.State.COLLAPSED;
@@ -772,6 +775,17 @@ public final class MainActivity extends Activity {
         status.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
         header.addView(status, 1, new LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        heatMeter = newspaperText("", 13, false, false);
+        heatMeter.setTypeface(typography.jetbrainsMonoMedium);
+        heatMeter.setMaxLines(1);
+        heatMeter.setGravity(Gravity.CENTER_VERTICAL);
+        heatMeter.setPadding(dp(4), 0, dp(8), 0);
+        heatMeter.setVisibility(View.GONE);
+        View infoButton = findViewById(R.id.info);
+        int heatIndex = infoButton != null && infoButton.getParent() == header
+                ? header.indexOfChild(infoButton) : header.getChildCount();
+        header.addView(heatMeter, heatIndex, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         info.setLayoutParams(new LinearLayout.LayoutParams(dp(52), dp(48)));
         header.setPadding(dp(12), dp(2), dp(12), dp(4));
         bigMasthead = newspaperText(getString(R.string.app_name) + " ⌄", 34, true, true);
@@ -1441,11 +1455,13 @@ public final class MainActivity extends Activity {
         if (resultsScroll != null) setHeaderCollapse(resultsScroll.getScrollY());
         getSystemService(NotificationManager.class).cancel(LinkWatcherService.LINK_ID);
         tickLab();
+        startHeatMeter();
     }
 
     @Override
     protected void onPause() {
         resumed = false;
+        stopHeatMeter();
         handler.removeCallbacks(labTicker);
         super.onPause();
     }
@@ -2883,6 +2899,46 @@ public final class MainActivity extends Activity {
             updateInfoPcRows(infoDialog, gpu, connection);
         }
         applyErrorView();
+    }
+
+    /** Phone heat: listens only while the app is in front; Android calls back on change. */
+    private void startHeatMeter() {
+        if (heatMeter == null) return;
+        PowerManager power = getSystemService(PowerManager.class);
+        if (power == null) {
+            showHeat(-1);
+            return;
+        }
+        try {
+            if (heatListener == null) heatListener = this::showHeat;
+            power.addThermalStatusListener(getMainExecutor(), heatListener);
+            showHeat(power.getCurrentThermalStatus());
+        } catch (RuntimeException e) {
+            showHeat(-1);
+        }
+    }
+
+    private void stopHeatMeter() {
+        PowerManager power = getSystemService(PowerManager.class);
+        if (power == null || heatListener == null) return;
+        try {
+            power.removeThermalStatusListener(heatListener);
+        } catch (RuntimeException ignored) {
+            // Not registered: nothing to stop.
+        }
+    }
+
+    /** Green while cool (0–1), red from warm (2) up; hidden when Android reports nothing. */
+    private void showHeat(int status) {
+        if (heatMeter == null) return;
+        if (!HeatMeter.known(status)) {
+            heatMeter.setVisibility(View.GONE);
+            return;
+        }
+        setIfChanged(heatMeter, HeatMeter.label(status, coverMode));
+        heatMeter.setTextColor(parseHex(HeatMeter.cool(status) ? palette.ok() : palette.error()));
+        heatMeter.setContentDescription(HeatMeter.description(status));
+        heatMeter.setVisibility(View.VISIBLE);
     }
 
     private String labMode() {
