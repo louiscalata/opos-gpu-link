@@ -1022,7 +1022,7 @@ def model_cache_is_inside_data_dir(data_dir: Path, models_dir: Path) -> bool:
     try:
         data_dir, models_dir = Path(data_dir), Path(models_dir)
         cache, home = models_dir.resolve(), data_dir.resolve()
-    except OSError:
+    except (OSError, RuntimeError):
         return False
     return not models_dir.is_symlink() and cache != home and cache.is_relative_to(home)
 
@@ -1033,10 +1033,10 @@ def remove_model_copies(data_dir: Path, models_dir: Path) -> int:
     if not model_cache_is_inside_data_dir(data_dir, models_dir):
         raise ValueError("Model cache must be inside the companion data directory")
     cache = models_dir.resolve()
-    if not models_dir.exists():
+    if not cache.exists():
         return 0
     removed = 0
-    for marker in models_dir.glob("*.gguf.opos-copy"):
+    for marker in cache.glob("*.gguf.opos-copy"):
         model = marker.with_name(marker.name[:-len(".opos-copy")])
         if (marker.is_symlink() or not marker.is_file() or model.is_symlink()
                 or not model.is_file()):
@@ -1060,8 +1060,9 @@ def remove_model_copies(data_dir: Path, models_dir: Path) -> int:
             if sidecar.is_file() and not sidecar.is_symlink():
                 sidecar.unlink()
         except OSError as error:
+            copy_word = "copy" if removed == 1 else "copies"
             raise RuntimeError(
-                f"Removed {removed} model copies from {cache}; another copy could not be fully removed"
+                f"Removed {removed} model {copy_word} from {cache}; cleanup could not be completed"
             ) from error
     return removed
 
@@ -2710,7 +2711,7 @@ class Runtime:
                 return None
             try:
                 return vram_used_mb(gpu, self.memory_runner)
-            except (OSError, ValueError, subprocess.SubprocessError, KeyboardInterrupt):
+            except Exception:
                 return None  # A diagnostic must not prevent owned servers from stopping.
 
         before = memory_used()

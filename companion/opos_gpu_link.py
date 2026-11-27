@@ -1545,7 +1545,11 @@ class Companion:
             self.status.set(message)
             print("GPU Link: " + message, flush=True)
             return
-        message = f"Removed model copies from {models_dir} ({removed} file(s))"
+        if removed == 0:
+            message = f"No GPU Link-marked copies found in {models_dir}"
+        else:
+            file_word = "file" if removed == 1 else "files"
+            message = f"Removed model copies from {models_dir} ({removed} {file_word})"
         self.status.set(message)
         print("GPU Link: " + message, flush=True)
 

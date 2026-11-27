@@ -145,7 +145,7 @@ class ModelCopyTests(unittest.TestCase):
                 patch("builtins.print") as printed:
             tk.buttons["Remove model copies"]()
         self.assertFalse(owned.exists())
-        self.assertIn(f"Removed model copies from {self.models} (1 file(s))", tk.messages[-1])
+        self.assertIn(f"Removed model copies from {self.models} (1 file)", tk.messages[-1])
         printed.assert_called_once_with("GPU Link: " + tk.messages[-1], flush=True)
 
     def test_remove_keeps_fake_gpu_load_until_stop_then_samples_after(self):
@@ -160,10 +160,10 @@ class ModelCopyTests(unittest.TestCase):
                                  stop=lambda: (events.append("stop"), loaded.__setitem__(0, False)))
         runtime.servers = [server]
 
+        runners = []
         def used(_gpu, _runner=None):
             events.append("memory")
-            if _runner is not None:
-                self.assertIs(_runner, runtime.memory_runner)
+            runners.append(_runner)
             return 800 if loaded[0] else 100
 
         with patch.object(setup, "vram_used_mb", side_effect=used), patch.object(setup, "say") as log:
@@ -174,6 +174,8 @@ class ModelCopyTests(unittest.TestCase):
             runtime.stop()
             self.assertEqual(setup.vram_used_mb(gpu), 100)
         self.assertEqual(events, ["memory", "memory", "memory", "stop", "memory", "memory"])
+        self.assertEqual(runners[2], runtime.memory_runner)
+        self.assertEqual(runners[3], runtime.memory_runner)
         log.assert_called_once_with("GPU memory used before/after Stop: 800 -> 100 MiB (total GPU use)")
 
     def test_memory_probe_failure_does_not_block_fake_stop(self):
@@ -200,7 +202,8 @@ class ModelCopyTests(unittest.TestCase):
         with patch.object(Path, "unlink", unlink):
             with self.assertRaises(RuntimeError) as error:
                 setup.remove_model_copies(self.data, self.models)
-        self.assertIn("Removed 1 model copies from", str(error.exception))
+        self.assertIn("Removed 1 model copy from", str(error.exception))
+        self.assertIn("cleanup could not be completed", str(error.exception))
         self.assertFalse(owned.exists())
         self.assertTrue(marker.exists())
 
@@ -226,14 +229,12 @@ class ModelCopyTests(unittest.TestCase):
         args = SimpleNamespace(adb="fake-adb", serial="PHONE", key_dir=self.data,
                                always_allow=False, data_dir=self.data, models_dir=self.models)
         app = link.Companion(args, root, tk)
-        failure = RuntimeError(f"Removed 1 model copies from {self.models}; another copy could not be fully removed")
+        failure = RuntimeError(f"Removed 1 model copy from {self.models}; cleanup could not be completed")
         with patch.object(link, "_confirm_remove_model_copies", return_value=True),                 patch.object(setup, "remove_model_copies", side_effect=failure),                 patch("builtins.print") as printed:
             tk.buttons["Remove model copies"]()
         self.assertTrue(owned.exists())
         self.assertEqual(tk.messages[-1], str(failure))
         printed.assert_called_once_with("GPU Link: " + str(failure), flush=True)
-
-
 
 
 if __name__ == "__main__":
