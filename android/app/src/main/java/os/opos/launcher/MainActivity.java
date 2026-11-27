@@ -1312,7 +1312,7 @@ public final class MainActivity extends Activity {
         page.setOrientation(LinearLayout.VERTICAL);
         page.setPadding(dp(16), dp(16), dp(16), dp(12));
         page.setBackgroundColor(themeColor(R.color.newspaper_paper));
-        page.setFitsSystemWindows(true);
+        padForSystemBars(page);
         LinearLayout bar = new LinearLayout(this);
         bar.setGravity(Gravity.CENTER_VERTICAL);
         expandedTitle = newspaperText(article.heading.getText().toString(), 26, true, true);
@@ -4318,8 +4318,27 @@ public final class MainActivity extends Activity {
         root.setPadding(dp(16), dp(12), dp(16), dp(12));
         // Full-screen sheets start below the status bar and end above the navigation bar,
         // like the Info sheet (fitsSystemWindows in gpu_link_info.xml).
-        root.setFitsSystemWindows(true);
+        padForSystemBars(root);
         return root;
+    }
+
+    /**
+     * Keep a full-screen sheet below the status bar and above the navigation bar while keeping
+     * its own padding. (fitsSystemWindows would replace the 16 dp side padding with the insets.)
+     */
+    private static void padForSystemBars(View view) {
+        final int left = view.getPaddingLeft();
+        final int top = view.getPaddingTop();
+        final int right = view.getPaddingRight();
+        final int bottom = view.getPaddingBottom();
+        view.setOnApplyWindowInsetsListener((v, insets) -> {
+            v.setPadding(left + insets.getSystemWindowInsetLeft(),
+                    top + insets.getSystemWindowInsetTop(),
+                    right + insets.getSystemWindowInsetRight(),
+                    bottom + insets.getSystemWindowInsetBottom());
+            return insets;
+        });
+        view.requestApplyInsets();
     }
 
     private Button outlineButton(String label) {
@@ -5413,7 +5432,7 @@ public final class MainActivity extends Activity {
         }
         scroll.addView(page);
         // Keep the Settings title below the status bar (same as the Info sheet).
-        scroll.setFitsSystemWindows(true);
+        padForSystemBars(scroll);
         dialog.setContentView(scroll);
         bindSettingsLists(typeList, preview, themeList);
         applyPaletteToDialog(dialog);
