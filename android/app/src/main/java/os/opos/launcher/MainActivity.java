@@ -1809,7 +1809,10 @@ public final class MainActivity extends Activity {
         JSONObject pc = link == null ? null : link.optJSONObject("pc");
         String label = pcLabel(gpu);
         observeComputer(label, link, pc);
-        setIfChanged(gpuHeading, label.isEmpty() ? pcWords(R.string.gpu_heading) : label);
+        // The lane is "MacBook" everywhere (race, card, summary, history); the full label,
+        // e.g. "M5 Pro MacBook Pro", stays in the byline and in Info.
+        setIfChanged(gpuHeading, label.isEmpty() ? pcWords(R.string.gpu_heading)
+                : ComputerWords.title(ComputerWords.noun(label)));
         long[] heartbeats = PcHeartbeat.afterSnapshot(pc != null,
                 pc != null && pc.optBoolean("live"), gpu.optBoolean("ready"),
                 SystemClock.elapsedRealtime(), lastPcLiveAtMs, lastGoodPcAtMs);
@@ -2698,7 +2701,8 @@ public final class MainActivity extends Activity {
             case "answering":
                 return getString(R.string.streaming);
             case "paused":
-                return pcWords(R.string.gpu_paused);
+                // A phone lane pauses for a backend restart, not for the cable or the computer.
+                return isGpu ? pcWords(R.string.gpu_paused) : getString(R.string.lane_paused);
             case "done":
                 Long duration = answerDurations.get(id);
                 boolean interrupted = isGpu && answerTiming.interrupted(id);
@@ -2729,7 +2733,7 @@ public final class MainActivity extends Activity {
             JSONObject answer = answerOf(snapshot, pane);
             String id = answer == null ? "" : answer.optString("id");
             String shortLabel = "gpu".equals(pane) ? ComputerWords.title(ComputerWords.current()) : "phone".equals(pane)
-                    ? "Phone" : article.heading.getText().toString();
+                    ? getString(R.string.phone_heading) : article.heading.getText().toString();
             boolean included = latestRequestedPanes.isEmpty()
                     ? answer != null && !latestQuestion.isEmpty()
                     && latestQuestion.equals(answer.optString("question"))
@@ -4462,7 +4466,7 @@ public final class MainActivity extends Activity {
 
     private String modelLabel(String pane, JSONObject view) {
         if ("phone".equals(pane)) return getString(R.string.phone_heading);
-        if ("gpu".equals(pane)) return pcWords(R.string.gpu_heading);
+        if ("gpu".equals(pane)) return ComputerWords.title(ComputerWords.current());
         String label = view == null ? "" : view.optString("label").trim();
         return label.isEmpty() ? pane.toUpperCase(Locale.US) : label;
     }

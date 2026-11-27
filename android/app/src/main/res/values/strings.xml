@@ -15,10 +15,10 @@
     <string name="link_lost">%1$s · Link lost; waiting to reconnect</string>
     <string name="cable_disconnected">USB cable disconnected · Waiting for the PC</string>
     <string name="cable_checking">Checking PC connection…</string>
-    <string name="paused_plug_cable">Paused — plug the cable back in</string>
+    <string name="paused_plug_cable">Paused · plug the cable back in</string>
     <string name="cable_reconnecting">%1$s · USB connected; waiting for the PC</string>
     <string name="waiting_for_cable">Waiting for the USB cable</string>
-    <string name="gpu_pausing">Connection lost — pausing…</string>
+    <string name="gpu_pausing">Connection lost · pausing…</string>
     <string name="link_connected">%1$s · GPU connected</string>
     <string name="link_copying">%1$s · Copying model to PC</string>
     <string name="link_loading">%1$s · Loading GPU model</string>
@@ -58,7 +58,8 @@
     <string name="waiting_turn">Waiting for its turn…</string>
     <string name="model_low_memory">Not enough free memory for this model right now.</string>
     <string name="model_start_failed">This model could not start.</string>
-    <string name="gpu_paused">Paused — will continue when the PC is back</string>
+    <string name="lane_paused">Paused</string>
+    <string name="gpu_paused">Paused · resumes when the PC is back</string>
     <string name="gpu_resumed">GPU answer resumed</string>
     <string name="answer_done">Done</string>
     <string name="answer_stopped">Stopped</string>
@@ -141,7 +142,7 @@
     <string name="thinking">Thinking…</string>
     <string name="streaming">Streaming…</string>
     <string name="done_elapsed">Done · %.1f s</string>
-    <string name="pc_paused">Paused — waiting for PC</string>
+    <string name="pc_paused">Paused · resumes when the PC is back</string>
     <string name="pc_getting_ready">Getting the PC GPU ready…</string>
     <string name="connect_to_send">Wait for a model, then tap Send.</string>
     <string name="reconnect">Reconnect</string>
@@ -159,7 +160,7 @@
     <string name="settings_typography">Typography</string>
     <string name="settings_theme">Theme</string>
     <string name="settings_design_lab">Design lab</string>
-    <string name="settings_design_lab_note">Experimental views above the lanes. Off keeps the main screen as it is. Inner screen only.</string>
+    <string name="settings_design_lab_note">Experimental views above the lanes. Off keeps the main screen as it is. Any view other than Off shows the link schematic on the cover screen.</string>
     <string name="settings_theme_dark">Dark (default)</string>
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_system">Follow system</string>

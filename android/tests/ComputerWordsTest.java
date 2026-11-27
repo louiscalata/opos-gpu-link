@@ -56,7 +56,7 @@ public final class ComputerWordsTest {
         equal("MacBook", ComputerWords.current());
         check(!ComputerWords.observe("M5 Pro MacBook Pro"));
         equal("MacBook GPU", PaneKeys.kicker("gpu"));
-        equal("MODEL", PaneKeys.kicker("phone"));
+        equal("PHONE", PaneKeys.kicker("phone"));
         check(ComputerWords.observe("RTX 5080 PC"));
         equal("PC GPU", PaneKeys.kicker("gpu"));
         equal("PC", ComputerWords.noun("RTX 5080 PC"));
