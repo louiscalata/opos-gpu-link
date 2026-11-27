@@ -165,6 +165,9 @@ public final class MainActivity extends Activity {
     private TextView labView;
     private int labTick;
     private final Runnable labTicker = this::tickLab;
+    private final Runnable workingTicker = this::tickWorking;
+    private long workingTick;
+    private boolean workingScheduled;
     private LinearLayout settingsLabList;
     private TextView notesTabLabel;
     private NotesSheet.State notesSheetState = NotesSheet.State.COLLAPSED;
@@ -698,6 +701,8 @@ public final class MainActivity extends Activity {
         float lastTouchY;
         boolean userScrolled, programmaticScroll;
         String lastRenderedState = "";
+        /** Green live line under the state while the lane streams or thinks; GONE otherwise. */
+        TextView working;
 
         PaneViews(String pane, LinearLayout card, TextView kicker, TextView heading,
                   TextView byline,
@@ -992,6 +997,11 @@ public final class MainActivity extends Activity {
         // No inner ScrollView: the card grows with the answer; the page scrolls.
         PaneViews paneView = new PaneViews(pane, card, kicker, heading, byline,
                 stateView, speed, answerView, null);
+        paneView.working = workingLine();
+        int stateIndex = card.indexOfChild(stateView);
+        card.addView(paneView.working, stateIndex >= 0 ? stateIndex + 1 : card.getChildCount(),
+                new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT));
         View.OnClickListener open = view -> {
             if (pane.equals(suppressArticleClick)) {
                 suppressArticleClick = null;
@@ -1441,12 +1451,15 @@ public final class MainActivity extends Activity {
         if (resultsScroll != null) setHeaderCollapse(resultsScroll.getScrollY());
         getSystemService(NotificationManager.class).cancel(LinkWatcherService.LINK_ID);
         tickLab();
+        tickWorking();
     }
 
     @Override
     protected void onPause() {
         resumed = false;
         handler.removeCallbacks(labTicker);
+        handler.removeCallbacks(workingTicker);
+        workingScheduled = false;
         super.onPause();
     }
 
@@ -2642,6 +2655,7 @@ public final class MainActivity extends Activity {
         }
         alignArticleScroll(article, textChanged, reachedDone, reachedPaused);
         updateExpanded(article);
+        updateWorking(article);
     }
 
     private String answerWords(String pane, String state, String id,
@@ -3218,6 +3232,88 @@ public final class MainActivity extends Activity {
         setIfChanged(stateView, text);
         applyTone(stateView);
         if (card != null) applyCardStroke(card, UiPalette.tone(text));
+        for (PaneViews article : paneViews.values()) {
+            if (article.state == stateView) {
+                updateWorking(article);
+                break;
+            }
+        }
+        scheduleWorking();
+    }
+
+    private TextView workingLine() {
+        TextView view = new TextView(this);
+        typography.state(view); // the state slot (S5 face, tabular numbers), same size as above
+        view.setIncludeFontPadding(false);
+        view.setSingleLine(true);
+        view.setEllipsize(TextUtils.TruncateAt.END);
+        view.setPadding(0, dp(2), 0, dp(2));
+        // The state line above already says "Streaming…" or "Thinking…" to TalkBack.
+        view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        view.setVisibility(View.GONE);
+        return view;
+    }
+
+    /** Shows or hides one lane's green working line; it goes the moment the lane stops. */
+    private void updateWorking(PaneViews article) {
+        if (article == null || article.working == null) return;
+        TextView view = article.working;
+        if (!WorkingIndicator.working(article.state.getText())) {
+            if (view.getVisibility() != View.GONE) view.setVisibility(View.GONE);
+            return;
+        }
+        boolean bright = WorkingIndicator.dotBright(workingTick, reduceMotionEnabled);
+        boolean compact = coverMode || compactLayout;
+        String line = WorkingIndicator.line(workingTick, article.words, reduceMotionEnabled,
+                compact);
+        int green = parseHex(palette.ok());
+        String key = line + (bright ? "" : "~") + green;
+        if (!key.equals(view.getTag())) {
+            SpannableStringBuilder styled = new SpannableStringBuilder(line);
+            if (!bright) {
+                styled.setSpan(new ForegroundColorSpan((green & 0x00FFFFFF) | 0x59000000),
+                        0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+            if (!reduceMotionEnabled && line.length() > 2) {
+                // The bar glyph comes from the bundled mono face so its width never jumps.
+                styled.setSpan(new TypefaceSpan(typography.jetbrainsMonoMedium), 2, 3,
+                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+            view.setTextColor(green);
+            view.setText(styled);
+            view.setTag(key);
+        }
+        if (view.getVisibility() != View.VISIBLE) view.setVisibility(View.VISIBLE);
+    }
+
+    private boolean anyWorking() {
+        for (PaneViews article : paneViews.values()) {
+            if (article.working != null && article.working.getVisibility() == View.VISIBLE) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** Animates only while a lane works, the app is in front and motion is allowed. */
+    private void scheduleWorking() {
+        if (!anyWorking()) {
+            handler.removeCallbacks(workingTicker);
+            workingScheduled = false;
+            workingTick = 0; // the next run starts on a bright dot and the first frame
+            return;
+        }
+        if (workingScheduled || !resumed || reduceMotionEnabled) return;
+        workingScheduled = true;
+        handler.postDelayed(workingTicker, WorkingIndicator.TICK_MS);
+    }
+
+    private void tickWorking() {
+        handler.removeCallbacks(workingTicker);
+        workingScheduled = false;
+        if (!reduceMotionEnabled) workingTick++;
+        for (PaneViews article : paneViews.values()) updateWorking(article);
+        scheduleWorking();
     }
 
     private void setQuestionHeadline(TextView view, String fullText) {
@@ -5068,6 +5164,11 @@ public final class MainActivity extends Activity {
             typography.tabular(pane.state);
             typography.tabular(pane.speed);
             typography.body(pane.answer, typography.bodySp());
+            if (pane.working != null) {
+                typography.state(pane.working);
+                pane.working.setTag(null);
+                updateWorking(pane);
+            }
         }
         if (tonightRows != null && tonightTiming != null) {
             fillTonightRows(tonightRows, tonightTiming.getText().toString(), tonightLanes);
