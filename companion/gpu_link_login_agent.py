@@ -21,6 +21,7 @@ import os
 import plistlib
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 LABEL = "os.opos.gpulink.companion"
@@ -63,7 +64,10 @@ def build_plist(args: list[str], companion_dir: Path, log_dir: Path) -> dict:
         # Time to stop the model server(s) cleanly after SIGTERM before launchd kills the job.
         "ExitTimeOut": 30,
         "ProcessType": "Interactive",
-        "EnvironmentVariables": {"PATH": LAUNCHD_PATH, "PYTHONUNBUFFERED": "1"},
+        # Owned llama-servers stay in this job's process group, so launchd stops them with the
+        # job even after a crash (see gpu_link_autosetup.server_session_options).
+        "EnvironmentVariables": {"PATH": LAUNCHD_PATH, "PYTHONUNBUFFERED": "1",
+                                 "OPOS_GPU_LINK_JOB_GROUP": "1"},
         "StandardOutPath": str(log_dir / "companion.out.log"),
         "StandardErrorPath": str(log_dir / "companion.err.log"),
     }
@@ -71,6 +75,23 @@ def build_plist(args: list[str], companion_dir: Path, log_dir: Path) -> dict:
 
 def _launchctl(*args: str) -> subprocess.CompletedProcess:
     return subprocess.run(["launchctl", *args], capture_output=True, text=True)
+
+
+def absolute(path: str | None) -> str | None:
+    """launchd does not expand ~ and the job runs from companion/, so store absolute paths."""
+    return os.path.abspath(os.path.expanduser(path)) if path else path
+
+
+def wait_unloaded(loaded=None, sleep=time.sleep, timeout_s: float = 40.0) -> bool:
+    """bootout returns before the old job (and its model server) has stopped; wait for it."""
+    loaded = loaded or (lambda: _launchctl("print", f"{_domain()}/{LABEL}").returncode == 0)
+    waited = 0.0
+    while loaded():
+        if waited >= timeout_s:
+            return False
+        sleep(0.25)
+        waited += 0.25
+    return True
 
 
 def _domain() -> str:
@@ -97,14 +118,18 @@ def main(argv: list[str] | None = None) -> int:
         return 0
     if a.action == "uninstall":
         _launchctl("bootout", f"{_domain()}/{LABEL}")
+        wait_unloaded()
         if plist_file.exists():
             plist_file.unlink()
         print(f"removed {plist_file}")
         return 0
 
     agent_logs = Path.home() / "Library" / "Logs" / "OPOS GPU Link"
-    args = companion_args(a.python, HERE, port=a.port, model_path=a.model_path,
-                          serial=a.serial, adb=a.adb, log_dir=a.log_dir)
+    # Keep --python as given apart from ~ (a venv python must stay its symlink, not resolve).
+    python = a.python if os.path.isabs(os.path.expanduser(a.python)) else absolute(a.python)
+    args = companion_args(os.path.expanduser(python), HERE, port=a.port,
+                          model_path=absolute(a.model_path), serial=a.serial,
+                          adb=absolute(a.adb), log_dir=absolute(a.log_dir))
     data = plistlib.dumps(build_plist(args, HERE, agent_logs))
     if a.action == "print":
         sys.stdout.write(data.decode())
@@ -113,6 +138,9 @@ def main(argv: list[str] | None = None) -> int:
     agent_logs.mkdir(parents=True, exist_ok=True)
     plist_file.parent.mkdir(parents=True, exist_ok=True)
     _launchctl("bootout", f"{_domain()}/{LABEL}")
+    if not wait_unloaded():
+        print("the previous companion agent did not stop within 40 s; try again", file=sys.stderr)
+        return 1
     plist_file.write_bytes(data)
     print(f"wrote {plist_file}")
     if a.no_start:

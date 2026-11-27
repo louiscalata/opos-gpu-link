@@ -1638,6 +1638,20 @@ def server_command(binary, model_path, port, key_file, alias, backend, ctx=CTX, 
             *generation_flags(model_path, profile, generation_overrides, environ)]  # -lv 4 does not log prompts
 
 
+JOB_GROUP_ENV = "OPOS_GPU_LINK_JOB_GROUP"
+
+
+def server_session_options(environ=None) -> dict:
+    """POSIX Popen options for an owned llama-server. Normally it gets its own session so a
+    terminal Ctrl-C reaches only the companion, which then stops it cleanly. Under the login
+    agent (OPOS_GPU_LINK_JOB_GROUP=1) it stays in the launchd job's process group, so even a
+    crash or SIGKILL of the companion lets launchd stop the server instead of orphaning it."""
+    environ = os.environ if environ is None else environ
+    if environ.get(JOB_GROUP_ENV) == "1":
+        return {}
+    return {"start_new_session": True}
+
+
 def launch_llama_server(binary, model_path, port, env, log_dir: Path, backend, key_file, alias=ALIAS, ctx=CTX,
                         profile=None, device=None):
     if port in LAUNCH_FORBIDDEN:
@@ -1647,7 +1661,7 @@ def launch_llama_server(binary, model_path, port, env, log_dir: Path, backend, k
     cmd = server_command(binary, model_path, port, key_file, alias, backend, ctx, profile, device)
     model_size = Path(model_path).stat().st_size
     log = log_path.open("wb")
-    kwargs = {"creationflags": 0x08000000} if os.name == "nt" else {"start_new_session": True}
+    kwargs = {"creationflags": 0x08000000} if os.name == "nt" else server_session_options()
     kwargs["cwd"] = os.getcwd()
     try:
         process = subprocess.Popen(cmd, stdout=log, stderr=subprocess.STDOUT, env=env, **kwargs)

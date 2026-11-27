@@ -52,6 +52,26 @@ class LoginAgentTest(unittest.TestCase):
         finally:
             signal.signal(signal.SIGTERM, previous)
 
+    def test_servers_stay_in_the_launchd_job_group(self):
+        import gpu_link_autosetup as autosetup
+        plist = agent.build_plist(["py"], Path("/c"), Path("/logs"))
+        self.assertEqual(plist["EnvironmentVariables"][autosetup.JOB_GROUP_ENV], "1")
+        self.assertEqual(autosetup.server_session_options({autosetup.JOB_GROUP_ENV: "1"}), {})
+        self.assertEqual(autosetup.server_session_options({}), {"start_new_session": True})
+
+    def test_paths_are_absolute_for_launchd(self):
+        import os
+        self.assertEqual(agent.absolute("~/m.gguf"), os.path.expanduser("~/m.gguf"))
+        self.assertTrue(os.path.isabs(agent.absolute("rel/m.gguf")))
+        self.assertIsNone(agent.absolute(None))
+
+    def test_waits_for_the_old_job_to_unload(self):
+        states = iter([True, True, False])
+        sleeps = []
+        self.assertTrue(agent.wait_unloaded(lambda: next(states), sleeps.append))
+        self.assertEqual(len(sleeps), 2)
+        self.assertFalse(agent.wait_unloaded(lambda: True, lambda _s: None, timeout_s=1))
+
     def test_agent_lives_in_the_user_library(self):
         self.assertEqual(agent.agent_path(Path("/Users/me")),
                          Path("/Users/me/Library/LaunchAgents/os.opos.gpulink.companion.plist"))
