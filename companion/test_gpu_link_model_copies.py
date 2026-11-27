@@ -196,7 +196,7 @@ class ModelCopyTests(unittest.TestCase):
         marker = setup._model_copy_marker(owned)
         original = Path.unlink
         def unlink(path):
-            if path == marker:
+            if Path(path).resolve() == marker.resolve():
                 raise OSError("fixture marker cleanup failure")
             return original(path)
         with patch.object(Path, "unlink", unlink):
