@@ -45,7 +45,7 @@ def _ngl():
 def _threads():
     """CPU threads for the judge (default 2), so a check never takes every core."""
     value = os.environ.get("OPOS_GPU_LINK_SALAD_THREADS", "2").strip()
-    return value if value.isascii() and value.isdigit() and value != "0" else "2"
+    return str(int(value)) if value.isascii() and value.isdigit() and int(value) > 0 else "2"
 
 
 def _find_binary(runtime_dir):
@@ -90,8 +90,8 @@ class PerplexityJudge:
         # An env var that is set, even to "", is the operator's choice; only unset ones are discovered.
         if binary is None and runtime_dir:
             binary = _find_binary(runtime_dir)
-        if not binary:
-            return None  # no judge without a binary; skip hashing the model
+        if not binary or not os.path.isfile(binary) or not os.access(binary, os.X_OK):
+            return None  # no judge without a usable binary; skip hashing the model
         if model is None and runtime_dir:
             model = _pinned_model(runtime_dir)
         if binary and model and os.path.isfile(binary) and os.path.isfile(model):
@@ -167,7 +167,8 @@ def warm():
 
 
 def set_default_judge(judge):
-    _DEFAULT["j"] = judge
+    with _DEFAULT_LOCK:
+        _DEFAULT["j"] = judge
 
 
 class BackgroundSalad:

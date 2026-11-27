@@ -15,7 +15,8 @@ import gpu_link_salad as salad
 
 def _env(**values):
     env = {k: v for k, v in os.environ.items() if k not in ("OPOS_GPU_LINK_SALAD_BIN", "OPOS_GPU_LINK_SALAD_MODEL",
-                                                            "OPOS_GPU_LINK_SALAD_NGL", "OPOS_GPU_LINK_SALAD")}
+                                                            "OPOS_GPU_LINK_SALAD_NGL", "OPOS_GPU_LINK_SALAD_THREADS",
+                                                            "OPOS_GPU_LINK_SALAD")}
     env.update(values)
     return patch.dict(os.environ, env, clear=True)
 
@@ -137,6 +138,17 @@ class SaladDefaultJudge(unittest.TestCase):
         with _env(OPOS_GPU_LINK_SALAD_NGL="all"), patch.object(salad.subprocess, "run", fake_run):
             judge.ppl("x" * 50)
         self.assertEqual(seen["argv"][seen["argv"].index("-ngl") + 1], "0")
+
+    def test_thread_count_falls_back_to_two(self):
+        for raw, want in (("0", "2"), ("00", "2"), ("x", "2"), ("4", "4"), ("04", "4")):
+            with _env(OPOS_GPU_LINK_SALAD_THREADS=raw):
+                self.assertEqual(salad._threads(), want, raw)
+
+    def test_unusable_env_binary_skips_hashing_the_model(self):
+        with self.pin(b"gguf judge"), _env(OPOS_GPU_LINK_SALAD_BIN="/nonexistent/llama-perplexity"), \
+                patch.object(salad, "_pinned_model") as pinned:
+            self.assertIsNone(salad.PerplexityJudge.from_env(str(self.runtime)))
+        pinned.assert_not_called()
 
     def test_pin_matches_the_downloaded_judge(self):
         self.assertEqual(salad.PINNED_MODEL, "SmolLM2-135M-Instruct-Q8_0.gguf")
