@@ -400,18 +400,55 @@ class LinkApi:
                     answers.fail(job.ident, "worker_start")
 
     def cancel(self, ident: Any) -> None:
+        """Stop one answer. Unknown ids are refused so a stale tap cannot hide a miss."""
+        self.cancel_many([ident], missing="error")
+
+    def cancel_many(self, idents: list[str], *, missing: str = "skip") -> None:
+        """Set every targeted cancel flag, then tear down. Already-ended answers are skipped."""
+        if missing not in ("error", "skip"):
+            raise ValueError("missing must be error or skip")
         answers = self._answers()
-        answer = answers.get(ident) if isinstance(ident, str) else None
-        if answer is None:
+        items: list[tuple[str, dict, object | None]] = []
+        seen: set[str] = set()
+        for ident in idents:
+            if not isinstance(ident, str) or not ident:
+                if missing == "error":
+                    raise ValueError("That answer was not found.")
+                continue
+            if ident in seen:
+                continue
+            seen.add(ident)
+            answer = answers.get(ident)
+            if answer is None:
+                if missing == "error":
+                    raise ValueError("That answer was not found.")
+                continue
+            items.append((ident, answer, self.workers.get(ident)))
+        if not items and missing == "error":
             raise ValueError("That answer was not found.")
-        job = self.workers.get(ident)
-        if job is not None:
-            job.call.cancel()
+        for _, _, job in items:
+            if job is not None:
+                job.call.cancel()
         link = self._link()
-        if answer["pane"] in ai_answers.PC_PANES and link is not None:
-            link.cancel(ident)
-        else:
-            answers.cancel(ident)
+        first_error: BaseException | None = None
+        for ident, answer, job in items:
+            try:
+                current = answers.get(ident) or answer
+                if current["state"] in ai_answers.FINAL:
+                    if missing == "error":
+                        answers.cancel(ident)
+                elif current["pane"] in ai_answers.PC_PANES and link is not None:
+                    link.cancel(ident)
+                else:
+                    answers.cancel(ident)
+            except ai_answers.StateError:
+                if missing == "error":
+                    raise
+            except Exception as exc:
+                if first_error is None:
+                    first_error = exc
+        if first_error is not None:
+            raise first_error
 
     def retry(self, data: dict) -> None:
         pane = data.get("pane")
@@ -463,7 +500,13 @@ class LinkApi:
                 if action == "ask":
                     self.ask(data)
                 elif action == "cancel":
-                    self.cancel(data.get("id"))
+                    ids = data.get("ids")
+                    if ids is None:
+                        self.cancel(data.get("id"))
+                    elif isinstance(ids, list) and ids and all(isinstance(item, str) and item for item in ids):
+                        self.cancel_many(ids)
+                    else:
+                        raise ValueError("Choose which answers to stop.")
                 elif action == "retry":
                     self.retry(data)
                 elif action in LINK_ACTIONS:
