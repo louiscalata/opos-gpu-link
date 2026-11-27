@@ -2356,6 +2356,7 @@ public final class MainActivity extends Activity {
         if (body != null) body.setPadding(pad, pad, pad, pad);
         View actions = findViewById(R.id.pairing_actions);
         if (actions != null) actions.setPadding(pad, dp(coverMode ? 4 : 8), pad, pad);
+        layoutPairingForScreen(codeLabel, disclosure, actions);
         if (pairingClosed != null) {
             TextView closedHeader = findViewById(R.id.pairing_closed_header);
             TextView closedText = findViewById(R.id.pairing_closed_text);
@@ -2363,6 +2364,36 @@ public final class MainActivity extends Activity {
             if (closedText != null) typography.body(closedText, typography.bodySp());
             if (reopen != null) typography.retry(reopen);
         }
+    }
+
+    /** Cover: tighter gaps and Allow / Not now in one row so nothing runs under the buttons. */
+    private void layoutPairingForScreen(TextView codeLabel, TextView disclosure, View actions) {
+        int gap = dp(PairingPrompt.gapDp(coverMode));
+        setTopMargin(codeLabel, coverMode ? gap : dp(24));
+        setTopMargin(disclosure, gap);
+        if (!(actions instanceof LinearLayout) || allow == null || deny == null) return;
+        boolean row = PairingPrompt.actionsSideBySide(coverMode);
+        ((LinearLayout) actions).setOrientation(row ? LinearLayout.HORIZONTAL : LinearLayout.VERTICAL);
+        LinearLayout.LayoutParams allowParams = row
+                ? new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                : new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT);
+        LinearLayout.LayoutParams denyParams = row
+                ? new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                : new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT);
+        if (row) denyParams.leftMargin = dp(8);
+        else denyParams.topMargin = dp(8);
+        allow.setLayoutParams(allowParams);
+        deny.setLayoutParams(denyParams);
+    }
+
+    private static void setTopMargin(View view, int px) {
+        if (view == null || !(view.getLayoutParams() instanceof ViewGroup.MarginLayoutParams)) return;
+        ViewGroup.MarginLayoutParams params = (ViewGroup.MarginLayoutParams) view.getLayoutParams();
+        if (params.topMargin == px) return;
+        params.topMargin = px;
+        view.setLayoutParams(params);
     }
 
     private void applyPairingCountdownTone() {

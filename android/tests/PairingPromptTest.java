@@ -53,9 +53,10 @@ public final class PairingPromptTest {
         check(PairingPrompt.codeSizeSp(false) > PairingPrompt.codeSizeSp(true));
         check(PairingPrompt.codeSizeSp(false) >= 48);
         check(PairingPrompt.allowMinHeightDp(false) > PairingPrompt.denyMinHeightDp(false));
-        check(PairingPrompt.allowMinHeightDp(true) > PairingPrompt.denyMinHeightDp(true));
+        // Side by side on the cover, so the two buttons share one height.
+        check(PairingPrompt.allowMinHeightDp(true) == PairingPrompt.denyMinHeightDp(true));
         check(PairingPrompt.allowMinHeightDp(true) >= 48);
-        check(PairingPrompt.denyMinHeightDp(true) >= 44);
+        check(PairingPrompt.denyMinHeightDp(true) >= 48);
         check(PairingPrompt.paddingDp(false) > PairingPrompt.paddingDp(true));
 
         check(PairingPrompt.showModal(true));
@@ -68,6 +69,12 @@ public final class PairingPromptTest {
         // 7 glyphs * 0.7 em is a conservative width for tabular figures.
         double coverCodeDp = 7 * 0.7 * PairingPrompt.codeSizeSp(true);
         check(coverCodeDp < 374);
+        // Every pairing button is a 48 dp touch target, inner and cover.
+        check(PairingPrompt.denyMinHeightDp(true) >= 48 && PairingPrompt.denyMinHeightDp(false) >= 48);
+        check(PairingPrompt.allowMinHeightDp(true) >= 48);
+        // Cover: buttons in one row and tight gaps so the disclosure clears the buttons.
+        check(PairingPrompt.actionsSideBySide(true) && !PairingPrompt.actionsSideBySide(false));
+        check(PairingPrompt.gapDp(true) < PairingPrompt.gapDp(false));
 
         System.out.println("PairingPromptTest: OK");
     }
