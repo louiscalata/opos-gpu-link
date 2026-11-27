@@ -10,12 +10,21 @@ public final class WorkingIndicatorTest {
                 "Ready to ask", "Not asked this time", "streaming"}) {
             check(!WorkingIndicator.working(s), "not working: " + s);
         }
-        equal("● ▁ Working…", WorkingIndicator.line(0, 0, false));
-        equal("● ▂ Working… · 1 word", WorkingIndicator.line(1, 1, false));
-        equal("● ▁ Working… · 312 words", WorkingIndicator.line(WorkingIndicator.SPINNER.length(), 312, false));
-        equal("● ▂ Working…", WorkingIndicator.line(-WorkingIndicator.SPINNER.length() + 1, -4, false));
-        equal("● Working… · 684 words", WorkingIndicator.line(7, 684, true));
-        equal("● Working…", WorkingIndicator.line(3, 0, true));
+        equal("● ▁ Working…", WorkingIndicator.line(0, 0, false, false));
+        equal("● ▂ Working… · 1 word", WorkingIndicator.line(1, 1, false, false));
+        equal("● ▁ Working… · 312 words", WorkingIndicator.line(WorkingIndicator.SPINNER.length(), 312, false, false));
+        equal("● ▂ Working…", WorkingIndicator.line(-WorkingIndicator.SPINNER.length() + 1, -4, false, false));
+        equal("● Working… · 684 words", WorkingIndicator.line(7, 684, true, false));
+        equal("● Working…", WorkingIndicator.line(3, 0, true, false));
+        equal("● ▃ 1234 words", WorkingIndicator.line(2, 1234, false, true));
+        equal("● 1 word", WorkingIndicator.line(2, 1, true, true));
+        equal("● ▃ Working…", WorkingIndicator.line(2, 0, false, true));
+        String extreme = WorkingIndicator.line(Long.MIN_VALUE, 0, false, false);
+        check(WorkingIndicator.SPINNER.indexOf(extreme.charAt(2)) >= 0, "any long tick is a frame");
+        for (String s : new String[] {"Streaming paused", "Streaming failed", "Thinking stopped",
+                "Streaming… paused"}) {
+            check(!WorkingIndicator.working(s), "qualified label is not live: " + s);
+        }
         // Every frame is one character and different from the next, so the bar visibly moves.
         String sp = WorkingIndicator.SPINNER;
         for (int i = 0; i < sp.length(); i++) {

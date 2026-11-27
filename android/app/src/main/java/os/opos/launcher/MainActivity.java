@@ -998,7 +998,10 @@ public final class MainActivity extends Activity {
         PaneViews paneView = new PaneViews(pane, card, kicker, heading, byline,
                 stateView, speed, answerView, null);
         paneView.working = workingLine();
-        card.addView(paneView.working, card.indexOfChild(stateView) + 1);
+        int stateIndex = card.indexOfChild(stateView);
+        card.addView(paneView.working, stateIndex >= 0 ? stateIndex + 1 : card.getChildCount(),
+                new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT));
         View.OnClickListener open = view -> {
             if (pane.equals(suppressArticleClick)) {
                 suppressArticleClick = null;
@@ -3240,10 +3243,9 @@ public final class MainActivity extends Activity {
 
     private TextView workingLine() {
         TextView view = new TextView(this);
-        view.setTypeface(typography.jetbrainsMonoMedium);
-        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, typography.labelSp() + 2);
+        typography.state(view); // the state slot (S5 face, tabular numbers), same size as above
         view.setIncludeFontPadding(false);
-        view.setMaxLines(1);
+        view.setSingleLine(true);
         view.setPadding(0, dp(2), 0, dp(2));
         // The state line above already says "Streaming…" or "Thinking…" to TalkBack.
         view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
@@ -3260,14 +3262,21 @@ public final class MainActivity extends Activity {
             return;
         }
         boolean bright = WorkingIndicator.dotBright(workingTick, reduceMotionEnabled);
-        String line = WorkingIndicator.line(workingTick, article.words, reduceMotionEnabled);
-        String key = line + (bright ? "" : "~");
+        boolean compact = coverMode || compactLayout;
+        String line = WorkingIndicator.line(workingTick, article.words, reduceMotionEnabled,
+                compact);
+        int green = parseHex(palette.ok());
+        String key = line + (bright ? "" : "~") + green;
         if (!key.equals(view.getTag())) {
-            int green = parseHex(palette.ok());
             SpannableStringBuilder styled = new SpannableStringBuilder(line);
             if (!bright) {
                 styled.setSpan(new ForegroundColorSpan((green & 0x00FFFFFF) | 0x59000000),
                         0, 1, Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            }
+            if (!reduceMotionEnabled && line.length() > 2) {
+                // The bar glyph comes from the bundled mono face so its width never jumps.
+                styled.setSpan(new TypefaceSpan(typography.jetbrainsMonoMedium), 2, 3,
+                        Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             }
             view.setTextColor(green);
             view.setText(styled);
@@ -3287,7 +3296,12 @@ public final class MainActivity extends Activity {
 
     /** Animates only while a lane works, the app is in front and motion is allowed. */
     private void scheduleWorking() {
-        if (workingScheduled || !resumed || reduceMotionEnabled || !anyWorking()) return;
+        if (!anyWorking()) {
+            handler.removeCallbacks(workingTicker);
+            workingScheduled = false;
+            return;
+        }
+        if (workingScheduled || !resumed || reduceMotionEnabled) return;
         workingScheduled = true;
         handler.postDelayed(workingTicker, WorkingIndicator.TICK_MS);
     }
@@ -5148,6 +5162,11 @@ public final class MainActivity extends Activity {
             typography.tabular(pane.state);
             typography.tabular(pane.speed);
             typography.body(pane.answer, typography.bodySp());
+            if (pane.working != null) {
+                typography.state(pane.working);
+                pane.working.setTag(null);
+                updateWorking(pane);
+            }
         }
         if (tonightRows != null && tonightTiming != null) {
             fillTonightRows(tonightRows, tonightTiming.getText().toString(), tonightLanes);

@@ -13,25 +13,37 @@ final class WorkingIndicator {
 
     private WorkingIndicator() {}
 
-    /** True only for the live lane labels "Streaming…" and "Thinking…". */
+    static final String STREAMING = "Streaming…";
+    static final String THINKING = "Thinking…";
+
+    /** True only for the exact live lane labels "Streaming…" and "Thinking…". */
     static boolean working(CharSequence stateWords) {
         if (stateWords == null) return false;
         String s = stateWords.toString().trim();
-        return s.startsWith("Streaming") || s.startsWith("Thinking");
+        return STREAMING.equals(s) || THINKING.equals(s);
     }
 
-    /** "● ▃ Working… · 312 words"; with reduced motion "● Working… · 312 words". */
-    static String line(long tick, int words, boolean reducedMotion) {
+    /**
+     * "● ▃ Working… · 312 words"; with reduced motion "● Working… · 312 words". Compact (cover
+     * screen, narrow columns) drops "Working…" once words arrive: "● ▃ 312 words".
+     */
+    static String line(long tick, int words, boolean reducedMotion, boolean compact) {
         int w = Math.max(0, words);
         StringBuilder sb = new StringBuilder("● ");
-        if (reducedMotion) sb.append("Working…");
-        else sb.append(SPINNER.charAt(Math.floorMod(tick, SPINNER.length()))).append(" Working…");
+        if (!reducedMotion) sb.append(SPINNER.charAt(index(tick, SPINNER.length()))).append(' ');
+        if (w > 0 && compact) return sb.append(w).append(w == 1 ? " word" : " words").toString();
+        sb.append("Working…");
         if (w > 0) sb.append(" · ").append(w).append(w == 1 ? " word" : " words");
         return sb.toString();
     }
 
     /** The dot pulses about once a second (bright 4 ticks, dim 4); steady with reduced motion. */
     static boolean dotBright(long tick, boolean reducedMotion) {
-        return reducedMotion || Math.floorMod(tick, 8) < 4;
+        return reducedMotion || index(tick, 8) < 4;
+    }
+
+    /** floorMod for a long tick without the API 31 Math.floorMod(long, int) overload. */
+    private static int index(long tick, int n) {
+        return (int) Math.floorMod(tick, (long) n);
     }
 }
