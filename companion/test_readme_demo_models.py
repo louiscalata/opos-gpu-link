@@ -40,7 +40,7 @@ class DemoModelReadmeTest(unittest.TestCase):
                 self.assertEqual(row[3], f"{size / 1_000_000_000:.2f} GB ({size:,} bytes)")
                 self.assertEqual(row[4], f"`{digest}`")
                 self.assertIn(license_name, row[5])
-        self.assertIn("on this MacBook on 27 Nov 2026 (America/Los_Angeles)", self.section)
+        self.assertIn("on the demo MacBook on 27 Nov 2026 (America/Los_Angeles)", self.section)
 
     def test_gemma_comparison_has_size_but_no_invented_digest(self):
         self.assertEqual(len(self.rows), 5)
@@ -49,7 +49,7 @@ class DemoModelReadmeTest(unittest.TestCase):
         self.assertEqual(row[3], "14.44 GB (14,439,363,584 bytes)")
         self.assertEqual(row[4], "Not recorded")
         self.assertIn("Apache-2.0", row[5])
-        self.assertIsNone(re.search(r"\b[0-9a-f]{64}\b", " | ".join(row)))
+        self.assertIsNone(re.search(r"\b[0-9a-f]{64}\b", " | ".join(row), flags=re.IGNORECASE))
         self.assertIn("Gemma's SHA-256 was not recorded while LM Studio was serving it.", self.section)
 
 

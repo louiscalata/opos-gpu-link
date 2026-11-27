@@ -33,7 +33,7 @@ Build the app yourself with `android/scripts/build-debug-apk.sh`.
 
 ## Models in the demo
 
-The Dec 10 2026 demo runs three NVIDIA models as local GGUF files. Sizes and recorded SHA-256 values are from files on this MacBook on 27 Nov 2026 (America/Los_Angeles).
+The Dec 10 2026 demo runs three NVIDIA models as local GGUF files, plus two comparison baselines. Sizes and recorded SHA-256 values were computed with `shasum -a 256` from files on the demo MacBook on 27 Nov 2026 (America/Los_Angeles).
 
 | Where | Model | File | Size | SHA-256 | License |
 | --- | --- | --- | --- | --- | --- |
@@ -45,7 +45,7 @@ The Dec 10 2026 demo runs three NVIDIA models as local GGUF files. Sizes and rec
 
 LFM2 is shown as "LFM2 1.2B (baseline)"; Gemma is a measured baseline and rollback. Gemma's SHA-256 was not recorded while LM Studio was serving it.
 
-Nemotron 3.5 Bolt E4B is post-trained by NVIDIA from Google's Gemma 4 E4B, so Gemma's terms also apply. On this MacBook, Bolt runs on Apple's GPU through Metal, not on an NVIDIA GPU. Any other local GGUF works too; the companion picks one that fits your GPU.
+Nemotron 3.5 Bolt E4B is post-trained by NVIDIA from Google's Gemma 4 E4B, so Gemma's terms also apply. On a MacBook, Bolt runs on Apple's GPU through Metal, not on an NVIDIA GPU. Any other local GGUF works too; the companion picks one that fits your GPU.
 
 ## Supported platforms
 
