@@ -80,7 +80,7 @@ When USB disconnects, every open computer lane changes to **paused** after the l
 
 ## Verification for this delivery
 
-See `../delivery/RECEIPT.md` for the exact test results and remaining native checks. The fake LM Studio HTTP test binds an ephemeral loopback port when the host permits it. The Windows test run, USB unplug/replug, real LM Studio loading, and device rendering remain operator checks.
+Host tests and the public unit suites are documented in this repository (`companion/README.md` Isolated tests, and `android/scripts/run-host-tests.sh`). The fake LM Studio HTTP test binds an ephemeral loopback port when the host permits it. The Windows test run, USB unplug/replug, real LM Studio loading, and device rendering remain operator checks.
 
 ## LM Studio note: preload extra computer models
 LM Studio's just-in-time loading keeps only one auto-loaded model at a time. If two extra models (for example `qwen/qwen3-4b` and `lfm3-1.7b`) are both cold when a question arrives, loading one can evict the other and one lane fails. Before a demo load them explicitly (`lms load qwen/qwen3-4b`, `lms load lfm3-1.7b`); explicitly loaded models stay resident next to the lead model. Check with `lms ps`.
