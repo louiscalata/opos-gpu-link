@@ -27,6 +27,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
+import android.os.PowerManager;
 import android.os.SystemClock;
 import android.text.Editable;
 import android.text.Layout;
@@ -168,6 +169,10 @@ public final class MainActivity extends Activity {
     private final Runnable workingTicker = this::tickWorking;
     private long workingTick;
     private boolean workingScheduled;
+    private TextView heatMeter;
+    private PowerManager.OnThermalStatusChangedListener heatListener;
+    private boolean heatRegistered;
+    private int heatStatus = -1;
     private LinearLayout settingsLabList;
     private TextView notesTabLabel;
     private NotesSheet.State notesSheetState = NotesSheet.State.COLLAPSED;
@@ -777,6 +782,17 @@ public final class MainActivity extends Activity {
         status.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
         header.addView(status, 1, new LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        heatMeter = newspaperText("", 13, false, false);
+        heatMeter.setSingleLine(true);
+        heatMeter.setGravity(Gravity.CENTER_VERTICAL);
+        heatMeter.setPadding(dp(4), 0, dp(8), 0);
+        heatMeter.setVisibility(View.GONE);
+        int heatIndex = info != null && info.getParent() == header
+                ? header.indexOfChild(info) : header.getChildCount();
+        LinearLayout.LayoutParams heatParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        heatParams.gravity = Gravity.CENTER_VERTICAL;
+        header.addView(heatMeter, heatIndex, heatParams);
         info.setLayoutParams(new LinearLayout.LayoutParams(dp(52), dp(48)));
         header.setPadding(dp(12), dp(2), dp(12), dp(4));
         bigMasthead = newspaperText(getString(R.string.app_name) + " ⌄", 34, true, true);
@@ -1452,11 +1468,13 @@ public final class MainActivity extends Activity {
         getSystemService(NotificationManager.class).cancel(LinkWatcherService.LINK_ID);
         tickLab();
         tickWorking();
+        startHeatMeter();
     }
 
     @Override
     protected void onPause() {
         resumed = false;
+        stopHeatMeter();
         handler.removeCallbacks(labTicker);
         handler.removeCallbacks(workingTicker);
         workingScheduled = false;
@@ -2897,6 +2915,63 @@ public final class MainActivity extends Activity {
             updateInfoPcRows(infoDialog, gpu, connection);
         }
         applyErrorView();
+    }
+
+    /** Phone heat: listens only while the app is in front; Android calls back on change. */
+    private void startHeatMeter() {
+        if (heatMeter == null) return;
+        PowerManager power = getSystemService(PowerManager.class);
+        if (power == null) {
+            showHeat(-1);
+            return;
+        }
+        int current = -1;
+        try {
+            current = power.getCurrentThermalStatus();
+        } catch (RuntimeException ignored) {
+            // No reading: the meter stays hidden.
+        }
+        showHeat(current);
+        if (heatRegistered) return;
+        try {
+            if (heatListener == null) {
+                // A callback queued just before onPause() must not touch the view afterwards.
+                heatListener = status -> {
+                    if (heatRegistered) showHeat(status);
+                };
+            }
+            power.addThermalStatusListener(getMainExecutor(), heatListener);
+            heatRegistered = true;
+        } catch (RuntimeException ignored) {
+            // No change callbacks on this device: the reading above refreshes on resume.
+        }
+    }
+
+    private void stopHeatMeter() {
+        if (!heatRegistered) return;
+        heatRegistered = false;
+        PowerManager power = getSystemService(PowerManager.class);
+        if (power == null || heatListener == null) return;
+        try {
+            power.removeThermalStatusListener(heatListener);
+        } catch (RuntimeException ignored) {
+            // Already gone.
+        }
+    }
+
+    /** Green while cool (0–1), red from warm (2) up; hidden when Android reports nothing. */
+    private void showHeat(int status) {
+        heatStatus = status;
+        if (heatMeter == null) return;
+        if (!HeatMeter.known(status)) {
+            heatMeter.setVisibility(View.GONE);
+            return;
+        }
+        heatMeter.setTypeface(typography.jetbrainsMonoMedium);
+        setIfChanged(heatMeter, HeatMeter.label(status, coverMode || compactLayout));
+        heatMeter.setTextColor(parseHex(HeatMeter.cool(status) ? palette.ok() : palette.error()));
+        heatMeter.setContentDescription(HeatMeter.description(status));
+        heatMeter.setVisibility(View.VISIBLE);
     }
 
     private String labMode() {
@@ -4910,6 +4985,7 @@ public final class MainActivity extends Activity {
         applyPaletteToPage();
         applyTypographyToPage();
         applyErrorView();
+        showHeat(heatStatus); // the meter's green or red follows the new theme
     }
 
     private void applySystemBars() {
