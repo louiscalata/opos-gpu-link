@@ -16,6 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gpu_link_autosetup as a  # noqa: E402
 
 SMI_3080TI = "NVIDIA GeForce RTX 3080 Ti, 12288, 4229, 610.60\n"
+SMI_OLD_DRIVER = "NVIDIA GeForce RTX 3080 Ti, 12288, 4229, 528.49\n"
 NAMES = "NVIDIA GeForce RTX 3080 Ti\nMicrosoft Basic Render Driver\nAMD Radeon RX 5700 XT\n"
 MEMORY_JSON = json.dumps([
     {"name": "NVIDIA GeForce RTX 3080 Ti", "total_mb": 12086, "used_mb": 8062},
@@ -254,7 +255,7 @@ class ForcedPinning(unittest.TestCase):
 
 
 class OldNvidiaDriver(unittest.TestCase):
-    """Driver < 580 on Windows must get the CUDA 12.4 build; < 551 the Vulkan build."""
+    """Driver < 580 on Windows uses CUDA 12.4; < 550 uses Vulkan."""
 
     def detect(self, driver, system="Windows", environ=None):
         smi = f"NVIDIA GeForce RTX 3080 Ti, 12288, 4229, {driver}\n"
@@ -279,6 +280,63 @@ class OldNvidiaDriver(unittest.TestCase):
         gpu = self.detect("535.98")
         self.assertEqual((gpu["backend"], gpu["vendor"], gpu["cuda_variant"]), ("vulkan", "NVIDIA", None))
         self.assertEqual(a.llama_asset("Windows", "AMD64", gpu)[0], "win-vulkan-x64.zip")
+
+    def test_old_driver_note_uses_recorded_nvidia_description(self):
+        gpu = a.detect_gpu(windows_runner(smi=SMI_OLD_DRIVER), "Windows", "AMD64", which_smi,
+                           only="auto", environ={})
+        self.assertEqual((gpu["backend"], gpu["vendor"]), ("vulkan", "NVIDIA"))
+        self.assertIn("NVIDIA driver older than CUDA 12.4", a.gpu_note(gpu))
+        self.assertIn("using Vulkan", a.gpu_note(gpu))
+
+    def test_linux_driver_notes_distinguish_cuda_12_4_from_the_packed_12_8_build(self):
+        old = self.detect("535.98", system="Linux")
+        self.assertEqual(old["backend"], "vulkan")
+        self.assertIn("NVIDIA driver older than CUDA 12.4", a.gpu_note(old))
+        for driver in ("550.0", "560.35", "569.99"):
+            with self.subTest(driver=driver):
+                middle = self.detect(driver, system="Linux")
+                self.assertEqual((middle["backend"], middle["cuda_variant"]), ("vulkan", None))
+                note = a.gpu_note(middle)
+                self.assertIn("Linux CUDA 12.8 build", note)
+                self.assertNotIn("NVIDIA driver older than CUDA 12.4", note)
+        self.assertNotIn("NVIDIA driver older than CUDA 12.4", a.gpu_note(self.detect("550.0")))
+        boundary = self.detect("549.99", system="Linux")
+        self.assertEqual(boundary["backend"], "vulkan")
+        self.assertIn("NVIDIA driver older than CUDA 12.4", a.gpu_note(boundary))
+        packed = self.detect("570.0", system="Linux")
+        self.assertEqual((packed["backend"], packed["cuda_variant"]), ("cuda", "ubuntu-cuda-12.8-x64"))
+        packed_note = a.gpu_note(packed)
+        self.assertNotIn("NVIDIA driver older than CUDA 12.4", packed_note)
+        self.assertNotIn("Linux CUDA 12.8 build", packed_note)
+        self.assertEqual(a.gpu_note({"vendor": "NVIDIA", "backend": "vulkan"}), "")
+
+    def test_old_driver_note_reaches_detect_output_and_startup(self):
+        gpu = a.detect_gpu(windows_runner(smi=SMI_OLD_DRIVER), "Windows", "AMD64", which_smi,
+                           only="auto", environ={})
+        args = SimpleNamespace(gpu="auto", budget_mb=None, own_server=True, runtime_dir=Path("/fixture"),
+                               detect_only=True, prefetch=False, json=False)
+        with patch.object(a, "detect_gpu", return_value=gpu), \
+                patch.object(a, "gpu_profile", return_value=None), \
+                patch.object(a, "no_avx_mac_without_profile", return_value=False), \
+                patch.object(a, "find_llama_server", return_value=None), \
+                patch.object(a, "llama_asset", return_value=("win-vulkan-x64.zip", None)), \
+                patch.object(a, "choose_models", return_value=({"choice": "local"}, [])):
+            info = a.plan(args)
+        self.assertIn("NVIDIA driver older than CUDA 12.4", info["gpu"]["note"])
+        detect_output = io.StringIO()
+        with patch.object(a, "plan", return_value=info), \
+                patch.object(a, "install_term_handler", return_value=True), \
+                contextlib.redirect_stdout(detect_output):
+            self.assertEqual(a.run(args), 0)
+        self.assertIn("GPU Link: NVIDIA driver older than CUDA 12.4", detect_output.getvalue())
+        args.detect_only = False
+        startup_output = io.StringIO()
+        with patch.object(a, "plan", return_value=info), \
+                patch.object(a, "install_term_handler", return_value=True), \
+                patch.object(a, "start_runtime", side_effect=RuntimeError("fixture stop")), \
+                contextlib.redirect_stdout(startup_output):
+            self.assertEqual(a.run(args), 2)
+        self.assertIn("GPU Link: NVIDIA driver older than CUDA 12.4", startup_output.getvalue())
 
     def test_fake_driver_hook_selects_the_branch_and_records_that_it_is_fake(self):
         gpu = self.detect("610.60", environ={a.FAKE_DRIVER_ENV: "551.61"})
