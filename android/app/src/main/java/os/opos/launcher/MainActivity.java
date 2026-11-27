@@ -3264,6 +3264,10 @@ public final class MainActivity extends Activity {
             NewspaperSummary.Lane lane = tonightLane(row, lanes);
             if (lane != null && lane.included) {
                 line.setContentDescription(RaceLine.rowDescription(row.label, row.value, lane.words));
+                // One TalkBack stop per row that reads the description, not label and time apart.
+                line.setScreenReaderFocusable(true);
+                label.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+                value.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             }
             if (lane != null && lane.included && maxWords > 0) {
                 // Words so far against the longest lane, labelled in words so the bar is never
