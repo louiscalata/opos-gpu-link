@@ -539,7 +539,7 @@ def detect_gpu(runner=subprocess.run, system=None, machine=None, which=shutil.wh
                 continue
             if best is None or free_mb > best["free_mb"]:
                 best = {"vendor": "NVIDIA", "name": name, "total_mb": total_mb,
-                        "free_mb": free_mb, "driver": driver, "backend": "cuda"}
+                        "free_mb": free_mb, "driver": driver, "backend": "cuda", "system": system}
         if best:
             fake = fake_driver_version(environ)
             if fake:
@@ -671,6 +671,10 @@ def vram_used_mb(gpu, runner=subprocess.run):
     return None
 
 
+CUDA_12_4_MIN_DRIVER = 550
+LINUX_CUDA_12_8_MIN_DRIVER = 570
+
+
 def cuda_variant(system: str, driver: str):
     """Pick the llama.cpp CUDA build the driver can run, or None for Vulkan."""
     try:
@@ -678,11 +682,11 @@ def cuda_variant(system: str, driver: str):
     except (ValueError, IndexError):
         return None
     if system == "Linux":
-        return "ubuntu-cuda-12.8-x64" if major >= 570 else None
+        return "ubuntu-cuda-12.8-x64" if major >= LINUX_CUDA_12_8_MIN_DRIVER else None
     if system == "Windows":
         if major >= 580:
             return "win-cuda-13.5-x64"
-        return "win-cuda-12.4-x64" if major >= 550 else None
+        return "win-cuda-12.4-x64" if major >= CUDA_12_4_MIN_DRIVER else None
     return None
 
 
@@ -2266,6 +2270,16 @@ def gpu_note(gpu):
     notes = []
     if gpu.get("nvidia_hidden"):
         notes.append("NVIDIA hidden (--hide-nvidia or environment)")
+    elif gpu["vendor"] == "NVIDIA" and gpu["backend"] == "vulkan":
+        try:
+            driver_major = int(gpu.get("driver", "").split(".", 1)[0])
+        except (AttributeError, ValueError):
+            driver_major = None
+        if driver_major is not None:
+            if driver_major < CUDA_12_4_MIN_DRIVER:
+                notes.append("NVIDIA driver older than CUDA 12.4; using Vulkan")
+            elif gpu.get("system") == "Linux" and driver_major < LINUX_CUDA_12_8_MIN_DRIVER:
+                notes.append("NVIDIA driver too old for the Linux CUDA 12.8 build; using Vulkan")
     elif gpu["backend"] == "vulkan" and gpu["vendor"] != "NVIDIA" and not gpu.get("nvidia_present"):
         notes.append("No NVIDIA GPU detected, using Vulkan")
     elif gpu["vendor"] == "none":
@@ -2945,6 +2959,8 @@ def run(args) -> int:
         return 0
     rt = None
     try:
+        if info["gpu"].get("note"):
+            say(info["gpu"]["note"])
         rt = start_runtime(args, info)
         if args.no_phone:
             say("Model server(s) ready; --no-phone given, not starting the phone link. Ctrl-C to stop.")
