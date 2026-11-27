@@ -133,7 +133,8 @@ final class LaneHealth {
         }
         switch (state) {
             case "done":
-                return new Verdict(Status.DONE, true, false);
+                // A finished answer has nothing to retry; History keeps Refresh for a rerun.
+                return new Verdict(Status.DONE, false, false);
             case "failed":
                 return new Verdict(Status.FAILED, true,
                         autoLeft && transientError(error) && quiet >= FAILED_AUTO_DELAY_MS);
