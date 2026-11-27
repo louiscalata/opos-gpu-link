@@ -85,6 +85,10 @@ public final class UiPaletteTest {
         equal(UiPalette.Tone.ERROR, UiPalette.toneFromStatus("FAILED", false));
         equal(UiPalette.Tone.ERROR, UiPalette.toneFromStatus("DONE", true));
         equal(UiPalette.Tone.OK, UiPalette.toneFromStatus("DONE", false));
+        // A planned cable pause styles its Retry in ink, never red.
+        equal(UiPalette.Tone.PAUSED, UiPalette.toneFromStatus("PAUSED", false));
+        check(!UiPalette.retryAppliesToError(UiPalette.toneFromStatus("PAUSED", false)));
+        equal(UiPalette.Tone.ERROR, UiPalette.toneFromStatus("STUCK", false));
         check(UiPalette.retryAppliesToError(UiPalette.Tone.ERROR));
         check(!UiPalette.retryAppliesToError(UiPalette.Tone.OK));
         equal(UiPalette.ERROR_DARK, dark.cardStroke(UiPalette.Tone.ERROR));

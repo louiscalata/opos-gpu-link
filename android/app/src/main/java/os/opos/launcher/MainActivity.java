@@ -3651,6 +3651,19 @@ public final class MainActivity extends Activity {
         }
     }
 
+    /**
+     * The computer's main worker is talking to the phone (main_live, not just an extra lane) and
+     * has a model up: state "ready" or "busy" answering. Copying or loading a model is warmup,
+     * not a stall. ("gpu.ready" alone is false while busy, so it would hide a mid-answer stall.)
+     */
+    private static boolean gpuLaneReady(JSONObject data) {
+        JSONObject gpu = data == null ? null : data.optJSONObject("gpu");
+        JSONObject link = gpu == null ? null : gpu.optJSONObject("link");
+        JSONObject pc = link == null ? null : link.optJSONObject("pc");
+        return pc != null && GpuLaneReadiness.ready(pc.optBoolean("main_live", pc.optBoolean("live")),
+                pc.isNull("state") ? null : pc.optString("state", null));
+    }
+
     private boolean gpuCanQueue(JSONObject gpu) {
         JSONObject link = gpu == null ? null : gpu.optJSONObject("link");
         return link != null && link.optJSONObject("pc") != null;
@@ -3804,7 +3817,10 @@ public final class MainActivity extends Activity {
                 button.setVisibility(View.GONE);
                 continue;
             }
-            boolean laneReady = Boolean.TRUE.equals(ready.get(pane));
+            // Send may queue on a paired computer that is still warming, but health and Retry
+            // need the lane actually ready, so a warmup is never read as a stall.
+            boolean canQueue = Boolean.TRUE.equals(ready.get(pane));
+            boolean laneReady = canQueue && (!"gpu".equals(pane) || gpuLaneReady(data));
             String question = answer.optString("question");
             LaneHealth.Verdict verdict = laneHealth.observe(pane, id, answer.optString("state"),
                     answer.optString("error"), answer.optLong("bytes", answer.optString("text").length()),

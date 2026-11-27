@@ -112,12 +112,14 @@ final class UiPalette {
         switch (status) {
             case "FAILED":
             case "STUCK":
-            case "PAUSED":
             case "failed":
             case "stuck":
-            case "paused":
             case "garbled":
                 return Tone.ERROR;
+            // A planned cable pause is ink, never red (same rule as the lane chip).
+            case "PAUSED":
+            case "paused":
+                return Tone.PAUSED;
             case "DONE":
             case "done":
                 return Tone.OK;
