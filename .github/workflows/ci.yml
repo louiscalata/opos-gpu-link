@@ -26,6 +26,8 @@ jobs:
           python-version: "3.12"
       - name: Run companion tests
         run: python3 -B -m unittest discover -s companion -p 'test_*.py' -v
+      - name: Run paced soak simulator tests
+        run: python3 -B -m unittest discover -s tools -p 'test_*.py' -v
 
   phone-service:
     name: Phone-service public suite
