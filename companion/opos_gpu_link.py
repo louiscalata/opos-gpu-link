@@ -70,9 +70,11 @@ def _dialog_font_specs(available, heading_fallback, text_fallback):
                      if name.casefold() in names), fallback)
 
     title = pick(("Newsreader SemiBold", "Newsreader", "Newsreader 72pt"), heading_fallback)
+    # A SemiBold family name is already heavy; asking Tk for weight=bold can double-bold it.
+    title_weight = "normal" if "semibold" in title.casefold() else DIALOG_TYPE["H5"]["weight"]
     text = pick(("Inter Tight", "Inter"), text_fallback)
     small = pick(("Inter Tight Medium", "Inter Medium", "Inter Tight", "Inter"), text_fallback)
-    return {"title": (title, DIALOG_TYPE["H5"]["size"], DIALOG_TYPE["H5"]["weight"]),
+    return {"title": (title, DIALOG_TYPE["H5"]["size"], title_weight),
             "small": (small, DIALOG_TYPE["S5"]["size"], DIALOG_TYPE["S5"]["weight"]),
             "body": (text, DIALOG_TYPE["B5"]["size"], DIALOG_TYPE["B5"]["weight"])}
 
@@ -93,7 +95,8 @@ def _dialog_label(tk, parent, text, font, *, color=DIALOG_INK, wraplength=470):
 
 def _dialog_button(tk, parent, text, font, **options):
     return tk.Button(parent, text=text, font=font, fg=DIALOG_INK, bg=DIALOG_PAPER,
-                     activeforeground=DIALOG_INK, activebackground=DIALOG_PAPER, **options)
+                     activeforeground=DIALOG_INK, activebackground=DIALOG_PAPER,
+                     highlightbackground=DIALOG_PAPER, **options)
 
 
 def _permission_identity_lines(args):
@@ -105,7 +108,7 @@ def _permission_identity_lines(args):
     gpu = getattr(getattr(args, "runtime", None), "gpu", None)
     if isinstance(gpu, dict) and gpu.get("backend") != "cpu":
         name = gpu.get("name")
-        if isinstance(name, str) and name.strip() and name.strip() not in {"GPU", "Apple GPU"}:
+        if isinstance(name, str) and name.strip() and name.strip() not in {"GPU", "Apple GPU", "Mac"}:
             lines.append("GPU: " + name.strip())
     return lines
 

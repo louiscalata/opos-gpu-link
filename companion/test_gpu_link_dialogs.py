@@ -124,6 +124,9 @@ class DialogTests(unittest.TestCase):
         generic = SimpleNamespace(phone_label="OPOS phone",
                                   runtime=SimpleNamespace(gpu={"name": "Apple GPU", "backend": "metal"}))
         self.assertEqual(link._permission_identity_lines(generic), [])
+        mac = SimpleNamespace(runtime=SimpleNamespace(gpu={"name": "Mac", "backend": "metal"}))
+        self.assertEqual(link._permission_identity_lines(mac), [])
+
         cpu = SimpleNamespace(runtime=SimpleNamespace(gpu={"name": "CPU only", "backend": "cpu"}))
         self.assertEqual(link._permission_identity_lines(cpu), [])
 
