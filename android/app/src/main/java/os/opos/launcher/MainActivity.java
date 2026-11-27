@@ -3262,8 +3262,16 @@ public final class MainActivity extends Activity {
             container.addView(line, new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
             NewspaperSummary.Lane lane = tonightLane(row, lanes);
+            if (lane != null && lane.included) {
+                line.setContentDescription(RaceLine.rowDescription(row.label, row.value, lane.words));
+                // One TalkBack stop per row that reads the description, not label and time apart.
+                line.setScreenReaderFocusable(true);
+                label.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+                value.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            }
             if (lane != null && lane.included && maxWords > 0) {
-                // Words so far against the longest lane: the race at a glance from the stage.
+                // Words so far against the longest lane, labelled in words so the bar is never
+                // read as the time printed on the row above.
                 TextView bar = new TextView(this);
                 bar.setTypeface(typography.jetbrainsMonoMedium);
                 // dp, not sp: the bar is decorative (hidden from TalkBack) and must stay one
@@ -3272,7 +3280,7 @@ public final class MainActivity extends Activity {
                 bar.setIncludeFontPadding(false);
                 bar.setMaxLines(1);
                 bar.setPadding(0, 0, 0, dp(2));
-                bar.setText(RaceLine.bar(lane.words, maxWords, RaceLine.CELLS));
+                bar.setText(RaceLine.barWithWords(lane.words, maxWords, RaceLine.CELLS));
                 bar.setTextColor(color);
                 bar.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
                 container.addView(bar, new LinearLayout.LayoutParams(

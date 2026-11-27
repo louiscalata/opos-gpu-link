@@ -2,7 +2,7 @@ package os.opos.launcher;
 
 import java.util.List;
 
-/** Stage-readable race figures for the TONIGHT card: the leader line and word bars. */
+/** Stage-readable race figures for the TONIGHT card: the leader line and labelled word bars. */
 final class RaceLine {
     static final int CELLS = 28;
 
@@ -83,6 +83,31 @@ final class RaceLine {
 
         int full = (int) filled;
         return repeat('■', full) + repeat('─', cells - full);
+    }
+
+    /**
+     * The bar measures words, so its line says so: "■■■■──── 361 words". The time stays on the
+     * row above; the bar never sits unlabelled next to seconds.
+     */
+    static String barWithWords(int words, int maxWords, int cells) {
+        String bar = bar(words, maxWords, cells);
+        if (bar.isEmpty()) return "";
+        return bar + " " + wordCount(words);
+    }
+
+    /** "361 words", "1 word", "0 words". */
+    static String wordCount(int words) {
+        int w = Math.max(0, words);
+        return w + (w == 1 ? " word" : " words");
+    }
+
+    /** TalkBack for one race row: "MacBook, 9.0 s, 361 words". */
+    static String rowDescription(String label, String value, int words) {
+        StringBuilder sb = new StringBuilder(label == null ? "" : label.trim());
+        String v = value == null ? "" : value.replace('\u00a0', ' ').trim();
+        if (!v.isEmpty()) sb.append(", ").append(v);
+        if (words >= 0) sb.append(", ").append(wordCount(words));
+        return sb.toString();
     }
 
     /** Largest words among included lanes, 0 if none. */
