@@ -40,7 +40,8 @@ final class PaneKeys {
     }
 
     static String kicker(String pane, String computer) {
-        return pc(pane) ? ComputerWords.apply("PC GPU", computer) : "MODEL";
+        // Where the model runs, the same word on every card: "MacBook GPU" or "Phone".
+        return pc(pane) ? ComputerWords.apply("PC GPU", computer) : "PHONE";
     }
 
     static String defaultWhere(String pane) {

@@ -120,7 +120,7 @@ public final class CoverScreenPolicyTest {
         check(CoverScreenPolicy.invertIndicator("paused"));
         check(!CoverScreenPolicy.invertIndicator("answering"));
         eq("Computer GPU · PAUSED", CoverScreenPolicy.kicker("g1", "paused"));
-        eq("MODEL · LIVE", CoverScreenPolicy.kicker("m1", "answering"));
+        eq("PHONE · LIVE", CoverScreenPolicy.kicker("m1", "answering"));
         eq("Computer GPU", CoverScreenPolicy.kicker("gpu", ""));
         eq("", CoverScreenPolicy.moreLabel(0));
         eq("+6 more models hidden", CoverScreenPolicy.moreLabel(6));

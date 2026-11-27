@@ -14,8 +14,8 @@ public final class ExtendedPanesTest {
             equal("on the computer's GPU", PaneKeys.defaultWhere(pane));
         }
         equal("Computer GPU", PaneKeys.kicker("gpu"));
-        equal("MODEL", PaneKeys.kicker("phone"));
-        equal("MODEL", PaneKeys.kicker("m1"));
+        equal("PHONE", PaneKeys.kicker("phone"));
+        equal("PHONE", PaneKeys.kicker("m1"));
         equal("on this phone", PaneKeys.defaultWhere("m1"));
         check(PaneKeys.modelKindMatches("m1", "phone"));
         check(!PaneKeys.modelKindMatches("m1", "pc"));
