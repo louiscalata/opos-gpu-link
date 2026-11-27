@@ -5637,9 +5637,13 @@ public final class MainActivity extends Activity {
                 Rect hit = new Rect();
                 notesTab.getHitRect(hit);
                 hit.top = 0;
-                int extra = Math.max(0, (dp(48) - hit.width()) / 2);
-                hit.left = Math.max(0, hit.left - extra);
-                hit.right = Math.min(r - l, hit.right + extra);
+                int need = Math.max(0, dp(48) - hit.width());
+                hit.left -= need / 2;
+                hit.right += need - need / 2;
+                // Shift back inside the row instead of clipping, so the target stays 48 dp wide.
+                if (hit.left < 0) hit.offset(-hit.left, 0);
+                if (hit.right > r - l) hit.offset((r - l) - hit.right, 0);
+                hit.left = Math.max(0, hit.left);
                 view.setTouchDelegate(new TouchDelegate(hit, notesTab));
             });
             notesDock.addView(tabRow, new LinearLayout.LayoutParams(
