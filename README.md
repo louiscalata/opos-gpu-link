@@ -75,4 +75,4 @@ OPOS GPU Link is part of the early Old Phone OS project, coming soon.
 
 ## License
 
-Apache-2.0. See [LICENSE](LICENSE), [NOTICE](NOTICE) and [THIRD_PARTY.md](THIRD_PARTY.md).
+Apache-2.0. See [LICENSE](LICENSE), [NOTICE](NOTICE) and [THIRD_PARTY.md](THIRD_PARTY.md). To report a vulnerability, see [SECURITY.md](SECURITY.md). To open an issue or a pull request, see [CONTRIBUTING.md](CONTRIBUTING.md).
