@@ -1008,6 +1008,65 @@ def _sidecar(path: Path) -> Path:
     return path.with_name(path.name + ".verified")
 
 
+def _model_copy_marker(path: Path) -> Path:
+    return path.with_name(path.name + ".opos-copy")
+
+
+def _model_copy_receipt(path: Path, digest: str) -> str:
+    stat = path.stat()
+    return f"{digest} {stat.st_dev} {stat.st_ino} {stat.st_size} {stat.st_mtime_ns}\n"
+
+
+def model_cache_is_inside_data_dir(data_dir: Path, models_dir: Path) -> bool:
+    """True when models_dir is a real subdirectory of the companion data directory."""
+    try:
+        data_dir, models_dir = Path(data_dir), Path(models_dir)
+        cache, home = models_dir.resolve(), data_dir.resolve()
+    except (OSError, RuntimeError):
+        return False
+    return not models_dir.is_symlink() and cache != home and cache.is_relative_to(home)
+
+
+def remove_model_copies(data_dir: Path, models_dir: Path) -> int:
+    """Remove only marked downloads in the companion's own model cache."""
+    data_dir, models_dir = Path(data_dir), Path(models_dir)
+    if not model_cache_is_inside_data_dir(data_dir, models_dir):
+        raise ValueError("Model cache must be inside the companion data directory")
+    cache = models_dir.resolve()
+    if not cache.exists():
+        return 0
+    removed = 0
+    for marker in cache.glob("*.gguf.opos-copy"):
+        model = marker.with_name(marker.name[:-len(".opos-copy")])
+        if (marker.is_symlink() or not marker.is_file() or model.is_symlink()
+                or not model.is_file()):
+            continue
+        try:
+            if marker.stat().st_size > 256:
+                continue
+            receipt = marker.read_text(encoding="ascii")
+        except (OSError, UnicodeError):
+            continue
+        try:
+            digest = receipt.split(" ", 1)[0]
+            if (not re.fullmatch(r"[0-9a-f]{64}", digest)
+                    or receipt != _model_copy_receipt(model, digest)
+                    or sha256_file(model) != digest):
+                continue
+            model.unlink()
+            removed += 1
+            marker.unlink()
+            sidecar = _sidecar(model)
+            if sidecar.is_file() and not sidecar.is_symlink():
+                sidecar.unlink()
+        except OSError as error:
+            copy_word = "copy" if removed == 1 else "copies"
+            raise RuntimeError(
+                f"Removed {removed} model {copy_word} from {cache}; cleanup could not be completed"
+            ) from error
+    return removed
+
+
 def sha256_file(path: Path) -> str:
     h = hashlib.sha256()
     with path.open("rb") as f:
@@ -1041,7 +1100,7 @@ def verified_file(path: Path, sha256: str) -> bool:
     return True
 
 
-def download(url: str, dest: Path, label: str, sha256: str, size=None) -> Path:
+def download(url: str, dest: Path, label: str, sha256: str, size=None, mark_model_copy=False) -> Path:
     """Fetch url to dest and refuse anything that does not match the pinned SHA-256."""
     if is_offline():
         raise RuntimeError(f"{label}: downloads are disabled (--offline)")
@@ -1073,6 +1132,17 @@ def download(url: str, dest: Path, label: str, sha256: str, size=None) -> Path:
         raise RuntimeError(f"{label}: SHA-256 mismatch, download discarded (not used)")
     part.replace(dest)
     verified_file(dest, sha256)
+    if mark_model_copy:
+        marker = _model_copy_marker(dest)
+        pending = None
+        try:
+            with tempfile.NamedTemporaryFile("w", dir=dest.parent, prefix=".opos-copy-",
+                                             delete=False, encoding="ascii", newline="\n") as pending:
+                pending.write(_model_copy_receipt(dest, sha256))
+            Path(pending.name).replace(marker)
+        finally:
+            if pending is not None:
+                Path(pending.name).unlink(missing_ok=True)
     return dest
 
 
@@ -1082,7 +1152,8 @@ def ensure_model(choice, entry, models_dir: Path, allow_download=True):
     if not allow_download:
         raise RuntimeError("No local model fits and downloads are disabled (--no-download)")
     url = f"https://huggingface.co/{entry['repo']}/resolve/main/{entry['file']}"
-    return download(url, models_dir / entry["file"], entry["label"], entry["sha256"], entry["size"]), entry["label"]
+    return download(url, models_dir / entry["file"], entry["label"], entry["sha256"],
+                    entry["size"], mark_model_copy=True), entry["label"]
 
 
 # ------------------------------------------------------------- runtime ----
@@ -2394,6 +2465,7 @@ class Runtime:
 
     def __init__(self):
         self.lanes, self.servers, self.key, self.key_file = [], [], None, None
+        self.gpu, self.memory_runner = None, subprocess.run
         self.on_gpu, self.evidence, self.existing, self.device = None, [], False, None
         self.lock = threading.RLock()
         self.state_lock = threading.RLock()
@@ -2632,6 +2704,17 @@ class Runtime:
                 self.pending.discard(lane_id)
 
     def stop(self):
+        gpu = self.gpu if self.servers and not self.existing else None
+
+        def memory_used():
+            if gpu is None or gpu.get("backend") == "cpu":
+                return None
+            try:
+                return vram_used_mb(gpu, self.memory_runner)
+            except (Exception, KeyboardInterrupt):
+                return None  # A diagnostic must not prevent owned servers from stopping.
+
+        before = memory_used()
         self.stop_supervision()
         failure = None
         children = [(server, self.launches.get(server.port)) for server in reversed(self.servers)]
@@ -2654,6 +2737,10 @@ class Runtime:
         self.failed_children = remaining
         self.drop_key_file()
         self.key = None
+        after = memory_used()
+        if before is not None and after is not None:
+            action = "Stop" if failure is None else "Stop attempt"
+            say(f"GPU memory used before/after {action}: {before} -> {after} MiB (total GPU use)")
         if failure is not None:
             raise failure
 
@@ -2720,6 +2807,7 @@ def start_runtime(args, info, runner=subprocess.run):
                      "maker": "Local", "lead_label": served}]
         rt.evidence = ["existing server; GPU use not measured"]
         return rt
+    rt.memory_runner = runner
     binary = ensure_llama_server(args.runtime_dir, gpu, allow_download=not args.no_download)
     profile = gpu.get("profile")
     env = runtime_env(binary)
@@ -2767,6 +2855,7 @@ def start_runtime(args, info, runner=subprocess.run):
                 if vulkan:
                     name = re.sub(r"\s*\(\d+ MiB.*\)$", "", vulkan.partition(":")[2].strip())
                     say(f"No NVIDIA GPU: using {name} through Vulkan (about {gpu['budget_mb']} MB usable)")
+    rt.gpu = gpu
     rt.key = new_key()
     rt.key_file = write_key_file(rt.key)
     os.environ[KEY_ENV] = rt.key  # for the companion in this process only
@@ -2974,7 +3063,8 @@ def run(args) -> int:
         serial = args.serial or wait_for_phone(adb)
         import opos_gpu_link
         banner(ready_lines(info["gpu"]["name"], rt.lanes, opos_gpu_link.computer_noun()))
-        return opos_gpu_link.main(companion_args(args, rt, info, adb, serial), runtime=rt)
+        return opos_gpu_link.main(companion_args(args, rt, info, adb, serial), runtime=rt,
+                                  data_dir=args.data_dir, models_dir=args.models_dir)
     except Terminated:
         say("Stopping (SIGTERM).")
         return 0  # a requested stop is a clean exit, so launchd does not restart it
