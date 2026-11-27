@@ -517,8 +517,27 @@ class PracticeSource:
         """There is no worker or socket in practice mode."""
 
 
+def _stall_seconds():
+    """Seconds with no new stream bytes, after the first event, before the server counts as stalled.
+
+    Clamped to 1..30 s (30 s is the wait for the first data: event); an unreadable value uses the 12 s default.
+    """
+    try:
+        value = float(os.environ.get("OPOS_GPU_LINK_STALL_SECONDS", "12"))
+    except ValueError:
+        return 12.0
+    if value != value:  # NaN
+        return 12.0
+    return min(max(value, 1.0), 30.0)
+
+
 class ServerSource:
     """Read bounded SSE in a worker so phone status continues during server waits."""
+
+    # Before the first data: event the server may still be reading a long resume prefix, so it gets
+    # the full 30 s. Once events are flowing, a quiet stream is a stall: STALL_SECONDS ends the read and
+    # the answer pauses and resumes like a crash (error code "server"), instead of waiting 30 s.
+    FIRST_BYTE_SECONDS = 30
 
     def __init__(self, job, url, model, retry_budget=None):
         self.host, self.port, self.url = endpoint(url)
@@ -586,11 +605,18 @@ class ServerSource:
         return False
 
     def _read(self, response):
-        total, ended = 0, False
+        total, ended, flowing = 0, False, False
         while not self.stop.is_set():
             line = response.readline(65537)
             if self.stop.is_set():
                 return  # closed while blocked: ignore late bytes
+            if not flowing and line.startswith(b"data:"):
+                # The first data event (text or hidden thinking): the model is generating, so a
+                # quiet stream from here on is a stall. Comments and blank lines do not count.
+                flowing = True
+                with self.lock:
+                    if self.sock is not None:
+                        self.sock.settimeout(_stall_seconds())
             total += len(line)
             if len(line) > 65536 or total > 2 * 1024 * 1024:
                 raise ToolError("server stream too large")
@@ -634,7 +660,7 @@ class ServerSource:
             connection.connect()
             with self.lock:
                 self.sock = connection.sock
-                self.sock.settimeout(30)
+                self.sock.settimeout(self.FIRST_BYTE_SECONDS)
             if self.stop.is_set():
                 return
             target = self.url.path + ("?" + self.url.query if self.url.query else "")
