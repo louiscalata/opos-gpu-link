@@ -11,9 +11,13 @@ final class PairingPrompt {
     static final int CODE_SP_INNER = 56;
     static final int CODE_SP_COVER = 36;
     static final int ALLOW_DP_INNER = 72;
-    static final int ALLOW_DP_COVER = 56;
+    static final int ALLOW_DP_COVER = 52;
     static final int DENY_DP_INNER = 48;
-    static final int DENY_DP_COVER = 44;
+    /** At least 48 dp: Not now is a real touch target on the cover too. */
+    static final int DENY_DP_COVER = 52;
+    /** Space above the code label and the disclosure; tighter on the 360 dp-tall cover. */
+    static final int GAP_DP_INNER = 20;
+    static final int GAP_DP_COVER = 6;
     static final int PAD_DP_INNER = 24;
     static final int PAD_DP_COVER = 12;
 
@@ -103,6 +107,19 @@ final class PairingPrompt {
 
     static int denyMinHeightDp(boolean cover) {
         return cover ? DENY_DP_COVER : DENY_DP_INNER;
+    }
+
+    /**
+     * On the cover the two buttons sit side by side in one row, so the whole prompt (title,
+     * request, code, countdown, disclosure) fits the 374x360 dp screen without the disclosure
+     * running under the buttons.
+     */
+    static boolean actionsSideBySide(boolean cover) {
+        return cover;
+    }
+
+    static int gapDp(boolean cover) {
+        return cover ? GAP_DP_COVER : GAP_DP_INNER;
     }
 
     static int paddingDp(boolean cover) {
