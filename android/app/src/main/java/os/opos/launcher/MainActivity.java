@@ -2307,7 +2307,7 @@ public final class MainActivity extends Activity {
             }
             String announcement = (findViewById(R.id.pairing_header) instanceof TextView)
                     ? ((TextView) findViewById(R.id.pairing_header)).getText().toString()
-                    : getString(R.string.pairing_title);
+                    : pcWords(R.string.pairing_title);
             if (pairingCode != null && pairingCode.getText().length() > 0) {
                 announcement += " " + pairingCode.getText();
             }
@@ -2686,7 +2686,7 @@ public final class MainActivity extends Activity {
         boolean isGpu = PaneKeys.pc(pane);
         if (laneHealth.garbled(pane, id) || "garbled".equals(errorCode)
                 || AnswerGuard.reason(answerText) != null) {
-            return getString(AnswerFailureLabel.resource(isGpu, answerText, "garbled"));
+            return pcWords(AnswerFailureLabel.resource(isGpu, answerText, "garbled"));
         }
         switch (state) {
             case "queued":
@@ -2713,7 +2713,7 @@ public final class MainActivity extends Activity {
                 if ("model_start".equals(errorCode) || "model_start".equals(answerText)) {
                     return getString(R.string.model_start_failed);
                 }
-                return getString(AnswerFailureLabel.resource(isGpu, answerText, errorCode));
+                return pcWords(AnswerFailureLabel.resource(isGpu, answerText, errorCode));
             default:
                 return getString(R.string.answer_waiting);
         }
@@ -4896,7 +4896,8 @@ public final class MainActivity extends Activity {
                 {R.id.info_pc_label_text, R.string.info_pc_label},
                 {R.id.info_pc_id_label_text, R.string.info_pc_id_label},
                 {R.id.info_pc_status_label_text, R.string.info_pc_status_label},
-                {R.id.info_forget_pc, R.string.forget_pc}});
+                {R.id.info_forget_pc, R.string.forget_pc},
+                {R.id.info_replace_pc_steps, R.string.info_replace_pc_steps}});
         typography.defaults(dialog.getWindow().getDecorView());
         applyPaletteToDialog(dialog);
         typography.headline(dialog.findViewById(R.id.info_page_title), 26);

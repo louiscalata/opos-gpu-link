@@ -93,7 +93,7 @@
     <string name="info_pc_id_unavailable">Unavailable on this phone build</string>
     <string name="info_pc_status_label">PC status</string>
     <string name="info_pairing_label">Pairing</string>
-    <string name="info_replace_pc_steps">Connect the travelling NVIDIA PC by USB, compare its code, then tap Allow on the phone.</string>
+    <string name="info_replace_pc_steps">Connect the PC by USB-C, compare its 6-digit code, then tap Allow on the phone.</string>
     <string name="info_app_version_label">App version</string>
     <string name="info_local_service_label">Local service</string>
     <string name="info_keep_screen_on_label">Keep screen on</string>

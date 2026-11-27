@@ -31,6 +31,13 @@ public final class AnswerFailureLabelTest {
         equal("Could not finish on this phone. Try again.", string(strings, "phone_failed"));
         equal("Could not finish on the PC. Try again.", string(strings, "gpu_failed"));
         equal("Garbled — Retry", string(strings, "answer_garbled"));
+        // Shown through pcWords, so a paired MacBook is never called a PC on stage.
+        equal("Could not finish on the MacBook. Try again.",
+                ComputerWords.apply(string(strings, "gpu_failed"), "MacBook"));
+        equal("Connect the MacBook by USB-C, compare its 6-digit code, then tap Allow on the phone.",
+                ComputerWords.apply(string(strings, "info_replace_pc_steps"), "MacBook"));
+        if (string(strings, "info_replace_pc_steps").contains("NVIDIA"))
+            throw new AssertionError("Info pairing steps must not call the computer an NVIDIA PC");
         System.out.println("AnswerFailureLabelTest: OK");
     }
 
