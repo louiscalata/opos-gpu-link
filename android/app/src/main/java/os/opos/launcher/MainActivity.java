@@ -3246,6 +3246,7 @@ public final class MainActivity extends Activity {
         typography.state(view); // the state slot (S5 face, tabular numbers), same size as above
         view.setIncludeFontPadding(false);
         view.setSingleLine(true);
+        view.setEllipsize(TextUtils.TruncateAt.END);
         view.setPadding(0, dp(2), 0, dp(2));
         // The state line above already says "Streaming…" or "Thinking…" to TalkBack.
         view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
@@ -3299,6 +3300,7 @@ public final class MainActivity extends Activity {
         if (!anyWorking()) {
             handler.removeCallbacks(workingTicker);
             workingScheduled = false;
+            workingTick = 0; // the next run starts on a bright dot and the first frame
             return;
         }
         if (workingScheduled || !resumed || reduceMotionEnabled) return;
