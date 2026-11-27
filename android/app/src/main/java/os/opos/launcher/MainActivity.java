@@ -618,6 +618,8 @@ public final class MainActivity extends Activity {
     }
 
     private void arrangeCoverArticles() {
+        // Design lab on the cover: the link schematic only, above the lanes (off by default).
+        addLabView();
         coverShown = CoverScreenPolicy.visiblePanes(
                 paneOrder, coverStates(), coverShown, CoverScreenPolicy.MAX_PANES);
         for (int i = 0; i < coverShown.size(); i++) {
@@ -3045,7 +3047,7 @@ public final class MainActivity extends Activity {
     }
 
     private String labMode() {
-        return coverMode ? DesignLab.OFF : uiSettings.designLab();
+        return coverMode ? DesignLab.coverMode(uiSettings.designLab()) : uiSettings.designLab();
     }
 
     /** Adds the Design lab card above the lanes when the experimental setting is on. */
@@ -3099,7 +3101,7 @@ public final class MainActivity extends Activity {
         } else {
             frame = DesignLab.schematic(labTick,
                     DesignLab.link(cableConnected, hasVisiblePcWork()),
-                    ComputerWords.title(ComputerWords.current()), "This phone", width);
+                    ComputerWords.title(ComputerWords.current()), coverMode ? "Phone" : "This phone", width);
         }
         labView.setTextColor(themeColor(R.color.newspaper_ink));
         setIfChanged(labView, frame);

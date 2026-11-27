@@ -32,6 +32,14 @@ final class DesignLab {
         return value != null && MODES.contains(value) ? value : OFF;
     }
 
+    /**
+     * The cover screen has room for one small drawing, so any lab view other than Off shows
+     * the link schematic there (belts need a line per lane). Off stays off.
+     */
+    static String coverMode(String mode) {
+        return OFF.equals(parseMode(mode)) ? OFF : SCHEMATIC;
+    }
+
     static String caption(String mode) {
         if (SCHEMATIC.equals(mode)) return "Link schematic";
         if (BELTS.equals(mode)) return "Factory belts";
@@ -61,7 +69,10 @@ final class DesignLab {
         String caption;
         switch (link) {
             case LIVE: caption = "USB-C · tokens flowing"; break;
-            case PAUSED: caption = "Cable out · paused · resumes on plug-in"; break;
+            case PAUSED:
+                // Narrow (cover screen): the short form, never cut mid-word.
+                caption = width >= 39 ? "Cable out · paused · resumes on plug-in" : "Cable out · paused";
+                break;
             case UNPLUGGED: caption = "Cable out"; break;
             default: caption = "USB-C · ready"; break;
         }

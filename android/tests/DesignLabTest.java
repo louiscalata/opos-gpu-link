@@ -111,6 +111,20 @@ public final class DesignLabTest {
         }
         equal(40, DesignLab.belts(0, List.of(), 40).length());
         equal(24, DesignLab.belts(0, List.of(), 24).length());
+        // Cover screen: Off stays off; any other lab view shows the schematic, which fits 24 columns.
+        check(DesignLab.coverMode(null).equals(DesignLab.OFF));
+        check(DesignLab.coverMode("off").equals(DesignLab.OFF));
+        check(DesignLab.coverMode("junk").equals(DesignLab.OFF));
+        check(DesignLab.coverMode("schematic").equals(DesignLab.SCHEMATIC));
+        check(DesignLab.coverMode("belts").equals(DesignLab.SCHEMATIC));
+        for (DesignLab.Link link : DesignLab.Link.values()) {
+            for (String row : DesignLab.schematic(3, link, "MacBook", "This phone", 24).split("\n", -1)) {
+                check(row.length() == 24);
+            }
+        }
+        check(DesignLab.schematic(0, DesignLab.Link.PAUSED, "MacBook", "Phone", 30).contains("Cable out · paused  "));
+        check(!DesignLab.schematic(0, DesignLab.Link.PAUSED, "MacBook", "Phone", 30).contains("…"));
+        check(DesignLab.schematic(0, DesignLab.Link.PAUSED, "MacBook", "This phone", 64).contains("resumes on plug-in"));
         System.out.println("DesignLabTest: OK");
     }
 
