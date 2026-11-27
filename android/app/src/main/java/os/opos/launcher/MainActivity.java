@@ -4471,10 +4471,8 @@ public final class MainActivity extends Activity {
         String model = view == null ? "" : view.optString("model").trim();
         String maker = view == null ? "" : view.optString("maker").trim();
         String where = PaneKeys.shownWhere(pane, view == null ? "" : view.optString("where"));
-        if (maker.isEmpty()) maker = "Maker unavailable";
-        StringBuilder details = new StringBuilder();
-        if (!model.isEmpty()) details.append(model).append(" · ");
-        details.append(maker).append(" · ").append(where);
+        StringBuilder details = new StringBuilder(
+                ModelMaker.details(model, ModelMaker.maker(maker, model), where));
         double fileMb = view == null ? Double.NaN : view.optDouble("file_mb", Double.NaN);
         if (Double.isFinite(fileMb) && fileMb >= 0) {
             details.append(" · ");
