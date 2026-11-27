@@ -99,6 +99,18 @@ def _dialog_button(tk, parent, text, font, **options):
                      highlightbackground=DIALOG_PAPER, **options)
 
 
+def _confirm_remove_model_copies(root, models_dir: Path) -> bool:
+    from tkinter import messagebox
+    return messagebox.askyesno(
+        "Remove model copies",
+        f"Remove GPU Link model copies from {models_dir}?\n"
+        "Only downloads marked by GPU Link will be removed. "
+        "Removal does not unload a running model. Stop GPU Link unloads GPU Link-owned "
+        "servers unless --keep-server is set.",
+        parent=root,
+    )
+
+
 def _permission_identity_lines(args):
     """Show only a supplied phone name and an identified, active GPU."""
     lines = []
@@ -892,6 +904,7 @@ class Companion:
             self.status = tk.StringVar(value="Watching for the authorized USB phone")
             tk.Label(root, textvariable=self.status, width=56, wraplength=400).pack(padx=18, pady=18)
             tk.Button(root, text="Retry after phone recovery", command=self.retry).pack(pady=(0, 8))
+            tk.Button(root, text="Remove model copies", command=self.remove_model_copies).pack(pady=(0, 8))
             tk.Button(root, text="Stop GPU Link", command=self.stop).pack(pady=(0, 18))
             root.protocol("WM_DELETE_WINDOW", self.stop)
         self.running = True
@@ -1513,6 +1526,22 @@ class Companion:
         self.retry_delay = 3
         self.status.set("Checking the phone again")
 
+    def remove_model_copies(self) -> None:
+        """Remove marked cache downloads after the owner confirms the path."""
+        from gpu_link_autosetup import remove_model_copies
+
+        models_dir = self.args.models_dir
+        if not _confirm_remove_model_copies(self.root, models_dir):
+            return
+        try:
+            removed = remove_model_copies(self.args.data_dir, models_dir)
+        except (OSError, RuntimeError, ValueError):
+            self.status.set("Model copies could not be removed from the companion cache")
+            return
+        message = f"Removed model copies from {models_dir} ({removed} file(s))"
+        self.status.set(message)
+        print("GPU Link: " + message, flush=True)
+
     def stop(self) -> None:
         self.running = False
         if hasattr(self, "wake"):
@@ -1691,9 +1720,14 @@ def resolve_launch_adb(adb: str, runner=subprocess.run, system=None) -> str:
         raise CompanionError(str(error)) from error
 
 
-def main(argv=None, runtime=None) -> int:
+def main(argv=None, runtime=None, data_dir=None, models_dir=None) -> int:
     args = arguments(argv)
     args.runtime = runtime
+    if data_dir is None:
+        from gpu_link_autosetup import data_dir as companion_data_dir
+        data_dir = companion_data_dir()
+    args.data_dir = Path(data_dir)
+    args.models_dir = Path(models_dir) if models_dir is not None else args.data_dir / "models"
     if args.discover:
         gpu_link_discover.print_discovery(args.probe_url, args.allow_protected_port, args.json)
         return 0
