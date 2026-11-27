@@ -46,6 +46,8 @@ import android.view.KeyEvent;
 import android.view.MotionEvent;
 import android.view.Choreographer;
 import android.view.View;
+import android.widget.RadioButton;
+import android.view.TouchDelegate;
 import android.view.VelocityTracker;
 import android.view.ViewConfiguration;
 import android.view.ViewGroup;
@@ -5581,6 +5583,16 @@ public final class MainActivity extends Activity {
         }
         row.setClickable(true);
         row.setFocusable(true);
+        // TalkBack reads each choice as a radio button, checked or not checked.
+        row.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+            @Override
+            public void onInitializeAccessibilityNodeInfo(View host, AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                info.setClassName(RadioButton.class.getName());
+                info.setCheckable(true);
+                info.setChecked(selected);
+            }
+        });
         return row;
     }
 
@@ -5705,8 +5717,23 @@ public final class MainActivity extends Activity {
             notesTab.addView(notesTabLabel);
             tabRow.addView(notesTab, new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT, dp(NotesSheet.TAB_DP)));
+            // A clear strip above the tab makes it a 48 dp touch target without a bigger tab.
+            tabRow.setPadding(0, dp(NotesSheet.TAB_SLOP_DP), 0, 0);
+            tabRow.addOnLayoutChangeListener((view, l, t, r, b, ol, ot, or, ob) -> {
+                Rect hit = new Rect();
+                notesTab.getHitRect(hit);
+                hit.top = 0;
+                int need = Math.max(0, dp(48) - hit.width());
+                hit.left -= need / 2;
+                hit.right += need - need / 2;
+                // Shift back inside the row instead of clipping, so the target stays 48 dp wide.
+                if (hit.left < 0) hit.offset(-hit.left, 0);
+                if (hit.right > r - l) hit.offset((r - l) - hit.right, 0);
+                hit.left = Math.max(0, hit.left);
+                view.setTouchDelegate(new TouchDelegate(hit, notesTab));
+            });
             notesDock.addView(tabRow, new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+                    LinearLayout.LayoutParams.MATCH_PARENT, dp(NotesSheet.TAB_TOUCH_DP)));
             detach(notesCard);
             notesCard.setLayoutTransition(null);
             notesCard.setMinimumHeight(0);
@@ -5816,7 +5843,7 @@ public final class MainActivity extends Activity {
     };
 
     private int notesCollapsedH() {
-        return dp(NotesSheet.TAB_DP);
+        return dp(NotesSheet.TAB_TOUCH_DP);
     }
 
     private ViewGroup notesOverlayHost() {

@@ -33,7 +33,9 @@ public final class NotesSheetTest {
         equal(100, NotesSheet.dockInset(40, 80, 100));
         equal(36, NotesSheet.TAB_DP);
         equal(56, NotesSheet.SUMMARY_MIN_DP);
-        equal(92, NotesSheet.CONTENT_BOTTOM_PAD_DP);
+        equal(48, NotesSheet.TAB_TOUCH_DP);
+        equal(12, NotesSheet.TAB_SLOP_DP);
+        equal(104, NotesSheet.CONTENT_BOTTOM_PAD_DP);
         equal(0, NotesSheet.contentBottomPad(0, 0));
         equal(92, NotesSheet.contentBottomPad(36, 56));
         equal(200, NotesSheet.contentBottomPad(120, 80));
