@@ -16,7 +16,7 @@ END = b'data: {"choices":[{"delta":{},"finish_reason":"stop"}]}\n\ndata: [DONE]\
 
 
 class Handler(http.server.BaseHTTPRequestHandler):
-    """Script: optional delay before the first byte, an optional comment, one event, then quiet or end."""
+    """Script: optional delay before the first data: event, an optional comment, one event, then quiet or end."""
 
     script = {"before": 0.0, "comment": False, "end": False}
     release = threading.Event()
@@ -83,6 +83,7 @@ class StallTimeout(unittest.TestCase):
 
     def test_slow_first_event_keeps_the_long_wait(self):
         # 2 s to the first event is longer than STALL_SECONDS (1 s) but under the 30 s first-byte wait.
+        # The SSE comment line before it must not start the short stall timer; only a data: event does.
         source, _elapsed = self.run_source(self.serve(before=2.0, comment=True, end=True))
         data, done, finish, _tokens, error = source.snapshot()
         self.assertTrue(done)

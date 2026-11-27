@@ -520,7 +520,7 @@ class PracticeSource:
 def _stall_seconds():
     """Seconds with no new stream bytes, after the first event, before the server counts as stalled.
 
-    Clamped to 1..30 s (30 s is the first-byte wait); an unreadable value uses the 12 s default.
+    Clamped to 1..30 s (30 s is the wait for the first data: event); an unreadable value uses the 12 s default.
     """
     try:
         value = float(os.environ.get("OPOS_GPU_LINK_STALL_SECONDS", "12"))
@@ -534,8 +534,8 @@ def _stall_seconds():
 class ServerSource:
     """Read bounded SSE in a worker so phone status continues during server waits."""
 
-    # Before the first byte the server may still be reading a long resume prefix, so it gets the
-    # full 30 s. Once text is flowing, a quiet stream is a stall: STALL_SECONDS ends the read and
+    # Before the first data: event the server may still be reading a long resume prefix, so it gets
+    # the full 30 s. Once events are flowing, a quiet stream is a stall: STALL_SECONDS ends the read and
     # the answer pauses and resumes like a crash (error code "server"), instead of waiting 30 s.
     FIRST_BYTE_SECONDS = 30
 
