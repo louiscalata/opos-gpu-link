@@ -518,12 +518,17 @@ class PracticeSource:
 
 
 def _stall_seconds():
-    """Seconds with no new stream bytes, after the first byte, before the server counts as stalled."""
+    """Seconds with no new stream bytes, after the first event, before the server counts as stalled.
+
+    Clamped to 1..30 s (30 s is the first-byte wait); an unreadable value uses the 12 s default.
+    """
     try:
         value = float(os.environ.get("OPOS_GPU_LINK_STALL_SECONDS", "12"))
     except ValueError:
         return 12.0
-    return value if 1.0 <= value <= 30.0 else 12.0
+    if value != value:  # NaN
+        return 12.0
+    return min(max(value, 1.0), 30.0)
 
 
 class ServerSource:
@@ -600,12 +605,15 @@ class ServerSource:
         return False
 
     def _read(self, response):
-        total, ended = 0, False
+        total, ended, flowing = 0, False, False
         while not self.stop.is_set():
             line = response.readline(65537)
             if self.stop.is_set():
                 return  # closed while blocked: ignore late bytes
-            if line and total == 0:
+            if not flowing and line.startswith(b"data:"):
+                # The first data event (text or hidden thinking): the model is generating, so a
+                # quiet stream from here on is a stall. Comments and blank lines do not count.
+                flowing = True
                 with self.lock:
                     if self.sock is not None:
                         self.sock.settimeout(_stall_seconds())
