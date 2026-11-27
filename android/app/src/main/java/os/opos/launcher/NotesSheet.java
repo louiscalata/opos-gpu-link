@@ -9,6 +9,9 @@ final class NotesSheet {
     enum State { COLLAPSED, HALF, FULL }
 
     static final int TAB_DP = 36;
+    /** The tab's touch height: the 36 dp tab plus a clear strip above it, so it is a 48 dp target. */
+    static final int TAB_TOUCH_DP = 48;
+    static final int TAB_SLOP_DP = TAB_TOUCH_DP - TAB_DP;
     /** Minimum height reserved for the pinned Summary bar under the Notes tab. */
     static final int SUMMARY_MIN_DP = 56;
     /** Cap so a long report cannot grow the cover dock up over the Ask box. */
@@ -16,7 +19,7 @@ final class NotesSheet {
     /** Inner cap keeps the dock compact without hiding a short report. */
     static final int SUMMARY_MAX_INNER_DP = 140;
     /** Fallback bottom padding (tab + summary) when the dock has not been measured. */
-    static final int CONTENT_BOTTOM_PAD_DP = TAB_DP + SUMMARY_MIN_DP;
+    static final int CONTENT_BOTTOM_PAD_DP = TAB_TOUCH_DP + SUMMARY_MIN_DP;
     static final int FLING_PX_S = 600;
     static final int CONFIRM_MS = 1400;
     static final String CONFIRMATION = "Saved to Notes";
