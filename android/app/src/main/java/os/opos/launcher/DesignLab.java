@@ -18,6 +18,10 @@ final class DesignLab {
     /** One animation step. Slow enough to read from a stage, cheap enough for a hot phone. */
     static final int TICK_MS = 160;
     private static final int GAP = 8;
+    /** Below this many columns (the cover screen) the paused caption uses its short form. */
+    static final String PAUSED_LONG = "Cable out · paused · resumes on plug-in";
+    static final String PAUSED_SHORT = "Cable out · paused";
+    static final int LONG_CAPTION_WIDTH = PAUSED_LONG.length();
 
     private DesignLab() {}
 
@@ -71,7 +75,7 @@ final class DesignLab {
             case LIVE: caption = "USB-C · tokens flowing"; break;
             case PAUSED:
                 // Narrow (cover screen): the short form, never cut mid-word.
-                caption = width >= 39 ? "Cable out · paused · resumes on plug-in" : "Cable out · paused";
+                caption = width >= LONG_CAPTION_WIDTH ? PAUSED_LONG : PAUSED_SHORT;
                 break;
             case UNPLUGGED: caption = "Cable out"; break;
             default: caption = "USB-C · ready"; break;
