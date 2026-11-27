@@ -3651,6 +3651,15 @@ public final class MainActivity extends Activity {
         }
     }
 
+    /** The paired computer is talking to the phone (live), busy answering or not. "ready" alone
+     *  is false while the computer is busy, so it would hide a real mid-answer stall. */
+    private static boolean gpuLaneReady(JSONObject data) {
+        JSONObject gpu = data == null ? null : data.optJSONObject("gpu");
+        JSONObject link = gpu == null ? null : gpu.optJSONObject("link");
+        JSONObject pc = link == null ? null : link.optJSONObject("pc");
+        return pc != null && pc.optBoolean("live");
+    }
+
     private boolean gpuCanQueue(JSONObject gpu) {
         JSONObject link = gpu == null ? null : gpu.optJSONObject("link");
         return link != null && link.optJSONObject("pc") != null;
@@ -3804,7 +3813,10 @@ public final class MainActivity extends Activity {
                 button.setVisibility(View.GONE);
                 continue;
             }
-            boolean laneReady = Boolean.TRUE.equals(ready.get(pane));
+            // Send may queue on a paired computer that is still warming, but health and Retry
+            // need the lane actually ready, so a warmup is never read as a stall.
+            boolean canQueue = Boolean.TRUE.equals(ready.get(pane));
+            boolean laneReady = canQueue && (!"gpu".equals(pane) || gpuLaneReady(data));
             String question = answer.optString("question");
             LaneHealth.Verdict verdict = laneHealth.observe(pane, id, answer.optString("state"),
                     answer.optString("error"), answer.optLong("bytes", answer.optString("text").length()),
