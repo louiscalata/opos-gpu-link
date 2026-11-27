@@ -86,7 +86,9 @@
     <string name="later">Not now</string>
     <string name="info">Info</string>
     <string name="info_description">Show GPU Link information</string>
-    <string name="info_title">Settings</string>
+    <string name="info_title">Info</string>
+    <string name="info_about_label">About</string>
+    <string name="info_about">OPOS GPU Link lets your phone run AI models on a nearby computer\'s GPU over a USB-C cable. The phone shows the answers, and the computer does the heavy work, fully offline.</string>
     <string name="info_phone_model_label">Phone model</string>
     <string name="info_pc_label">PC</string>
     <string name="info_pc_id_label">PC fingerprint</string>

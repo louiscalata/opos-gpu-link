@@ -59,6 +59,24 @@
             android:paddingBottom="28dp">
 
             <TextView
+                android:id="@+id/info_about_label_text"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:labelFor="@id/info_about"
+                android:text="@string/info_about_label"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp" />
+            <TextView
+                android:id="@+id/info_about"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="4dp"
+                android:layout_marginBottom="22dp"
+                android:text="@string/info_about"
+                android:textColor="@color/newspaper_ink"
+                android:textSize="18sp" />
+
+            <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:labelFor="@id/info_phone_model"

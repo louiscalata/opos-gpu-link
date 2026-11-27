@@ -4927,6 +4927,7 @@ public final class MainActivity extends Activity {
         typography.headline(dialog.findViewById(R.id.info_page_title), 26);
         dialog.<TextView>findViewById(R.id.info_replace_pc_steps)
                 .setTypeface(typography.smTextRegular);
+        dialog.<TextView>findViewById(R.id.info_about).setTypeface(typography.smTextRegular);
         JSONObject phone = snapshot == null ? null : snapshot.optJSONObject("phone");
         JSONObject gpu = snapshot == null ? null : snapshot.optJSONObject("gpu");
         String phoneModel = phone == null ? "" : phone.optString("model").trim();
