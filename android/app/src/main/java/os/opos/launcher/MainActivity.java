@@ -3911,13 +3911,12 @@ public final class MainActivity extends Activity {
         network.execute(() -> {
             JSONObject updated = null;
             String problem = null;
-            for (String id : ids) {
-                JSONObject body = action("cancel");
+            if (!ids.isEmpty()) {
                 try {
-                    body.put("id", id);
-                    updated = client.post(body);
+                    // One request so the service can flag every lane before any gate is released.
+                    updated = client.post(cancelBody(ids));
                 } catch (IOException | JSONException failure) {
-                    if (problem == null) problem = getString(R.string.stop_failed);
+                    problem = getString(R.string.stop_failed);
                 }
             }
             try {
@@ -3986,11 +3985,10 @@ public final class MainActivity extends Activity {
             List<String> ids = openAnswerIds(latest != null ? latest : lastSeen);
             boolean cancelFailed = false;
             JSONObject updated = null;
-            for (String id : ids) {
-                JSONObject cancel = action("cancel"); // The same non-destructive call as Stop.
+            if (!ids.isEmpty()) {
                 try {
-                    cancel.put("id", id);
-                    updated = client.post(cancel);
+                    // The same non-destructive call as Stop, with every id in one request.
+                    updated = client.post(cancelBody(ids));
                 } catch (IOException | JSONException ignored) {
                     cancelFailed = true;
                 }
@@ -3999,6 +3997,11 @@ public final class MainActivity extends Activity {
             if (!ids.isEmpty()) {
                 try {
                     afterCancel = client.getSnapshot();
+                    // A cancel refused because the answer just finished is not a failed Quit.
+                    if (cancelFailed && afterCancel != null && !afterCancel.optBoolean("locked")
+                            && !StopPolicy.stillRunning(ids, openAnswerIds(afterCancel))) {
+                        cancelFailed = false;
+                    }
                 } catch (IOException | JSONException ignored) {
                     // A cancelled issue may have no final local snapshot to archive.
                 }
@@ -4049,6 +4052,19 @@ public final class MainActivity extends Activity {
         JSONObject body = new JSONObject();
         try {
             body.put("action", name);
+        } catch (JSONException impossible) {
+            throw new AssertionError(impossible);
+        }
+        return body;
+    }
+
+    /** One cancel request naming every open answer, so flags are set before the decode gate is released. */
+    private static JSONObject cancelBody(List<String> ids) {
+        JSONObject body = action("cancel");
+        try {
+            JSONArray array = new JSONArray();
+            for (String id : ids) array.put(id);
+            body.put("ids", array);
         } catch (JSONException impossible) {
             throw new AssertionError(impossible);
         }

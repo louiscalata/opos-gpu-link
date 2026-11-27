@@ -13,11 +13,11 @@ import threading
 import time
 import urllib.error
 import urllib.request
-from collections import deque
 from copy import deepcopy
 from typing import Any
 
 from opos import ai_answers, ai_model_pool, ai_stream_budget, appdoc, apps, assist, muse
+from opos.decode_gate import DecodeGate, set_cancel_flags
 
 try:
     from opos import gpu_link_server
@@ -82,67 +82,7 @@ def _service() -> Any:
     return gpu_link_server.service() if gpu_link_server is not None else None
 
 
-class _DecodeGate:
-    """Give pool models FIFO turns and keep the phone decoder out of each turn."""
-
-    def __init__(self) -> None:
-        self.condition = threading.Condition()
-        self.queue: deque[object] = deque()
-        self.active: object | None = None
-        self.phone_pending = 0
-
-    def reserve_phone(self) -> None:
-        with self.condition:
-            self.phone_pending += 1
-            self.condition.notify_all()
-
-    def phone_turn(self, cancelled: threading.Event) -> bool:
-        with self.condition:
-            while self.active is not None:
-                if cancelled.is_set():
-                    return False
-                self.condition.wait(0.05)
-            return not cancelled.is_set()
-
-    def release_phone(self) -> None:
-        with self.condition:
-            self.phone_pending -= 1
-            self.condition.notify_all()
-
-    def reserve_pool(self) -> object:
-        with self.condition:
-            ticket = object()
-            self.queue.append(ticket)
-            self.condition.notify_all()
-            return ticket
-
-    def pool_turn(self, ticket: object, cancelled: threading.Event) -> bool:
-        with self.condition:
-            while True:
-                if cancelled.is_set():
-                    self.release_pool(ticket)
-                    return False
-                if self.active is None and self.phone_pending == 0 and self.queue and self.queue[0] is ticket:
-                    self.queue.popleft()
-                    self.active = ticket
-                    return True
-                self.condition.wait(0.05)
-
-    def release_pool(self, ticket: object) -> None:
-        with self.condition:
-            if self.active is ticket:
-                self.active = None
-            else:
-                try:
-                    self.queue.remove(ticket)
-                except ValueError:
-                    pass
-            self.condition.notify_all()
-
-
-_DECODE_GATE = _DecodeGate()
-
-
+_DECODE_GATE = DecodeGate()
 def _chosen_panes(panes: Any) -> tuple[list[str], dict[str, ai_model_pool.Model]]:
     if not isinstance(panes, list) or not panes or any(pane not in ai_answers.PANES for pane in panes):
         raise ValueError("Choose an available phone, GPU, or model pane.")
@@ -630,23 +570,62 @@ class PageState:
                 del self.workers[job.ident]
 
     def cancel(self, ident: str) -> None:
-        """Stop local work or ask the link to drop a GPU lease before cancelling."""
+        """Stop one answer. Unknown ids are refused so a stale tap cannot hide a miss."""
+        self.cancel_many([ident], missing="error")
+
+    def cancel_many(self, idents: list[str], *, missing: str = "skip") -> None:
+        """Set every targeted cancel flag, then tear down. Flags go first so a queued
+        pool lane cannot win the shared decode gate after the phone lead is cancelled.
+        """
+        if missing not in ("error", "skip"):
+            raise ValueError("missing must be error or skip")
         answers = ai_answers.shared()
-        answer = answers.get(ident) if isinstance(ident, str) else None
-        if answer is None:
+        items: list[tuple[str, dict, object | None]] = []
+        seen: set[str] = set()
+        for ident in idents:
+            if not isinstance(ident, str) or not ident:
+                if missing == "error":
+                    raise ValueError("That answer was not found.")
+                continue
+            if ident in seen:
+                continue
+            seen.add(ident)
+            answer = answers.get(ident)
+            if answer is None:
+                if missing == "error":
+                    raise ValueError("That answer was not found.")
+                continue
+            items.append((ident, answer, self.workers.get(ident)))
+        if not items and missing == "error":
             raise ValueError("That answer was not found.")
-        job = self.workers.get(ident)
-        if job is not None:
-            job.cancelled.set()
+        set_cancel_flags((job for _, _, job in items), gate=_DECODE_GATE)
         link = _service()
-        try:
-            if answer["pane"] in ai_answers.PC_PANES and link is not None:
-                link.cancel(ident)
-            else:
-                answers.cancel(ident)
-        finally:
-            if isinstance(job, PoolWorker):
-                job.stop_process()
+        first_error: BaseException | None = None
+        for ident, answer, job in items:
+            try:
+                current = answers.get(ident) or answer
+                if current["state"] in ai_answers.FINAL:
+                    if missing == "error":
+                        answers.cancel(ident)
+                elif current["pane"] in ai_answers.PC_PANES and link is not None:
+                    link.cancel(ident)
+                else:
+                    answers.cancel(ident)
+            except ai_answers.StateError:
+                if missing == "error":
+                    raise
+            except Exception as exc:
+                if first_error is None:
+                    first_error = exc
+            finally:
+                try:
+                    if isinstance(job, PoolWorker):
+                        job.stop_process()
+                except Exception as exc:
+                    if first_error is None:
+                        first_error = exc
+        if first_error is not None:
+            raise first_error
 
     def retry(self, data: dict) -> None:
         """Rerun one lane's current question, replacing a stuck, paused, failed or finished answer.
@@ -715,7 +694,13 @@ def post(data: Any) -> tuple[int, dict]:
             if action == "ask":
                 _STATE.ask(data)
             elif action == "cancel":
-                _STATE.cancel(data.get("id"))
+                ids = data.get("ids")
+                if ids is None:
+                    _STATE.cancel(data.get("id"))
+                elif isinstance(ids, list) and ids and all(isinstance(item, str) and item for item in ids):
+                    _STATE.cancel_many(ids)
+                else:
+                    raise ValueError("Choose which answers to stop.")
             elif action == "retry":
                 _STATE.retry(data)
             elif action in ("allow", "deny", "reopen", "forget"):
