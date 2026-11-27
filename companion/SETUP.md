@@ -23,6 +23,16 @@ Use `--lm-url http://127.0.0.1:8000/v1` to pin a backend, or pass the full chat-
 
 On first pairing, compare the six-digit codes and tap **Allow** on the phone. The launcher keeps its running trust grant across replug. Press Ctrl-C to stop the launcher and let it remove its own forward.
 
+## Start at login (macOS)
+
+To have the companion running whenever you sign in to your Mac, install the per-user LaunchAgent from `companion/`:
+
+```
+python3 gpu_link_login_agent.py install --model-path /path/to/model.gguf --serial SERIAL --adb /path/to/adb
+```
+
+It writes `~/Library/LaunchAgents/os.opos.gpulink.companion.plist`, which runs `gpu_link_autosetup.py --offline --strict-ports --own-server --port 38400` from this checkout at login, restarts it after a crash (not after a clean exit), and logs to `~/Library/Logs/OPOS GPU Link/`. No admin rights are needed. `status` shows whether it is loaded, `print` shows the plist without installing it, and `uninstall` stops and removes it. The phone still asks once before it uses a new computer.
+
 ## Discover backends
 
 Append `--discover` to any launcher. For example:
