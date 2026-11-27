@@ -158,10 +158,22 @@ public final class LaneHealthTest {
             // Still warming long after the replug: Paused, no disabled Retry.
             v = h.observe("gpu", "warm-" + open, open, null, 80, Q, false, t + 2_000 + 600_000);
             check(v.status == LaneHealth.Status.PAUSED && !v.retryVisible && !v.autoRetryDue);
-            // Ready again after that long: Retry shows now, when it can actually run.
+            // Ready again after that long: the stall grace starts at readiness, so the first
+            // ready poll is still working, with no Retry and no automatic retry.
             v = h.observe("gpu", "warm-" + open, open, null, 80, Q, true, t + 2_000 + 601_000);
-            check(v.retryVisible);
+            check(v.status == LaneHealth.Status.WORKING && !v.retryVisible && !v.autoRetryDue);
+            long limit = "loading".equals(open) ? LaneHealth.STALL_LOADING_MS : LaneHealth.STALL_ANSWERING_MS;
+            v = h.observe("gpu", "warm-" + open, open, null, 80, Q, true, t + 2_000 + 601_000 + limit + 1);
+            check(v.status == LaneHealth.Status.STUCK && v.retryVisible);
         }
+
+        // A phone lane paused by a backend restart does not wait for the cable: with the cable
+        // out it still becomes stuck with Retry, never a planned pause.
+        h = new LaneHealth();
+        h.observeCable(false, 0);
+        h.observe("phone", "p-1", "paused", null, 10, Q, true, 1_000);
+        v = h.observe("phone", "p-1", "paused", null, 10, Q, true, 1_000 + LaneHealth.PAUSED_WITH_CABLE_MS);
+        check(v.status == LaneHealth.Status.STUCK && v.retryVisible);
 
         // Stop on an answer whose text already tripped the garble guard: cancelled, no re-ask.
         LaneHealth stopped = new LaneHealth();

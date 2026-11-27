@@ -138,7 +138,8 @@ final class LaneHealth {
                 return new Verdict(Status.FAILED, true,
                         autoLeft && transientError(error) && quiet >= FAILED_AUTO_DELAY_MS);
             case "paused":
-                if (!cableBack) return plannedPause();
+                // Only a computer lane waits for the cable; a phone lane never depends on it.
+                if (pc && !cableBack) return plannedPause();
                 if (!pc) {
                     // A phone-side lane is only ever paused by a backend restart; treat as stuck at once.
                     return new Verdict(quiet >= PAUSED_WITH_CABLE_MS ? Status.STUCK : Status.WORKING,
@@ -157,11 +158,13 @@ final class LaneHealth {
             case "loading":
                 if (pc && !cableBack) return plannedPause();
                 if (pc && !laneReady) return warmingPause();
-                return stuckVerdict(pc ? cableQuiet : quiet, STALL_LOADING_MS, pc && autoLeft);
+                // Grace counts from the replug AND readiness, so a long warmup does not turn the
+                // first ready poll into STUCK and an automatic retry of a resuming answer.
+                return stuckVerdict(pc ? graceQuiet : quiet, STALL_LOADING_MS, pc && autoLeft);
             case "answering":
                 if (pc && !cableBack) return plannedPause();
                 if (pc && !laneReady) return warmingPause();
-                return stuckVerdict(pc ? cableQuiet : quiet, STALL_ANSWERING_MS, pc && autoLeft);
+                return stuckVerdict(pc ? graceQuiet : quiet, STALL_ANSWERING_MS, pc && autoLeft);
             default:
                 return new Verdict(Status.WORKING, false, false);
         }
