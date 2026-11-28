@@ -29,11 +29,11 @@ public final class AnswerDisplayTest {
             equal("   ```\n    if ready:\n   ```", AnswerDisplay.text(pane,
                     "\n   ```\n    if ready:\n   ```"));
         }
-        // An answer starting with a list keeps its intentional indentation.
+        // A list start keeps indentation of two or more spaces; a one-space indent is trimmed.
         equal("  - first\n    - second", AnswerDisplay.text("gpu", "\n  - first\n    - second"));
         equal("  1. first", AnswerDisplay.text("m1", " \n  1. first"));
         equal("1. first", AnswerDisplay.text("m2", "\n 1. first"));
-        equal("\u2003- first", AnswerDisplay.text("m3", "\n\u2003- first"));
+        equal("- first", AnswerDisplay.text("m3", "\n\u2003- first"));
         System.out.println("AnswerDisplayTest: OK");
     }
 
