@@ -58,8 +58,13 @@ final class UiPalette {
 
     boolean light() { return theme == Theme.LIGHT; }
 
+    /** Android's light system-bar appearance means dark icons on light paper. */
+    boolean darkSystemBarIcons() { return light(); }
+
     String paper() { return light() ? WHITE : BLACK; }
     String ink() { return light() ? BLACK : WHITE; }
+    String selectionFill(boolean on) { return on ? ink() : paper(); }
+    String selectionText(boolean on) { return on ? paper() : ink(); }
     String stroke() { return STROKE; }
     String label() { return light() ? LABEL_LIGHT : LABEL_DARK; }
     String notesRule() { return light() ? NOTES_RULE_LIGHT : NOTES_RULE_DARK; }

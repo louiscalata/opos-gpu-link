@@ -117,6 +117,7 @@ public final class MainActivity extends Activity {
     private UiSettings uiSettings;
     private UiPalette palette = new UiPalette(UiPalette.Theme.DARK);
     private Dialog settingsDialog;
+    private View settingsPage;
     private Runnable pendingNotesDrag;
     private float notesDragDownX, notesDragDownY;
     private boolean notesDragActive;
@@ -1603,10 +1604,10 @@ public final class MainActivity extends Activity {
         if (window != null && reduceMotionEnabled) window.setWindowAnimations(0);
         dialog.show();
         if (window != null) {
-            window.setBackgroundDrawableResource(R.color.newspaper_paper);
             window.setLayout(WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.MATCH_PARENT);
         }
+        applyPaletteToDialog(dialog);
     }
 
     private void updateExpanded(PaneViews article) {
@@ -3820,7 +3821,6 @@ public final class MainActivity extends Activity {
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
         paintSummaryReport(fullSummaryText, summaryText == null ? "" : summaryText.getText().toString());
         showFullPage(dialog, root);
-        applyPaletteToDialog(dialog);
     }
 
     /** A string resource with "PC" replaced by the paired computer's noun (MacBook, Mac or PC). */
@@ -5053,10 +5053,10 @@ public final class MainActivity extends Activity {
         if (window != null) window.setWindowAnimations(0);
         dialog.show();
         if (window != null) {
-            window.setBackgroundDrawableResource(R.color.newspaper_paper);
             window.setLayout(WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.MATCH_PARENT);
         }
+        applyPaletteToDialog(dialog);
     }
 
     private void showModelSelection() {
@@ -5263,9 +5263,11 @@ public final class MainActivity extends Activity {
             if (toggle == null) continue;
             boolean on = laneSelection.isOn(available, ready, pane);
             setIfChanged(toggle, on ? "ON" : "OFF");
-            toggle.setTextColor(on ? themeColor(R.color.newspaper_paper) : themeColor(R.color.newspaper_ink));
-            toggle.setBackgroundResource(on ? R.drawable.newspaper_primary
-                    : R.drawable.newspaper_outline);
+            toggle.setTextColor(parseHex(palette.selectionText(on)));
+            GradientDrawable toggleBackground = new GradientDrawable();
+            toggleBackground.setColor(parseHex(palette.selectionFill(on)));
+            if (!on) toggleBackground.setStroke(cardStrokePx(), themeColor(R.color.newspaper_stroke));
+            toggle.setBackground(toggleBackground);
             toggle.setTag(R.id.model_toggle_selected, on);
             toggle.setContentDescription(modelLabel(pane, view));
         }
@@ -5320,7 +5322,6 @@ public final class MainActivity extends Activity {
         clearParams.topMargin = dp(10);
         root.addView(clear, clearParams);
         showFullPage(dialog, root);
-        applyPaletteToDialog(dialog);
         fillHistoryRows();
     }
 
@@ -5547,7 +5548,6 @@ public final class MainActivity extends Activity {
         root.addView(scroll, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
         showFullPage(dialog, root);
-        applyPaletteToDialog(dialog);
     }
 
     private void refreshHistoryIssue(HistoryStore.Issue saved, Dialog dialog) {
@@ -5708,6 +5708,7 @@ public final class MainActivity extends Activity {
             window.setLayout(WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.MATCH_PARENT);
         }
+        applyPaletteToDialog(dialog);
     }
 
     private String trustedPcLabel() {
@@ -5776,6 +5777,7 @@ public final class MainActivity extends Activity {
         handler.removeCallbacks(poll);
         info.findViewById(R.id.info_forget_pc).setEnabled(false);
         setIfChanged(info.findViewById(R.id.info_forget_error), "");
+        styleInfoError(info);
         updateButtons();
         network.execute(() -> {
             try {
@@ -5795,6 +5797,7 @@ public final class MainActivity extends Activity {
                             ? failure.getMessage() : getString(R.string.action_failed);
                     if (info.isShowing()) {
                         setIfChanged(info.findViewById(R.id.info_forget_error), message);
+                        styleInfoError(info);
                         JSONObject gpu = snapshot == null ? null : snapshot.optJSONObject("gpu");
                         updateInfoPcRows(info, gpu, pcConnection(gpu));
                     } else setIfChanged(error, message);
@@ -5850,8 +5853,8 @@ public final class MainActivity extends Activity {
         renderLinkBanner(pcConnection(gpu) == Connection.CONNECTED, hasVisiblePcWork());
     }
 
-    private void applySystemBars() {
-        Window window = getWindow();
+    private void applySystemBars(Window window) {
+        if (window == null) return;
         int paper = themeColor(R.color.newspaper_paper);
         window.setStatusBarColor(paper);
         window.setNavigationBarColor(paper);
@@ -5860,7 +5863,7 @@ public final class MainActivity extends Activity {
             if (controller != null) {
                 int light = android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
                         | android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
-                controller.setSystemBarsAppearance(palette.light() ? light : 0, light);
+                controller.setSystemBarsAppearance(palette.darkSystemBarIcons() ? light : 0, light);
             }
         } else {
             View decor = window.getDecorView();
@@ -5869,7 +5872,8 @@ public final class MainActivity extends Activity {
             if (Build.VERSION.SDK_INT >= 26) {
                 lightFlags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
             }
-            decor.setSystemUiVisibility(palette.light() ? flags | lightFlags : flags & ~lightFlags);
+            decor.setSystemUiVisibility(palette.darkSystemBarIcons()
+                    ? flags | lightFlags : flags & ~lightFlags);
         }
     }
 
@@ -5942,6 +5946,13 @@ public final class MainActivity extends Activity {
         error.setTextColor(parseHex(has ? palette.error() : palette.ink()));
     }
 
+    private void styleInfoError(Dialog dialog) {
+        TextView line = dialog.findViewById(R.id.info_forget_error);
+        if (line == null) return;
+        boolean hasError = line.getText() != null && line.getText().length() > 0;
+        line.setTextColor(parseHex(hasError ? palette.error() : palette.ink()));
+    }
+
     private void styleErrorButton(Button button, boolean errorState) {
         if (button == null) return;
         styleButton(button, parseHex(errorState ? palette.error() : palette.ink()),
@@ -5955,12 +5966,15 @@ public final class MainActivity extends Activity {
     }
 
     private void applyPaletteToPage() {
-        applySystemBars();
+        applySystemBars(getWindow());
         int paper = themeColor(R.color.newspaper_paper);
         int ink = themeColor(R.color.newspaper_ink);
         int label = themeColor(R.color.you_asked_label);
+        View root = findViewById(R.id.root);
+        if (root != null) root.setBackgroundColor(paper);
         if (screen != null) screen.setBackgroundColor(paper);
         recolorChrome(screen, paper, ink, label);
+        if (pairingClosed != null) pairingClosed.setBackground(panelDrawable(palette.stroke()));
         if (pairing != null) {
             pairing.setBackgroundColor(paper);
             recolorChrome(pairing, paper, ink, label);
@@ -6094,13 +6108,27 @@ public final class MainActivity extends Activity {
 
     private void applyPaletteToDialog(Dialog dialog) {
         if (dialog == null || dialog.getWindow() == null) return;
-        dialog.getWindow().setBackgroundDrawable(new ColorDrawable(themeColor(R.color.newspaper_paper)));
-        dialog.getWindow().setStatusBarColor(themeColor(R.color.newspaper_paper));
-        dialog.getWindow().setNavigationBarColor(themeColor(R.color.newspaper_paper));
-        recolorChrome(dialog.getWindow().getDecorView(),
-                themeColor(R.color.newspaper_paper),
-                themeColor(R.color.newspaper_ink),
+        Window window = dialog.getWindow();
+        int paper = themeColor(R.color.newspaper_paper);
+        int ink = themeColor(R.color.newspaper_ink);
+        window.setBackgroundDrawable(new ColorDrawable(paper));
+        applySystemBars(window);
+        View content = window.findViewById(android.R.id.content);
+        if (content instanceof ViewGroup && ((ViewGroup) content).getChildCount() > 0) {
+            ((ViewGroup) content).getChildAt(0).setBackgroundColor(paper);
+        }
+        View infoPage = dialog.findViewById(R.id.info_page);
+        if (infoPage != null) infoPage.setBackgroundColor(paper);
+        if (dialog == settingsDialog && settingsPage != null) settingsPage.setBackgroundColor(paper);
+        View infoRule = dialog.findViewById(R.id.info_rule);
+        if (infoRule != null) infoRule.setBackgroundColor(ink);
+        recolorChrome(window.getDecorView(), paper, ink,
                 themeColor(R.color.you_asked_label));
+        if (dialog == infoDialog) {
+            applyTone(dialog.findViewById(R.id.info_pc_status));
+            applyTone(dialog.findViewById(R.id.info_pairing));
+            styleInfoError(dialog);
+        }
     }
 
     private void applyTypographyToPage() {
@@ -6152,6 +6180,7 @@ public final class MainActivity extends Activity {
         dialog.setOnDismissListener(ignored -> {
             if (settingsDialog == dialog) {
                 settingsDialog = null;
+                settingsPage = null;
                 settingsLabList = null;
             }
         });
@@ -6159,6 +6188,7 @@ public final class MainActivity extends Activity {
         scroll.setFillViewport(true);
         scroll.setClipToPadding(true);
         LinearLayout page = new LinearLayout(this);
+        settingsPage = page;
         page.setOrientation(LinearLayout.VERTICAL);
         int pagePad = dp(coverMode ? 10 : 16);
         page.setPadding(pagePad, pagePad, pagePad, pagePad);
@@ -6207,6 +6237,7 @@ public final class MainActivity extends Activity {
             window.setLayout(WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.MATCH_PARENT);
         }
+        applyPaletteToDialog(dialog);
     }
 
     private void bindSettingsLists(LinearLayout themeList) {
@@ -6221,6 +6252,10 @@ public final class MainActivity extends Activity {
                 if (!uiSettings.setTheme(choice)) return;
                 applyUi();
                 updateOptionRows(themeList, themes, choice);
+                if (settingsLabList != null) {
+                    updateOptionRows(settingsLabList,
+                            DesignLab.MODES.toArray(new String[0]), uiSettings.designLab());
+                }
                 view.sendAccessibilityEvent(
                         android.view.accessibility.AccessibilityEvent.TYPE_VIEW_SELECTED);
             });
