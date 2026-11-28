@@ -6,6 +6,13 @@ public final class DesignLabTest {
     private static final String ALLOWED = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789 \n\r\t.,:;!?()[]{}<>+-=*/_%&|\\'\"`~@#^$·─│┌┐└┘═▶■□╳‖—";
 
     public static void main(String[] args) {
+        equal(List.of(DesignLab.OFF, DesignLab.SCHEMATIC, DesignLab.BELTS), DesignLab.MODES);
+        try {
+            DesignLab.MODES.set(0, "other");
+            throw new AssertionError("Design lab modes must stay read-only");
+        } catch (UnsupportedOperationException expected) {
+            // The API-29-safe list must keep List.of's read-only behavior.
+        }
         check(DesignLab.parseMode(null).equals(DesignLab.OFF));
         check(DesignLab.parseMode("x").equals(DesignLab.OFF));
         check(DesignLab.parseMode("schematic").equals(DesignLab.SCHEMATIC));
