@@ -22,6 +22,10 @@ public final class StopPolicyTest {
         check(StopPolicy.legacyBulkUnsupported(400, "That answer was not found."));
         check(!StopPolicy.legacyBulkUnsupported(403, "That answer was not found."));
         check(!StopPolicy.legacyBulkUnsupported(400, "That answer has already ended."));
+        // A missing ID is a starting state while work is still open.
+        check(StopPolicy.noIdStillOpen(true, Collections.emptyList()));
+        check(!StopPolicy.noIdStillOpen(false, Collections.emptyList()));
+        check(!StopPolicy.noIdStillOpen(true, Arrays.asList("phone")));
         // Keep pool lanes from starting when ending the lead answer releases the decoder.
         List<String> ids = Arrays.asList("phone", "gpu", "m1", "m2", "m3", "m4");
         Map<String, String> states = new HashMap<>();
@@ -33,6 +37,9 @@ public final class StopPolicyTest {
         states.put("m4", "answering");
         check(StopPolicy.waitingFirst(ids, states).equals(
                 Arrays.asList("m1", "m2", "phone", "gpu", "m3", "m4")));
+        check(StopPolicy.waitingFirst(null, states).isEmpty());
+        check(StopPolicy.waitingFirst(Collections.emptyList(), states).isEmpty());
+        check(StopPolicy.waitingFirst(ids, null).equals(ids));
         System.out.println("StopPolicyTest: OK");
     }
 

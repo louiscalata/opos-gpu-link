@@ -27,14 +27,20 @@ final class StopPolicy {
         return status == 400 && "That answer was not found.".equals(message);
     }
 
+    /** Keep the Stop notice while work is open but no answer can be named yet. */
+    static boolean noIdStillOpen(boolean blocking, Collection<String> ids) {
+        return blocking && (ids == null || ids.isEmpty());
+    }
+
     /** Stop queued phone lanes before ending the lead answer on a one-ID host. */
     static List<String> waitingFirst(List<String> ids, Map<String, String> states) {
         List<String> result = new ArrayList<>();
+        if (ids == null || ids.isEmpty()) return result;
         for (String id : ids) {
-            if (waiting(states.get(id))) result.add(id);
+            if (waiting(states == null ? null : states.get(id))) result.add(id);
         }
         for (String id : ids) {
-            if (!waiting(states.get(id))) result.add(id);
+            if (!waiting(states == null ? null : states.get(id))) result.add(id);
         }
         return result;
     }

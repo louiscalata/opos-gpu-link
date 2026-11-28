@@ -255,7 +255,7 @@ public final class MainActivity extends Activity {
     private final Map<String, TextView> modelToggles = new HashMap<>();
     private final Map<String, TextView> modelLabels = new HashMap<>();
     private final Map<String, TextView> modelMetaViews = new HashMap<>();
-    private boolean displayPinned, quitting;
+    private boolean displayPinned, quitting, stopWaitingForId;
     private boolean foldRestored;
     private String archivedIssueId = "";
     private String pendingRefreshSourceId = "";
@@ -1706,7 +1706,7 @@ public final class MainActivity extends Activity {
                 JSONObject fresh = client.getSnapshot();
                 handler.post(() -> {
                     polling = false;
-                    if (!visible || acting) return;
+                    if (!visible || acting || quitting) return;
                     reachable = true;
                     showSnapshot(fresh);
                     schedule(pollDelay(fresh));
@@ -1714,7 +1714,7 @@ public final class MainActivity extends Activity {
             } catch (IOException | JSONException failure) {
                 handler.post(() -> {
                     polling = false;
-                    if (!visible || acting) return;
+                    if (!visible || acting || quitting) return;
                     reachable = false;
                     showOffline(failure);
                     schedule(2000);
@@ -3237,6 +3237,13 @@ public final class MainActivity extends Activity {
         } else {
             line = pcWords(R.string.gpu_unavailable);
         }
+        if (stopWaitingForId) {
+            if (StopPolicy.noIdStillOpen(anyBlockingOpen(), openAnswerIds(snapshot))) {
+                line = getString(R.string.stop_not_ready);
+            } else {
+                stopWaitingForId = false;
+            }
+        }
         setMainStatus(line);
         renderLinkBanner(connection == Connection.CONNECTED, pcOpen || hasVisiblePcWork());
         if (infoDialog != null && infoDialog.isShowing()) {
@@ -4378,24 +4385,10 @@ public final class MainActivity extends Activity {
     }
 
     private void stopAnswers() {
-        if (snapshot == null || !reachable || acting) return;
-        Map<String, String> openIds = new HashMap<>();
-        Map<String, String> openStates = new HashMap<>();
-        for (String pane : paneNames(snapshot)) {
-            JSONObject work = answerOf(snapshot, pane);
-            if (open(work)) {
-                String id = work.optString("id");
-                openIds.put(pane, id);
-                if (!id.isEmpty()) openStates.put(id, work.optString("state"));
-            }
-        }
-        List<String> ids = PaneKeys.uniqueOpenIds(paneNames(snapshot), openIds);
-        if (ids.isEmpty()) {
-            error.setText(R.string.stop_not_ready);
-            updateButtons();
-            schedule(0);
-            return;
-        }
+        if (snapshot == null || !reachable || acting || quitting) return;
+        List<String> seenIds = openAnswerIds(snapshot);
+        Map<String, String> seenStates = openAnswerStates(snapshot);
+        stopWaitingForId = false;
         acting = true;
         handler.removeCallbacks(poll);
         setMainStatus(getString(R.string.stopping));
@@ -4403,48 +4396,56 @@ public final class MainActivity extends Activity {
         network.execute(() -> {
             JSONObject updated = null;
             String problem = null;
-            try {
-                // The current service flags every lane before releasing the phone decoder.
-                updated = client.post(cancelBody(ids));
-            } catch (AiClient.ApiException failure) {
-                if (StopPolicy.legacyBulkUnsupported(failure.status, failure.getMessage())) {
-                    // Older phone hosts accept one ID at a time. Stop waiting lanes first so
-                    // ending the active answer does not immediately start the next pool lane.
-                    for (String id : StopPolicy.waitingFirst(ids, openStates)) {
-                        try {
-                            updated = client.post(cancelOneBody(id));
-                        } catch (IOException | JSONException singleFailure) {
-                            problem = getString(R.string.stop_failed);
-                        }
-                    }
-                } else {
+            List<String> ids = seenIds;
+            Map<String, String> states = seenStates;
+            if (ids.isEmpty()) {
+                try {
+                    // An answer may have gained its ID since the last screen update.
+                    updated = client.getSnapshot();
+                    ids = openAnswerIds(updated);
+                    states = openAnswerStates(updated);
+                } catch (IOException | JSONException failure) {
+                    problem = getString(R.string.action_failed);
+                }
+            }
+            if (!ids.isEmpty()) {
+                try {
+                    updated = cancelOpenAnswers(ids, states);
+                } catch (IOException | JSONException failure) {
                     problem = getString(R.string.stop_failed);
                 }
-            } catch (IOException | JSONException failure) {
-                problem = getString(R.string.stop_failed);
-            }
-            try {
-                updated = client.getSnapshot();
-                // A cancel refused because the answer just finished is not a failed Stop.
-                if (problem != null && !updated.optBoolean("locked")
-                        && !StopPolicy.stillRunning(ids, openAnswerIds(updated))) {
-                    problem = null;
+                try {
+                    updated = client.getSnapshot();
+                    // A cancel refused because the answer just finished is not a failed Stop.
+                    if (problem != null && !updated.optBoolean("locked")
+                            && !StopPolicy.stillRunning(ids, openAnswerIds(updated))) {
+                        problem = null;
+                    }
+                } catch (IOException | JSONException failure) {
+                    if (updated == null && problem == null) {
+                        problem = getString(R.string.action_failed);
+                    }
                 }
-            } catch (IOException | JSONException failure) {
-                if (updated == null && problem == null) problem = getString(R.string.action_failed);
             }
             JSONObject finalSnapshot = updated;
             String finalProblem = problem;
+            boolean noIdYet = ids.isEmpty() && problem == null;
             handler.post(() -> {
                 acting = false;
                 if (!visible) return;
                 if (finalSnapshot != null) {
                     reachable = true;
                     showSnapshot(finalSnapshot);
+                } else {
+                    setMainStatus(getString(R.string.checking_connection));
+                }
+                if (noIdYet) {
+                    stopWaitingForId = true;
+                    renderStatus();
                 }
                 if (finalProblem != null) error.setText(finalProblem);
                 updateButtons();
-                schedule(0);
+                schedule(noIdYet || finalProblem != null ? 2000 : 0);
             });
         });
     }
@@ -4464,6 +4465,51 @@ public final class MainActivity extends Activity {
             if (open(answer)) byPane.put(pane, answer.optString("id"));
         }
         return PaneKeys.uniqueOpenIds(paneNames(data), byPane);
+    }
+
+    private static Map<String, String> openAnswerStates(JSONObject data) {
+        Map<String, String> states = new HashMap<>();
+        for (String pane : paneNames(data)) {
+            JSONObject answer = answerOf(data, pane);
+            if (open(answer) && !answer.optString("id").isEmpty()) {
+                states.put(answer.optString("id"), answer.optString("state"));
+            }
+        }
+        return states;
+    }
+
+    private static boolean hasOpenAnswer(JSONObject data) {
+        for (String pane : paneNames(data)) {
+            if (open(answerOf(data, pane))) return true;
+        }
+        return false;
+    }
+
+    private JSONObject cancelOpenAnswers(List<String> ids, Map<String, String> states)
+            throws IOException, JSONException {
+        try {
+            // The current service flags every lane before releasing the phone decoder.
+            return client.post(cancelBody(ids));
+        } catch (AiClient.ApiException failure) {
+            if (!StopPolicy.legacyBulkUnsupported(failure.status, failure.getMessage())) {
+                throw failure;
+            }
+            // Older phone hosts accept one ID at a time. Stop waiting lanes first so
+            // ending the active answer does not immediately start the next pool lane.
+            JSONObject updated = null;
+            IOException firstFailure = null;
+            for (String id : StopPolicy.waitingFirst(ids, states)) {
+                try {
+                    updated = client.post(cancelOneBody(id));
+                } catch (IOException | JSONException singleFailure) {
+                    if (firstFailure == null) {
+                        firstFailure = new IOException("Could not stop every answer", singleFailure);
+                    }
+                }
+            }
+            if (firstFailure != null) throw firstFailure;
+            return updated;
+        }
     }
 
     private void quitActivity() {
@@ -4486,13 +4532,15 @@ public final class MainActivity extends Activity {
             } catch (IOException | JSONException ignored) {
                 // A disconnected service leaves only the IDs visible before Quit.
             }
-            List<String> ids = openAnswerIds(latest != null ? latest : lastSeen);
-            boolean cancelFailed = false;
+            JSONObject targets = latest != null ? latest : lastSeen;
+            List<String> ids = openAnswerIds(targets);
+            Map<String, String> states = openAnswerStates(targets);
+            // An open answer without an ID cannot be cancelled yet or confirmed stopped.
+            boolean cancelFailed = StopPolicy.noIdStillOpen(hasOpenAnswer(targets), ids);
             JSONObject updated = null;
             if (!ids.isEmpty()) {
                 try {
-                    // The same non-destructive call as Stop, with every id in one request.
-                    updated = client.post(cancelBody(ids));
+                    updated = cancelOpenAnswers(ids, states);
                 } catch (IOException | JSONException ignored) {
                     cancelFailed = true;
                 }
