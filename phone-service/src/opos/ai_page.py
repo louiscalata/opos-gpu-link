@@ -959,7 +959,7 @@ function drawPane(name,p){
   state+=': '+Math.min(100,Math.floor(pc.copied*100/pc.total))+'%';
  var speed=a&&a.tps!=null;
  var live=name==='phone'&&a&&a.state==='answering'&&p.live_speed!=null&&!speed;
- text(name+'-speed',speed?a.tps+' tokens per second':live?'about '+p.live_speed+' pieces per second':state);
+ text(name+'-speed',speed?a.tps+' tokens per second · this run':live?'about '+p.live_speed+' pieces per second · this run':state);
  line(name+'-state',[speed||live?state:'',a&&a.tokens!=null?a.tokens+' tokens':''].filter(Boolean).join(' · '));
  if(name==='gpu'){G('gpu-disclosure').hidden=off;line('gpu-cable',cableWords(p));G('gpu-cable').dataset.cable=cableState(p)}
  var box=G(name+'-answer'),value=a?a.text:'',follow=box.scrollHeight-box.clientHeight-box.scrollTop<=24;
@@ -991,14 +991,16 @@ function drawPCModels(s){
     card.appendChild(e)});
   }
   if(card.parentNode!==root)root.appendChild(card);
-  var a=m.answer,open=!!(a&&OPEN.indexOf(a.state)>=0),state='Waiting for the '+noun();
+  var a=m.answer,open=!!(a&&OPEN.indexOf(a.state)>=0),
+   state=m.kind==='pc'?'Waiting for the '+noun():'Waiting for the phone model';
   if(a){
-   if(a.state==='failed')state=m.kind==='pc'?'The '+answerNoun(a)+' could not finish the answer.':'The phone model could not finish the answer.';
+   if(a.state==='failed')state=m.kind==='pc'?'The '+answerNoun(a)+' could not finish the answer.':
+    errorWords(id,a.error)||'The phone could not finish the answer.';
    else if(a.state==='done')state=a.finish==='length'?'Done: the model reached its answer limit.':'Done';
    else if(a.state==='cancelled')state='Stopped';
    else if(a.state==='paused')state=m.kind==='pc'?'Paused. It continues when the '+answerNoun(a)+' is ready.':'Paused';
    else if(a.state==='queued')state='Queued behind an earlier answer';
-   else if(a.state==='loading')state=m.kind==='pc'?'Warming model':'Loading the model';
+   else if(a.state==='loading')state='Loading the model';
    else if(a.state==='answering')state='Answering';
   }else if(m.ready)state='Ready';
   if(!a&&!m.ready&&m.kind==='phone')state='No model is available on this phone.';
@@ -1006,7 +1008,9 @@ function drawPCModels(s){
   text(id+'-title',title);text(id+'-model',[a&&a.model&&a.model!==m.model?'':m.maker,whereWords(m.where)].filter(Boolean).join(' · '));
   G(id+'-answer').setAttribute('aria-label',title+' answer');
   text(id+'-stop','Stop '+title+' answer');
-  text(id+'-speed',a&&a.tps!=null?a.tps+' tokens per second':m.live_speed!=null&&a&&a.state==='answering'?m.live_speed+' tokens per second':state);
+  text(id+'-speed',a&&a.tps!=null?a.tps+' tokens per second · this run':
+   m.live_speed!=null&&a&&a.state==='answering'?'about '+m.live_speed+
+   (m.kind==='phone'?' pieces':' tokens')+' per second · this run':state);
   line(id+'-state',a&&a.tps!=null?state:'');
   var box=G(id+'-answer'),value=a?a.text:'';
   if(box.textContent!==value){var follow=box.scrollHeight-box.clientHeight-box.scrollTop<=24;box.textContent=value;if(follow)box.scrollTop=box.scrollHeight}
@@ -1089,7 +1093,7 @@ function request(){
    var r=result,s=result.snapshot;
    if(r.status===403&&s&&s.error==='forbidden'){
     stale=true;text('err','This page is out of date. Reload it, then try again.');return}
-   if(r.status===403&&s&&s.error==='locked'){queue=[];draw({locked:true})}
+   if(r.status===403&&s&&s.error==='locked'){queue=[];text('err','');draw({locked:true});return}
    if(r.status!==200){text('err',s.error||'AI mode could not update.');return}
    text('err','');draw(s);
   }).catch(function(){text('err',timedOut?'The phone did not answer.':'AI mode could not update.');

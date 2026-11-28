@@ -58,8 +58,8 @@ DIALOG_TYPE = {
 }
 DIALOG_INK = "#000000"
 DIALOG_PAPER = "#FFFFFF"
-DIALOG_ERROR = "#B00000"
-DIALOG_SUCCESS = "#008000"
+DIALOG_ERROR = "#B3261E"
+DIALOG_SUCCESS = "#0F7A45"
 
 
 def _dialog_font_specs(available, heading_fallback, text_fallback):
@@ -1202,7 +1202,7 @@ class Companion:
             padx=24, pady=(0, 4), anchor="w")
         _dialog_label(self.tk, top, f"{code[:3]} {code[3:]}", fonts["title"]).pack(
             padx=24, pady=(0, 6), anchor="w")
-        countdown = _dialog_label(self.tk, top, "60 seconds left", fonts["small"])
+        countdown = _dialog_label(self.tk, top, "60 s left", fonts["small"])
         countdown.pack(padx=24, pady=(0, 12), anchor="w")
         _dialog_label(self.tk, top,
                       f"If allowed, this {noun} can see your questions and the answers. A model file stays here.",
@@ -1228,7 +1228,7 @@ class Companion:
                 countdown.configure(text="Expired", fg=DIALOG_ERROR)
                 lifetime.after(5000, close)
                 return
-            countdown.configure(text=f"{max(1, int(deadline - self.clock() + 0.999))} seconds left")
+            countdown.configure(text=f"{max(1, int(deadline - self.clock() + 0.999))} s left")
             try:
                 if authenticated_idle(pc):
                     accepted["yes"] = self.running and self.clock() < deadline and self.link_present()
