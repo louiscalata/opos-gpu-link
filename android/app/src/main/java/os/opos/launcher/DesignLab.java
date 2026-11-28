@@ -45,8 +45,8 @@ final class DesignLab {
     }
 
     static String caption(String mode) {
-        if (SCHEMATIC.equals(mode)) return "Link schematic";
-        if (BELTS.equals(mode)) return "Factory belts";
+        if (SCHEMATIC.equals(mode)) return "Connection diagram";
+        if (BELTS.equals(mode)) return "Answer progress";
         return "Off (default)";
     }
 
@@ -72,7 +72,7 @@ final class DesignLab {
         String bottom = box('└', '┘', left) + spaces(GAP) + box('└', '┘', right);
         String caption;
         switch (link) {
-            case LIVE: caption = "USB-C · tokens flowing"; break;
+            case LIVE: caption = "USB-C · answer coming in"; break;
             case PAUSED:
                 // Narrow (cover screen): the short form, never cut mid-word.
                 caption = width >= LONG_CAPTION_WIDTH ? PAUSED_LONG : PAUSED_SHORT;
@@ -104,7 +104,7 @@ final class DesignLab {
     }
 
     static String belts(int tick, List<Lane> lanes, int width) {
-        if (lanes == null || lanes.isEmpty()) return fit("Belts start when you ask.", clamp(width));
+        if (lanes == null || lanes.isEmpty()) return fit("Ask a question to see progress.", clamp(width));
         StringBuilder out = new StringBuilder();
         for (Lane lane : lanes) {
             if (out.length() > 0) out.append('\n');

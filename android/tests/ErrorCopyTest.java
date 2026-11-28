@@ -8,6 +8,7 @@ public final class ErrorCopyTest {
         check(ErrorCopy.errorLine(failed));
         check(ErrorCopy.errorLine("This model could not start."));
         check(ErrorCopy.errorLine("Garbled — Retry"));
+        check(ErrorCopy.errorLine("Could not read answer · Retry"));
         check(ErrorCopy.errorLine("Granite 4.0 Micro 3B · 277 words · Stopped early. Here is what it wrote."));
         check(!ErrorCopy.errorLine(done));
         check(!ErrorCopy.errorLine(ready));

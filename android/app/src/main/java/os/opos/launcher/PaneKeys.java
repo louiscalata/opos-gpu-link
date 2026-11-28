@@ -57,6 +57,19 @@ final class PaneKeys {
         return value;
     }
 
+    /** Old saved answers may lack the computer's name; keep their place neutral. */
+    static String archivedWhere(String where) {
+        String value = where == null ? "" : where.trim();
+        if ("on the PC's GPU".equals(value)) return "on the computer's GPU";
+        if ("over USB".equals(value)) return "over USB-C";
+        return value;
+    }
+
+    static String fallbackLabel(String pane) {
+        if ("m3".equals(pane)) return "Phone model (baseline)";
+        return pc(pane) ? "Computer model" : valid(pane) ? "Phone model" : "Model";
+    }
+
     static String pref(String pane, String field) {
         if (!valid(pane)) throw new IllegalArgumentException("Unknown pane");
         if ("latest_id".equals(field)) return "latest_" + pane + "_id";

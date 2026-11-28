@@ -24,7 +24,7 @@ final class LeadModelByline {
     }
 
     static String text(String pc, String leadLabel, String defaultPc) {
-        String connection = (pc == null || pc.isEmpty() ? defaultPc : pc) + " · over USB";
+        String connection = (pc == null || pc.isEmpty() ? defaultPc : pc) + " · over USB-C";
         String maker = ModelMaker.maker("", leadLabel);
         return maker.isEmpty() ? connection : maker + " · " + connection;
     }

@@ -13,7 +13,7 @@ import java.util.Map;
 final class CoverScreenPolicy {
     enum Mode { FULL, COMPACT, COVER, WIDE }
 
-    /** One full answer at a time; the rest are summarised as "+N more". */
+    /** One full answer at a time; the rest are available when the phone is opened. */
     static final int MAX_PANES = 1;
     static final int MASTHEAD_DP = 40;
     static final int COMPOSER_ROW_DP = 52;
@@ -127,7 +127,7 @@ final class CoverScreenPolicy {
     }
 
     static String moreLabel(int hidden) {
-        return hidden == 0 ? "" : "+" + hidden + " more models hidden";
+        return hidden == 0 ? "" : "+" + hidden + " more models · open the phone";
     }
 
     /** Derive the cover badge from the words on the card, including offline and waiting paths. */

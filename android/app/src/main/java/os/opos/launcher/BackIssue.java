@@ -32,7 +32,7 @@ final class BackIssue {
                     AnswerTimingPolicy.legacyDoneLabel(lane.state, lane.elapsedMs)) : lane);
         }
         String timing = legacy && !issue.timing.isEmpty()
-                ? "Lane wall elapsed · pause history unknown\n" + issue.timing
+                ? "Saved model times may include a cable pause\n" + issue.timing
                 : issue.timing;
         String elapsedLabel = legacy ? AnswerTimingPolicy.LEGACY_WALL
                 : AnswerTimingPolicy.overallLabel(issue.pauseObserved);

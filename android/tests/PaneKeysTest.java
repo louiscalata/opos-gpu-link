@@ -34,6 +34,14 @@ public final class PaneKeysTest {
         open.put("m1", "c");
         open.put("m4", "");
         equal(Arrays.asList("a", "b", "c"), PaneKeys.uniqueOpenIds(ordered, open));
+        equal("on the computer's GPU", PaneKeys.archivedWhere("on the PC's GPU"));
+        equal("over USB-C", PaneKeys.archivedWhere("over USB"));
+        equal("M5 Pro MacBook Pro", PaneKeys.archivedWhere(" M5 Pro MacBook Pro "));
+        equal("", PaneKeys.archivedWhere(null));
+        equal("Phone model", PaneKeys.fallbackLabel("m1"));
+        equal("Phone model (baseline)", PaneKeys.fallbackLabel("m3"));
+        equal("Computer model", PaneKeys.fallbackLabel("g1"));
+        equal("Model", PaneKeys.fallbackLabel("unknown"));
         try {
             PaneKeys.pref("m5", "latest_id");
             throw new AssertionError("Unknown pane accepted");

@@ -9,8 +9,8 @@ import java.util.Set;
 /** Measures model-active time by subtracting recorded pause intervals from wall time. */
 final class AnswerTimingPolicy {
     static final String DONE_UNMEASURED = "Done · time unmeasured";
-    static final String WALL_WITH_PAUSE = "Wall elapsed · includes pause";
-    static final String LEGACY_WALL = "Wall elapsed · pause history unknown";
+    static final String WALL_WITH_PAUSE = "Total time includes cable pause";
+    static final String LEGACY_WALL = "Saved time may include a cable pause";
 
     private final Set<String> interruptedIds = new HashSet<>();
     private final Map<String, Long> pauseMs = new HashMap<>();
@@ -174,8 +174,8 @@ final class AnswerTimingPolicy {
 
     static String legacyDoneLabel(String state, long wallDurationMs) {
         if (state == null || !state.startsWith("Done")) return state;
-        return wallDurationMs < 0 ? "Done · time unmeasured (pause history unknown)"
+        return wallDurationMs < 0 ? "Done · saved time not available"
                 : "Done · " + NewspaperSummary.seconds(wallDurationMs)
-                + " wall elapsed (pause history unknown)";
+                + " (may include cable pause)";
     }
 }
