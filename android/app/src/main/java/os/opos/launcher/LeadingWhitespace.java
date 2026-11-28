@@ -23,7 +23,7 @@ final class LeadingWhitespace {
                 continue;
             }
             if (isCodeIndent(value, lineStart, start)
-                    || isListMarker(value, start)
+                    || (isListMarker(value, start) && start - lineStart >= 2)
                     || value.startsWith("```", start) || value.startsWith("~~~", start)) {
                 return value.substring(lineStart);
             }
@@ -32,6 +32,8 @@ final class LeadingWhitespace {
         return "";
     }
 
+    // A one-space list marker is not a list to AnswerMarkdownParser (one-space numbered
+    // items are prose there), so it is trimmed to column 0 where it parses as a list.
     private static boolean isCodeIndent(String value, int lineStart, int start) {
         int spaces = 0;
         for (int i = lineStart; i < start;) {

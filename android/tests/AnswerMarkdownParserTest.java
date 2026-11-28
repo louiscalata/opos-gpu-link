@@ -78,7 +78,10 @@ public final class AnswerMarkdownParserTest {
         equal("  • first\n    • second", firstList.text);
         listItem(firstList, 0, "  • ", 0);
         listItem(firstList, 1, "    • ", firstList.text.indexOf("    • "));
-        equal(" 1. first", AnswerMarkdownParser.parse("\n 1. first").text);
+        AnswerMarkdownParser.Result oneSpace = AnswerMarkdownParser.parse("\n 1. first");
+        equal("1. first", oneSpace.text);
+        equal(1, oneSpace.lists.size());
+        listItem(oneSpace, 0, "1. ", 0);
         AnswerMarkdownParser.Result firstCode = AnswerMarkdownParser.parse(
                 AnswerDisplay.text("gpu", "\r\n    if ready:\n        run()"));
         equal("    if ready:\n        run()", firstCode.text);
