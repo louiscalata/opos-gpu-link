@@ -22,6 +22,7 @@ public final class TypographyAuditTest {
             "\\.setTextSize\\s*\\(\\s*(?:TypedValue\\.COMPLEX_UNIT_SP\\s*,\\s*)?\\d+(?:\\.\\d+)?f?\\s*\\)");
     private static final Pattern RAW_ROLE_SIZE = Pattern.compile(
             "\\btypography\\.(?:display|headline|body)\\s*\\([^;]*?,\\s*\\d+(?:\\.\\d+)?f?\\s*\\)");
+    private static final String CAPS_TRACKING_LITERAL = "0.08f";
 
     public static void main(String[] args) throws IOException {
         // Guard both XML attributes and Java calls; display exceptions must use named constants.
@@ -30,14 +31,22 @@ public final class TypographyAuditTest {
         equal("typography.body(view, 20)", first(RAW_ROLE_SIZE,
                 "typography.body(view, 20)"));
         List<String> hits = new ArrayList<>();
+        int capsTrackingLiterals = 0;
         try (Stream<Path> files = Files.walk(Path.of("app/src/main"))) {
             for (Path file : (Iterable<Path>) files.filter(p -> {
                 String name = p.toString();
                 return name.endsWith(".java") || name.endsWith(".xml");
             })::iterator) {
                 String text = Files.readString(file);
+                int at = -1;
+                while ((at = text.indexOf(CAPS_TRACKING_LITERAL, at + 1)) >= 0) {
+                    capsTrackingLiterals++;
+                    if (!file.getFileName().toString().equals("TypeConfig.java")) {
+                        hits.add(file + ": caps tracking literal outside TypeConfig");
+                    }
+                }
                 for (String token : FORBIDDEN) {
-                    int at = text.indexOf(token);
+                    at = text.indexOf(token);
                     // Popup elevation 0 removes the platform shadow; that one call is allowed.
                     if (at >= 0 && !(token.equals("setElevation(") && text.contains("setElevation(0)")
                             && text.indexOf(token, at + 1) < 0)) {
@@ -49,6 +58,14 @@ public final class TypographyAuditTest {
                     if (raw != null) hits.add(file + ": raw type size " + raw);
                 }
             }
+        }
+        if (capsTrackingLiterals != 1) {
+            hits.add("expected one caps tracking literal, found " + capsTrackingLiterals);
+        }
+        String typeConfig = Files.readString(Path.of(
+                "app/src/main/java/os/opos/launcher/TypeConfig.java"));
+        if (!typeConfig.contains("static final float S5_CAPS_TRACKING = 0.08f;")) {
+            hits.add("caps tracking literal must be the S5 token declaration");
         }
         if (!hits.isEmpty()) throw new AssertionError("Typography audit found: " + hits);
         // Emphasis and italics are real bundled cuts for the body face.

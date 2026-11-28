@@ -207,7 +207,8 @@
                 <Button
                     android:id="@+id/reopen_pc"
                     android:layout_width="match_parent"
-                    android:layout_height="52dp"
+                    android:layout_height="wrap_content"
+                    android:minHeight="52dp"
                     android:layout_marginTop="12dp"
                     android:background="@drawable/newspaper_primary"
                     android:text="@string/reopen_pc"
@@ -376,10 +377,11 @@
             <Button
                 android:id="@+id/retry"
                 android:layout_width="match_parent"
-                android:layout_height="52dp"
+                android:layout_height="wrap_content"
+                android:minHeight="52dp"
                 android:layout_marginTop="12dp"
                 android:background="@drawable/newspaper_outline"
-                android:text="@string/try_again"
+                android:text="@string/lane_retry"
                 android:textAllCaps="false"
                 android:textColor="@color/newspaper_ink"
                 android:visibility="gone" />

@@ -39,8 +39,8 @@
     <View
         android:id="@+id/info_rule"
         android:layout_width="match_parent"
-        android:layout_height="1dp"
-        android:background="@color/newspaper_ink" />
+        android:layout_height="@dimen/card_stroke"
+        android:background="@color/newspaper_stroke" />
 
     <ScrollView
         android:layout_width="match_parent"

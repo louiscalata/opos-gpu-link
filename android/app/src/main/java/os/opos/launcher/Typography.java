@@ -102,6 +102,11 @@ final class Typography {
         tabular(text);
     }
 
+    void dateline(TextView text) {
+        state(text);
+        text.setLetterSpacing(TypeConfig.S5_CAPS_TRACKING);
+    }
+
     void byline(TextView text) {
         TypeConfig.Role role = choice.subheader();
         String bylineFace = role.face;
@@ -110,9 +115,9 @@ final class Typography {
         apply(text, role, role.size(cover), false, bylineFace);
     }
 
-    /** Subheader style for GB-22's per-lane retry control; never forced to caps. */
+    /** Body-size action text for Retry and related controls; never forced to caps. */
     void retry(TextView text) {
-        TypeConfig.Role role = choice.subheader();
+        TypeConfig.Role role = choice.body();
         apply(text, role, role.size(cover), false, role.face);
     }
 

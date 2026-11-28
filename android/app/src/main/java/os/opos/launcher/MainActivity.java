@@ -1085,16 +1085,14 @@ public final class MainActivity extends Activity {
         mastheadBlock.setOrientation(LinearLayout.VERTICAL);
         mastheadBlock.setPadding(dp(12), 0, dp(12), 0);
         mastheadBlock.addView(bigMasthead);
-        dateline = stateText(Dateline.format(LocalDate.now()));
+        dateline = newspaperText(Dateline.format(LocalDate.now()));
+        typography.dateline(dateline);
         pcLabelled(dateline, Dateline.format(LocalDate.now(), ComputerWords.PC));
         mastheadBlock.addView(dateline);
-        View mastheadRule = new View(this);
-        mastheadRule.setBackgroundColor(themeColor(R.color.newspaper_stroke));
-        LinearLayout.LayoutParams mastheadRuleParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(1));
+        LinearLayout.LayoutParams mastheadRuleParams = ruleLayoutParams();
         mastheadRuleParams.topMargin = dp(Space.S);
         mastheadRuleParams.bottomMargin = dp(Space.S);
-        mastheadBlock.addView(mastheadRule, mastheadRuleParams);
+        mastheadBlock.addView(horizontalRule(), mastheadRuleParams);
         mastheadBlock.addOnLayoutChangeListener((view, left, top, right, bottom,
                 oldLeft, oldTop, oldRight, oldBottom) -> {
             if (lastCollapseFraction == 0f && bottom > top) {
@@ -1259,7 +1257,8 @@ public final class MainActivity extends Activity {
         menuState.toggle();
         LinearLayout list = new LinearLayout(this);
         list.setOrientation(LinearLayout.VERTICAL);
-        list.setPadding(dp(1), dp(1), dp(1), dp(1));
+        int stroke = cardStrokePx();
+        list.setPadding(stroke, stroke, stroke, stroke);
         list.setBackgroundResource(R.drawable.newspaper_panel);
         int[] menuLabels = {
                 R.string.model_selection_title, R.string.history_title,
@@ -1287,14 +1286,11 @@ public final class MainActivity extends Activity {
             list.addView(item, new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, dp(52)));
             if (i < MenuState.ENTRIES.size() - 1) {
-                View rule = new View(this);
-                rule.setBackgroundColor(themeColor(R.color.newspaper_stroke));
-                list.addView(rule, new LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT, dp(1)));
+                list.addView(horizontalRule(), ruleLayoutParams());
             }
         }
         PopupWindow popup = new PopupWindow(list, dp(230),
-                dp(52) * MenuState.ENTRIES.size() + dp(MenuState.ENTRIES.size() + 1), true);
+                dp(52) * MenuState.ENTRIES.size() + stroke * (MenuState.ENTRIES.size() + 1), true);
         menuPopup = popup;
         popup.setBackgroundDrawable(new ColorDrawable(themeColor(R.color.newspaper_paper)));
         popup.setOutsideTouchable(true);
@@ -4677,12 +4673,14 @@ public final class MainActivity extends Activity {
     private void addLaneRetryButton(String pane, LinearLayout card, View stateRow) {
         Button button = outlineButton(getString(R.string.lane_retry)); // 0.5dp dark-gray frame
         typography.retry(button);
-        button.setPadding(dp(Space.L), 0, dp(Space.L), 0);
+        button.setPadding(dp(Space.S), 0, dp(Space.S), 0);
+        button.setSingleLine(false);
+        button.setEllipsize(null);
         button.setVisibility(View.GONE);
         button.setContentDescription(getString(R.string.lane_retry_description));
         button.setOnClickListener(view -> retryLane(pane, false));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         params.topMargin = dp(8);
         // Keep the action next to its state on every card. A long answer must not bury Retry.
         card.addView(button, LaneCardLayout.retryInsertIndex(
@@ -5450,12 +5448,9 @@ public final class MainActivity extends Activity {
         LinearLayout root = pageRoot();
         root.addView(pageBar(getString(R.string.model_selection_title),
                 getString(R.string.close), view -> dialog.dismiss()));
-        View rule = new View(this);
-        rule.setBackgroundColor(themeColor(R.color.newspaper_stroke));
-        LinearLayout.LayoutParams ruleParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(1));
+        LinearLayout.LayoutParams ruleParams = ruleLayoutParams();
         ruleParams.topMargin = dp(12);
-        root.addView(rule, ruleParams);
+        root.addView(horizontalRule(), ruleParams);
         TextView note = bodyText(getString(R.string.model_selection_note));
         note.setPadding(0, dp(Space.L), 0, dp(Space.M));
         root.addView(note);
@@ -5531,10 +5526,7 @@ public final class MainActivity extends Activity {
         section.setAccessibilityHeading(true);
         section.setPadding(0, dp(Space.L), 0, dp(8));
         modelRows.addView(section);
-        View rule = new View(this);
-        rule.setBackgroundColor(themeColor(R.color.newspaper_stroke));
-        modelRows.addView(rule, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(1)));
+        modelRows.addView(horizontalRule(), ruleLayoutParams());
     }
 
     private void addModelRow(String pane) {
@@ -5590,10 +5582,7 @@ public final class MainActivity extends Activity {
         row.addView(toggle, new LinearLayout.LayoutParams(dp(64), dp(48)));
         modelToggles.put(pane, toggle);
         modelRows.addView(row);
-        View rule = new View(this);
-        rule.setBackgroundColor(themeColor(R.color.newspaper_stroke));
-        modelRows.addView(rule, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(1)));
+        modelRows.addView(horizontalRule(), ruleLayoutParams());
     }
 
     private void updateModelSelectionRows() {
@@ -5666,10 +5655,7 @@ public final class MainActivity extends Activity {
         TextView note = bodyText(getString(R.string.history_subtitle));
         note.setPadding(0, dp(Space.M), 0, dp(Space.M));
         root.addView(note);
-        View rule = new View(this);
-        rule.setBackgroundColor(themeColor(R.color.newspaper_stroke));
-        root.addView(rule, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(1)));
+        root.addView(horizontalRule(), ruleLayoutParams());
         ScrollView scroll = new ScrollView(this);
         historyRows = new LinearLayout(this);
         historyRows.setOrientation(LinearLayout.VERTICAL);
@@ -5737,10 +5723,7 @@ public final class MainActivity extends Activity {
                 showBackIssue(opened);
             });
             historyRows.addView(row);
-            View rule = new View(this);
-            rule.setBackgroundColor(themeColor(R.color.newspaper_stroke));
-            historyRows.addView(rule, new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, dp(1)));
+            historyRows.addView(horizontalRule(), ruleLayoutParams());
         }
     }
 
@@ -5796,12 +5779,9 @@ public final class MainActivity extends Activity {
         LinearLayout root = pageRoot();
         root.addView(pageBar(getString(R.string.app_name), getString(R.string.history_back_to_today),
                 view -> dialog.dismiss()));
-        View rule = new View(this);
-        rule.setBackgroundColor(themeColor(R.color.newspaper_stroke));
-        LinearLayout.LayoutParams lineParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(1));
+        LinearLayout.LayoutParams lineParams = ruleLayoutParams();
         lineParams.topMargin = dp(Space.M);
-        root.addView(rule, lineParams);
+        root.addView(horizontalRule(), lineParams);
         ScrollView scroll = new ScrollView(this);
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
@@ -6182,7 +6162,6 @@ public final class MainActivity extends Activity {
         if (resId == R.color.newspaper_ink) return parseHex(palette.ink());
         if (resId == R.color.newspaper_stroke) return parseHex(palette.stroke());
         if (resId == R.color.you_asked_label) return parseHex(palette.label());
-        if (resId == R.color.notes_rule) return parseHex(palette.notesRule());
         if (resId == R.color.newspaper_error) return parseHex(palette.error());
         if (resId == R.color.newspaper_ok) return parseHex(palette.ok());
         return getColor(resId);
@@ -6243,6 +6222,16 @@ public final class MainActivity extends Activity {
     private int cardStrokePx() {
         float width = LaneCardLayout.STROKE_DP * getResources().getDisplayMetrics().density;
         return Math.max(1, Math.round(width));
+    }
+
+    private View horizontalRule() {
+        View rule = new View(this);
+        rule.setBackgroundColor(themeColor(R.color.newspaper_stroke));
+        return rule;
+    }
+
+    private LinearLayout.LayoutParams ruleLayoutParams() {
+        return new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT, cardStrokePx());
     }
 
     private void applyCardStroke(View card, UiPalette.Tone tone) {
@@ -6340,7 +6329,7 @@ public final class MainActivity extends Activity {
             notes.setTextColor(ink);
             notes.setHintTextColor(label);
             notes.setBackgroundColor(paper);
-            notes.setRuleColor(themeColor(R.color.notes_rule));
+            notes.setRuleColor(themeColor(R.color.newspaper_stroke));
         }
         if (notesCard != null && !notesDragActive) {
             notesCard.setBackground(panelDrawable(palette.stroke()));
@@ -6481,7 +6470,7 @@ public final class MainActivity extends Activity {
         if (infoPage != null) infoPage.setBackgroundColor(paper);
         if (dialog == settingsDialog && settingsPage != null) settingsPage.setBackgroundColor(paper);
         View infoRule = dialog.findViewById(R.id.info_rule);
-        if (infoRule != null) infoRule.setBackgroundColor(ink);
+        if (infoRule != null) infoRule.setBackgroundColor(themeColor(R.color.newspaper_stroke));
         recolorChrome(window.getDecorView(), paper, ink,
                 themeColor(R.color.you_asked_label));
         if (dialog == infoDialog) {
@@ -6495,7 +6484,7 @@ public final class MainActivity extends Activity {
         typography.useChoice(uiSettings.typography());
         typography.useCover(coverMode);
         if (smallMasthead != null) typography.display(smallMasthead, COLLAPSED_MASTHEAD_SP);
-        if (dateline != null) typography.state(dateline);
+        if (dateline != null) typography.dateline(dateline);
         typography.state(status);
         if (compactLaneStatus != null) typography.state(compactLaneStatus);
         if (coverMore != null) typography.byline(coverMore);
@@ -6509,6 +6498,7 @@ public final class MainActivity extends Activity {
         typography.body(settings, typography.bodySp());
         typography.body(error, typography.bodySp());
         typography.retry(retry);
+        for (Button laneRetry : laneRetryButtons.values()) typography.retry(laneRetry);
         typography.kicker(findViewById(R.id.question_label));
         applyPairingTypography();
         if (deviceBand != null) {

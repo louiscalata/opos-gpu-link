@@ -11,7 +11,7 @@ import java.util.Map;
  * S5–S8, B5–B8) is a new typographic system: optical sizes, a modular
  * scale, tracking tuned per size, and tabular figures for status and
  * tok/s. Defaults are the recommended pairing H5 + S5 + B5,
- * with panel micro-adjustments: H5 tracking -0.01em, S5 +0.02em,
+ * with panel micro-adjustments: H5 tracking -0.01em, S5 +0.08em,
  * B5 leading 1.35 and tracking 0. Leading is applied as an absolute
  * baseline distance (sizeSp * lineHeight), not as a raw TextView multiplier.
  *
@@ -28,6 +28,8 @@ final class TypeConfig {
     static final String SUBHEADER = "S5";
     /** One of B1–B8. Recommended v2 default: B5. */
     static final String BODY = "B5";
+    /** Tracking for S5 caps and the dateline, in em. */
+    static final float S5_CAPS_TRACKING = 0.08f;
 
     static final String FACE_DISPLAY_BLACK = "displayBlack";
     static final String FACE_SUBHEAD_BOLD = "subheadBold";
@@ -58,11 +60,11 @@ final class TypeConfig {
             role("H8", "Text Semi 20", FACE_TEXT_SEMIBOLD, 20, 16, 1.20f, -0.008f, false, false, "")
     );
     static final Map<String, Role> SUBHEADERS = roles(
-            role("S1", "Inter Caps 11", FACE_INTER_SEMIBOLD, 11, 10, 1.15f, 0.08f, true, false, ""),
+            role("S1", "Inter Caps 11", FACE_INTER_SEMIBOLD, 11, 10, 1.15f, S5_CAPS_TRACKING, true, false, ""),
             role("S2", "Inter Soft 11", FACE_INTER_MEDIUM, 11, 10, 1.20f, 0f, false, false, ""),
             role("S3", "Serif 12", FACE_SM_TEXT_REGULAR, 12, 11, 1.25f, 0.02f, false, false, ""),
             role("S4", "Inter Caps 13", FACE_INTER_SEMIBOLD, 13, 11, 1.10f, 0.12f, true, false, ""),
-            role("S5", "Inter 11 tnum", FACE_INTER_MEDIUM, 11, 10, 1.25f, 0.02f, true, true, FACE_JETBRAINS_MONO_MEDIUM),
+            role("S5", "Inter 11 tnum", FACE_INTER_MEDIUM, 11, 10, 1.25f, S5_CAPS_TRACKING, true, true, FACE_JETBRAINS_MONO_MEDIUM),
             role("S6", "Inter 12 soft", FACE_INTER_REGULAR, 12, 10, 1.28f, 0.02f, false, true, FACE_JETBRAINS_MONO_MEDIUM),
             role("S7", "Inter 12 caps", FACE_INTER_MEDIUM, 12, 10, 1.22f, 0.05f, true, true, FACE_JETBRAINS_MONO_MEDIUM),
             role("S8", "Mono 11", FACE_JETBRAINS_MONO_MEDIUM, 11, 10, 1.30f, 0f, false, true, FACE_JETBRAINS_MONO_MEDIUM)
