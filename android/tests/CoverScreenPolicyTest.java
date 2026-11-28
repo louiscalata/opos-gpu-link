@@ -17,6 +17,7 @@ public final class CoverScreenPolicyTest {
         stability();
         labels();
         sizes();
+        space();
         System.out.println("CoverScreenPolicyTest: OK");
     }
 
@@ -165,6 +166,8 @@ public final class CoverScreenPolicyTest {
         eq(0, CoverScreenPolicy.mastheadDp(true));
         eq(52, CoverScreenPolicy.composerRowDp(false));
         eq(48, CoverScreenPolicy.composerRowDp(true));
+        check(CoverScreenPolicy.composerRowDp(false) >= CoverScreenPolicy.MIN_ACTION_ROW_DP);
+        check(CoverScreenPolicy.composerRowDp(true) >= CoverScreenPolicy.MIN_ACTION_ROW_DP);
         // The keyboard row matches the compact layout's touch target size.
         check(CoverScreenPolicy.MASTHEAD_DP < CoverLayoutPolicy.MASTHEAD_DP);
         check(CoverScreenPolicy.COMPOSER_ROW_DP < CoverLayoutPolicy.COMPOSER_ROW_DP);
@@ -176,6 +179,33 @@ public final class CoverScreenPolicyTest {
         eq(120, CoverScreenPolicy.keepHeadlineVisible(120, 32, false, true));
         eq(120, CoverScreenPolicy.keepHeadlineVisible(120, 32, true, false));
         eq(0, CoverScreenPolicy.keepHeadlineVisible(-4, 32, true, true));
+    }
+
+    private static void space() {
+        // F3's 720 px cover leaves 368 px after the system bars and pinned dock.
+        // Masthead, Info/Settings, and the full composer need about 362 px.
+        CoverScreenPolicy.Chrome offline = CoverScreenPolicy.chromeForSpace(368, 362, 46, 50);
+        check(!offline.heat);
+        check(!offline.statusDetail);
+        // At the boundaries, keep status detail ahead of the lower-priority heat line.
+        CoverScreenPolicy.Chrome statusOnly = CoverScreenPolicy.chromeForSpace(408, 362, 46, 50);
+        check(statusOnly.statusDetail);
+        check(!statusOnly.heat);
+        CoverScreenPolicy.Chrome almost = CoverScreenPolicy.chromeForSpace(457, 362, 46, 50);
+        check(almost.statusDetail);
+        check(!almost.heat);
+        CoverScreenPolicy.Chrome roomy = CoverScreenPolicy.chromeForSpace(458, 362, 46, 50);
+        check(roomy.statusDetail);
+        check(roomy.heat);
+        CoverScreenPolicy.Chrome noReading = CoverScreenPolicy.chromeForSpace(412, 362, 46, 0);
+        check(noReading.statusDetail);
+        check(!noReading.heat);
+        CoverScreenPolicy.Chrome tallStatus = CoverScreenPolicy.chromeForSpace(412, 362, 70, 30);
+        check(!tallStatus.statusDetail);
+        check(!tallStatus.heat);
+        CoverScreenPolicy.Chrome noStatus = CoverScreenPolicy.chromeForSpace(412, 362, 0, 50);
+        check(!noStatus.statusDetail);
+        check(noStatus.heat);
     }
 
     private static Map<String, String> states(String... pairs) {

@@ -18,6 +18,7 @@ final class CoverScreenPolicy {
     static final int MASTHEAD_DP = 40;
     static final int COMPOSER_ROW_DP = 52;
     static final int KEYBOARD_COMPOSER_ROW_DP = 48;
+    static final int MIN_ACTION_ROW_DP = 48;
     static final int MASTHEAD_SP = 24;
 
     private CoverScreenPolicy() {}
@@ -169,6 +170,25 @@ final class CoverScreenPolicy {
 
     static int composerRowDp(boolean keyboardVisible) {
         return keyboardVisible ? KEYBOARD_COMPOSER_ROW_DP : COMPOSER_ROW_DP;
+    }
+
+    static final class Chrome {
+        final boolean statusDetail;
+        final boolean heat;
+
+        Chrome(boolean statusDetail, boolean heat) {
+            this.statusDetail = statusDetail;
+            this.heat = heat;
+        }
+    }
+
+    /** Keep the action row; when the cover is short, remove heat before status detail. */
+    static Chrome chromeForSpace(int availablePx, int essentialPx, int statusPx, int heatPx) {
+        int free = Math.max(0, availablePx - essentialPx);
+        boolean statusDetail = statusPx > 0 && free >= statusPx;
+        boolean heat = heatPx > 0 && free >= statusPx + heatPx
+                && (statusPx == 0 || statusDetail);
+        return new Chrome(statusDetail, heat);
     }
 
     static int mastheadDp(boolean keyboardVisible) {
