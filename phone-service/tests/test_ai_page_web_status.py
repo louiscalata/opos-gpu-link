@@ -116,6 +116,68 @@ class PageStatusTest(NoNetwork):
                                       after_action=f"draw({json.dumps(finished)})")
                 self.assertEqual(shown["statusWrites"], [f"Nemotron Mini 4B: {expected}"])
 
+    def test_cable_loss_announces_once_until_the_connection_recovers(self):
+        snap = _snapshot({"label": "M5 Pro MacBook Pro", "live": True, "state": "idle"})
+        snap["gpu"]["answer"] = _answer("g", "answering")
+        disconnected = json.loads(json.dumps(snap))
+        disconnected["rev"] = 2
+        disconnected["gpu"]["link"]["pc"]["live"] = False
+        reconnected = json.loads(json.dumps(snap))
+        reconnected["rev"] = 3
+        disconnected_again = json.loads(json.dumps(disconnected))
+        disconnected_again["rev"] = 4
+        shown = self.run_page(snap, after=disconnected,
+                              after_action=";".join(f"draw({json.dumps(s)})" for s in
+                                                    (disconnected, reconnected,
+                                                     disconnected_again, disconnected_again)))
+        warning = "Not connected. The answer is saved and continues when the MacBook is ready again."
+        recovery = "Connected. Safe to unplug: the answer is saved and continues when the MacBook is ready again."
+        self.assertEqual(shown["statusWrites"], [warning, recovery, warning])
+
+    def test_storage_warnings_announce_once_for_a_fault_or_startup_notice(self):
+        cases = (
+            ({"label": "M5 Pro MacBook Pro", "live": True, "state": "idle"}, True, "",
+             "The phone could not save the answer. Wait before unplugging."),
+            (None, False, "A saved answer was damaged and moved aside. Restart AI mode to continue.",
+             "A saved answer was damaged and moved aside. Restart AI mode to continue."),
+        )
+        for pc, fault, message, expected in cases:
+            with self.subTest(storage_fault=fault):
+                snap = _snapshot(pc)
+                snap["gpu"]["link"].update(storage=None, storage_fault=False, storage_notice="")
+                warning = json.loads(json.dumps(snap))
+                warning["rev"] = 2
+                warning["gpu"]["link"].update(storage="error", storage_fault=fault,
+                                               storage_notice=message)
+                shown = self.run_page(snap, after=warning,
+                                      after_action=f"draw({json.dumps(warning)})")
+                self.assertEqual(shown["statusWrites"], [expected])
+
+    def test_cable_loss_is_announced_while_a_storage_notice_remains(self):
+        snap = _snapshot({"label": "M5 Pro MacBook Pro", "live": True, "state": "idle"})
+        snap["gpu"]["answer"] = _answer("g", "answering")
+        notice = "A saved answer was damaged and moved aside. Restart AI mode to continue."
+        snap["gpu"]["link"].update(storage="error", storage_fault=False, storage_notice=notice)
+        disconnected = json.loads(json.dumps(snap))
+        disconnected["rev"] = 2
+        disconnected["gpu"]["link"]["pc"]["live"] = False
+        shown = self.run_page(snap, after=disconnected,
+                              after_action=f"draw({json.dumps(disconnected)})")
+        cable = "Not connected. The answer is saved and continues when the MacBook is ready again."
+        self.assertEqual(shown["statusWrites"], [notice, notice + " " + cable])
+
+    def test_saved_macbook_answer_uses_its_own_computer_in_the_announcement(self):
+        snap = _snapshot({"label": "M5 Pro MacBook Pro", "live": True, "state": "idle"})
+        snap["gpu"]["answer"] = _answer("g", "answering")
+        snap["gpu"]["answer"].update(model="Nemotron 3.5 Bolt", where="M5 Pro MacBook Pro")
+        finished = json.loads(json.dumps(snap))
+        finished["rev"] = 2
+        finished["gpu"]["link"]["pc"]["label"] = "RTX 5080 PC"
+        finished["gpu"]["answer"]["state"] = "done"
+        shown = self.run_page(snap, after=finished,
+                              after_action=f"draw({json.dumps(finished)})")
+        self.assertEqual(shown["statusWrites"], ["MacBook GPU: Done"])
+
     def test_two_fast_answers_with_the_same_done_words_both_announce(self):
         first = _snapshot()
         first["models"] = [_model("m1", "phone", _answer("first", "done"))]

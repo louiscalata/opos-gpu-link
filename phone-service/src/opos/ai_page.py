@@ -873,7 +873,8 @@ function nounOf(label){
 function noun(){var l=current&&current.gpu&&current.gpu.link;return nounOf(l&&l.pc&&l.pc.label)}
 // A saved answer names the computer that wrote it (its where), not whichever one is paired now.
 function answerNoun(a){var w=a&&typeof a.where==='string'?a.where.trim():'';return w&&w!=="on the PC's GPU"?nounOf(w):noun()}
-function Noun(){var n=noun();return n.charAt(0).toUpperCase()+n.slice(1)}
+function titleNoun(n){return n.charAt(0).toUpperCase()+n.slice(1)}
+function Noun(){return titleNoun(noun())}
 function whereWords(w){return w==="on the PC's GPU"?"on the "+noun()+"'s GPU":w}
 var pane=new URLSearchParams(location.search).get('pane');
 if(pane!=='phone'&&pane!=='gpu')pane=null;
@@ -887,7 +888,7 @@ if(pane==='phone')G('list').appendChild(G('home').parentNode);
 var token=document.querySelector('meta[name=opos-token]').content;
 var stale=false;
 var boot=null,rev=-1,current=null,timer=null,busy=false,askQueued=false,queue=[],last=-Infinity,open=false,pendingCode=null,presetKey=null;
-var lastAnswerState={},announcements=[],clearAnnouncement=false,noticeTicket=0;
+var lastAnswerState={},lastCableWarning='',announcements=[],clearAnnouncement=false,noticeTicket=0;
 var OPEN=['queued','waiting','loading','answering','paused'];
 var ERRORS={no_model:'No model is available on this phone.',stream_error:'The phone model could not finish the answer.',
  too_long:'The answer reached the storage limit.',restart:'The phone restarted before the answer finished.',
@@ -951,6 +952,23 @@ function cableWords(p){
  if(stuck)return 'Connected. Safe to unplug: the answer is saved.';
  return 'Connected. Safe to unplug: the answer is saved and continues when the '+noun()+' is ready again.';
 }
+function cableWarning(p){
+ var link=p.link;
+ if(!link)return '';
+ var state=cableState(p);
+ var cable=state==='out'||state==='wait'?cableWords(p):'';
+ if(link.storage!=='error')return cable;
+ return link.storage_fault&&cable?cable:[storageWords(link),cable].filter(Boolean).join(' ');
+}
+function noteCableWarning(p){
+ var warning=cableWarning(p);
+ if(lastCableWarning===warning)return;
+ var hadWarning=!!lastCableWarning;
+ lastCableWarning=warning;
+ if(warning)announcements.push(warning);
+ else if(hadWarning&&cableState(p)==='ok')announcements.push(cableWords(p));
+ else clearAnnouncement=true;
+}
 function notice(value,repeat){
  var ticket=++noticeTicket;
  if(repeat&&value&&G('announcement').textContent===value){
@@ -975,7 +993,7 @@ function drawPane(name,p){
  var state=off?'GPU Link is off.':words(name,p);
  if(pc&&pc.state==='copying'&&pc.total>0&&pc.copied!=null&&state==='Copying the model')
   state+=': '+Math.min(100,Math.floor(pc.copied*100/pc.total))+'%';
- if(pane===null||pane===name)noteState(name,name==='gpu'?Noun()+' GPU':'Phone',a,state);
+ if(pane===null||pane===name)noteState(name,name==='gpu'?titleNoun(answerNoun(a))+' GPU':'Phone',a,state);
  var speed=a&&a.tps!=null;
  var live=name==='phone'&&a&&a.state==='answering'&&p.live_speed!=null&&!speed;
  text(name+'-speed',speed?a.tps+' tokens per second · this run':live?'about '+p.live_speed+' pieces per second · this run':state);
@@ -1063,7 +1081,7 @@ function buttons(){
 }
 function draw(s){
  if(s.locked){current=null;open=false;askQueued=false;G('controls').hidden=true;G('enrol').hidden=true;
-  lastAnswerState={};notice('Unlock the phone to use AI mode.');
+  lastAnswerState={};lastCableWarning='';notice('Unlock the phone to use AI mode.');
   ['phone','gpu'].forEach(function(n){text(n+'-answer','');line(n+'-state','');
    line(n+'-model','');text(n+'-speed','Unlock the phone to use AI mode.');G(n+'-stop').hidden=true});
   G('phone-extra').textContent='';G('phone-extra').hidden=true;
@@ -1079,6 +1097,7 @@ function draw(s){
  announcements=[];clearAnnouncement=false;
  drawPane('phone',s.phone);drawPane('gpu',s.gpu);
  drawPCModels(s);
+ if(pane!=='phone')noteCableWarning(s.gpu);
  if(announcements.length)notice(announcements.join(' '),true);
  else if(clearAnnouncement)notice('');
  open=[s.phone,s.gpu].concat(s.models||[]).some(function(p){return p.answer&&OPEN.indexOf(p.answer.state)>=0});
