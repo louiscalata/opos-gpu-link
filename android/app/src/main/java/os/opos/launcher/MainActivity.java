@@ -5482,11 +5482,26 @@ public final class MainActivity extends Activity {
         pcLabelled(dialog.findViewById(R.id.info_pc_status_label_text), "PC status");
         typography.defaults(dialog.getWindow().getDecorView());
         applyPaletteToDialog(dialog);
-        typography.headline(dialog.findViewById(R.id.info_page_title), 26);
-        dialog.<TextView>findViewById(R.id.info_replace_pc_steps)
-                .setTypeface(typography.smTextRegular);
-        typography.body(dialog.findViewById(R.id.info_about), typography.bodySp());
-        typography.body(dialog.findViewById(R.id.info_wireless_note), typography.bodySp());
+        typography.headline(dialog.findViewById(R.id.info_page_title), typography.headingSp());
+        int[] labels = {
+                R.id.info_about_label_text, R.id.info_phone_model_label_text,
+                R.id.info_pc_label_text, R.id.info_pc_id_label_text,
+                R.id.info_pc_status_label_text, R.id.info_pairing_label_text,
+                R.id.info_app_version_label_text, R.id.info_local_service_label_text,
+                R.id.info_keep_screen_on_label_text, R.id.info_screen_timeout_label_text,
+                R.id.info_cover_layout_label_text
+        };
+        for (int id : labels) typography.kicker(dialog.findViewById(id));
+        int[] values = {
+                R.id.info_about, R.id.info_wireless_note, R.id.info_phone_model,
+                R.id.info_pc, R.id.info_pc_id, R.id.info_pc_status,
+                R.id.info_pairing, R.id.info_replace_pc_steps,
+                R.id.info_app_version, R.id.info_local_service,
+                R.id.info_keep_screen_on, R.id.info_screen_timeout,
+                R.id.info_cover_layout, R.id.info_forget_error,
+                R.id.info_close, R.id.info_forget_pc
+        };
+        for (int id : values) typography.body(dialog.findViewById(id), typography.bodySp());
         JSONObject phone = snapshot == null ? null : snapshot.optJSONObject("phone");
         JSONObject gpu = snapshot == null ? null : snapshot.optJSONObject("gpu");
         String phoneModel = textField(phone, "model");
