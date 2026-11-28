@@ -7,24 +7,24 @@ Ask on your Android phone. A model on your computer and models on your phone can
 ## What you need
 
 - An Android phone, a computer with a GPU, and a USB-C data cable. The Dec 10, 2026 show uses a Galaxy Z Flip6 and an M5 Pro MacBook Pro.
-- The phone app from [Releases](https://github.com/louiscalata/opos-gpu-link/releases), or an APK built with `android/scripts/build-debug-apk.sh`. The phone-side service is described in [phone-service/README.md](phone-service/README.md).
+- For this checkout's interface, [build the phone app](CONTRIBUTING.md#build-the-apk) and install `android/app/build/outputs/apk/debug/app-debug.apk`. The [Releases](https://github.com/louiscalata/opos-gpu-link/releases) APK is an earlier demo build. The phone-side service is described in [phone-service/README.md](phone-service/README.md).
 - [Android SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools) on the computer, with USB debugging enabled on the phone.
 - A local model file and a local `llama-server` program on the computer before you start offline. See [computer setup](companion/SETUP.md). Offline startup cannot download missing files.
 
 ## Quick start
 
-1. Install the phone app and start the phone-side service. Follow [the phone service guide](phone-service/README.md) if you are running this repository's stand-alone service.
+1. Install the phone app and start the phone-side service on the phone. The APK needs that service running. If you use this repository's stand-alone service, copy `phone-service/` to the phone and follow [its guide](phone-service/README.md).
 2. Connect the phone to the computer with the USB-C cable. Unlock the phone and allow its USB debugging prompt.
-3. On the computer, start the companion from this checkout. Replace the model path with a file already on your computer:
+3. On the computer, start the companion from the checkout root. Replace the model path with a file already on your computer:
 
    ```sh
-   python3 companion/gpu_link_autosetup.py --offline --strict-ports --own-server --port 38400 --model-path /path/to/model.gguf
+   python3 companion/gpu_link_autosetup.py --offline --strict-ports --own-server --no-extras --port 38400 --model-path /path/to/model.gguf
    ```
 
 4. Compare the six-digit code on the phone and computer. If the codes match, tap **Allow** on the phone. The phone remembers that computer for later plugs.
 5. Ask a question on the phone. Watch each ready model's answer appear on its own card.
 
-The companion starts a local model server for the computer model. `--offline` prevents downloads, `--own-server` starts this run's server, and `--strict-ports` keeps it from checking other model apps. The number 38400 is the first local connection number it tries for its server. `--model-path` names the file to prefer; if that file is missing, the companion may choose another local file. Check the model name it shows at startup. The [computer companion guide](companion/README.md) covers other systems and setups.
+The companion starts its own local model server and skips other model apps. `--offline` prevents downloads, and `--no-extras` shows one computer answer card. The number 38400 is the first local connection number it tries for its server. `--model-path` names the file to prefer; if that file is missing, the companion may choose another local file. Check the model name it shows at startup. The [computer companion guide](companion/README.md) covers other systems and setups.
 
 ## What you will see
 

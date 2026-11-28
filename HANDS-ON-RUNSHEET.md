@@ -74,8 +74,8 @@ Write local clock times. Mark each row **PASS**, **FAIL**, or **NOT_RUN** only a
 **Steps:**
 
 1. Open **Info** and note the displayed computer name and connection state.
-2. Tap **Forget this PC** (or the button with that computer's name). On the first dialog, tap **Continue**.
-3. Inspect the second dialog. Tap **Not now**. Do not tap **Forget PC**. Recheck the name and connection state in Info.
+2. Tap **Forget this MacBook** (or the button with that computer's name). On the first dialog, tap **Continue**.
+3. Inspect the second dialog. Tap **Not now**. Do not tap **Forget MacBook**. Recheck the name and connection state in Info.
 
 **PASS:** The second confirmation appears, **Not now** exits it, and the same saved MacBook remains connected.
 

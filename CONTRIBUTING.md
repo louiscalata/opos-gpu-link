@@ -29,7 +29,15 @@ cd android
 ./scripts/run-host-tests.sh
 ```
 
-The Android debug APK is built with `android/scripts/build-debug-apk.sh`. That script needs JDK 17 and an Android SDK with platform `android-37.0` and build-tools `37.0.0`. It is not part of the hosted CI workflow.
+## Build the APK
+
+This script needs JDK 17 and an Android SDK with platform `android-37.0` and build-tools `37.0.0`. From the checkout root, replace the paths with your installed JDK and SDK:
+
+```sh
+JAVA_HOME=/path/to/jdk17 ANDROID_SDK_ROOT=/path/to/sdk android/scripts/build-debug-apk.sh
+```
+
+Install the result from `android/app/build/outputs/apk/debug/app-debug.apk`. This build is not part of the hosted CI workflow.
 
 ## Pull requests
 
