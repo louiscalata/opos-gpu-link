@@ -1,15 +1,11 @@
 package os.opos.launcher;
 
-/**
- * The green live state line for a lane that is streaming or thinking. Host-testable; no
- * Android types. It shows only for the exact live lane labels, so it disappears the moment a
- * lane is done, paused, stopped or failed.
- */
+/** The live card label and motion, with no Android types so the frames can be host-tested. */
 final class WorkingIndicator {
-    /** About 6–7 frames a second: visibly alive from the stage, light on battery. */
-    static final long TICK_MS = 150L;
-    /** A rising and falling bar. Every glyph is in the bundled JetBrains Mono. */
-    static final String SPINNER = "▁▂▃▄▅▆▇█▇▆▅▄▃▂";
+    static final long CYCLE_MS = 1200L;
+    static final int DOT_COUNT = 3;
+    static final String DISPLAY = "Working...";
+    private static final float TAU = (float) (2.0 * Math.PI);
 
     private WorkingIndicator() {}
 
@@ -22,21 +18,25 @@ final class WorkingIndicator {
         return STREAMING.equals(s) || THINKING.equals(s);
     }
 
-    /** Keep the card's one visible line in step with its plain state and word count. */
-    static String line(long tick, CharSequence stateWords, int words, boolean reducedMotion) {
+    static String display(CharSequence stateWords) {
         String state = label(stateWords);
-        if (state.isEmpty()) return "";
+        return STREAMING.equals(state) || THINKING.equals(state) ? DISPLAY : state;
+    }
+
+    /** Fixed-width live label; only the word count can change its layout. */
+    static String line(CharSequence stateWords, int words) {
+        if (!working(stateWords)) return "";
         int w = Math.max(0, words);
-        StringBuilder sb = new StringBuilder("● ");
-        if (!reducedMotion) sb.append(SPINNER.charAt(index(tick, SPINNER.length()))).append(' ');
-        sb.append(state);
+        StringBuilder sb = new StringBuilder("● ").append(DISPLAY);
         if (w > 0) sb.append(" · ").append(w).append(w == 1 ? " word" : " words");
         return sb.toString();
     }
 
     /** A spoken label without the moving dot or bar. */
     static String spoken(CharSequence stateWords, int words) {
-        String state = label(stateWords).replace("…", "").trim();
+        String state = label(stateWords);
+        state = STREAMING.equals(state) || THINKING.equals(state)
+                ? "Working" : state.replace("…", "").trim();
         if (state.isEmpty()) return "";
         int count = Math.max(0, words);
         return count == 0 ? state : state + ", " + count
@@ -47,13 +47,24 @@ final class WorkingIndicator {
         return stateWords == null ? "" : stateWords.toString().trim();
     }
 
-    /** The dot pulses about once a second (bright 4 ticks, dim 4); steady with reduced motion. */
-    static boolean dotBright(long tick, boolean reducedMotion) {
-        return reducedMotion || index(tick, 8) < 4;
+    /** One smooth green pulse, with a visible floor so the live dot never disappears. */
+    static float dotAlpha(float frame, boolean reducedMotion) {
+        return reducedMotion ? 1f : 0.42f + 0.58f * wave(frame);
     }
 
-    /** floorMod for a long tick without the API 31 Math.floorMod(long, int) overload. */
-    private static int index(long tick, int n) {
-        return (int) Math.floorMod(tick, (long) n);
+    /** Three white dots brighten in turn without changing the line's text or width. */
+    static float trailingAlpha(float frame, int dot, boolean reducedMotion) {
+        if (dot < 0 || dot >= DOT_COUNT) throw new IllegalArgumentException("dot");
+        return reducedMotion ? 1f : 0.30f + 0.70f * wave(frame - dot / (float) DOT_COUNT);
+    }
+
+    /** A stopped, hidden or reduced-motion card never gets animation frames. */
+    static boolean animate(boolean live, boolean onScreen, boolean resumed,
+                           boolean reducedMotion, boolean animatorsEnabled) {
+        return live && onScreen && resumed && !reducedMotion && animatorsEnabled;
+    }
+
+    private static float wave(float frame) {
+        return 0.5f + 0.5f * (float) Math.cos(TAU * frame);
     }
 }
