@@ -5234,10 +5234,11 @@ public final class MainActivity extends Activity {
                 LaneCardLayout.LABEL_SP, true, false);
         typography.kicker(kicker);
         card.addView(kicker);
-        card.addView(newspaperText(lane.label, LaneCardLayout.headingSp(PaneKeys.extra(lane.pane),
+        card.addView(newspaperText(HistoryDisplay.label(lane), LaneCardLayout.headingSp(PaneKeys.extra(lane.pane),
                 "gpu".equals(lane.pane)), true, true));
-        String byline = lane.maker.isEmpty() ? laneWhere
-                : laneWhere.isEmpty() ? lane.maker : lane.maker + " · " + laneWhere;
+        String savedMaker = HistoryDisplay.maker(lane);
+        String byline = savedMaker.isEmpty() ? laneWhere
+                : laneWhere.isEmpty() ? savedMaker : savedMaker + " · " + laneWhere;
         TextView bylineView = newspaperText(byline, LaneCardLayout.LABEL_SP, false, false);
         typography.byline(bylineView);
         card.addView(bylineView);
@@ -5417,6 +5418,7 @@ public final class MainActivity extends Activity {
                 ? HistoryRefresh.latestRefresh(issues, saved) : saved;
         if (thenIssue == null || nowIssue == null || thenIssue.id.equals(nowIssue.id)) return;
         TextView heading = newspaperText(getString(R.string.history_then_vs_now), 21, true, true);
+        heading.setAccessibilityHeading(true);
         heading.setPadding(0, dp(8), 0, dp(8));
         typography.headline(heading, typography.headingSp());
         page.addView(heading);
@@ -5431,7 +5433,9 @@ public final class MainActivity extends Activity {
 
     private LinearLayout thenNowCard(HistoryRefresh.LaneCompare row) {
         LinearLayout card = savedBox();
-        TextView kicker = newspaperText(PaneKeys.kicker(row.pane), typography.labelSp(), true, false);
+        // The two saved runs may have used different computers.
+        TextView kicker = newspaperText(PaneKeys.kicker(row.pane, ComputerWords.COMPUTER),
+                typography.labelSp(), true, false);
         typography.kicker(kicker);
         card.addView(kicker);
         card.addView(thenNowBlock(getString(R.string.history_then),
@@ -5454,8 +5458,9 @@ public final class MainActivity extends Activity {
         block.setPadding(0, dp(8), 0, 0);
         TextView label = newspaperText(heading, typography.labelSp(), true, false);
         typography.kicker(label);
+        label.setAccessibilityHeading(true);
         block.addView(label);
-        if (!modelLabel.isEmpty()) {
+        if (modelLabel != null && !modelLabel.isEmpty()) {
             block.addView(newspaperText(modelLabel, typography.headingSp(), true, true));
         }
         TextView stateView = newspaperText(state, typography.labelSp(), true, false);

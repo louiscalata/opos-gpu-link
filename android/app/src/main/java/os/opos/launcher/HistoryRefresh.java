@@ -110,7 +110,7 @@ final class HistoryRefresh {
         for (String pane : panes) {
             HistoryStore.Lane thenLane = lane(thenIssue, pane);
             HistoryStore.Lane nowLane = lane(nowIssue, pane);
-            rows.add(new LaneCompare(pane, label(thenLane, pane), label(nowLane, pane),
+            rows.add(new LaneCompare(pane, HistoryDisplay.label(thenLane), HistoryDisplay.label(nowLane),
                     thenLane == null ? "" : thenLane.state,
                     thenLane == null ? "" : thenLane.text,
                     thenLane == null ? 0 : thenLane.elapsedMs,
@@ -121,11 +121,6 @@ final class HistoryRefresh {
                     nowLane != null));
         }
         return rows;
-    }
-
-    private static String label(HistoryStore.Lane lane, String pane) {
-        if (lane == null) return "";
-        return lane.label.isEmpty() ? PaneKeys.fallbackLabel(pane) : lane.label;
     }
 
     private static HistoryStore.Lane lane(HistoryStore.Issue issue, String pane) {

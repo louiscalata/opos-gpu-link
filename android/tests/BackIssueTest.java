@@ -11,14 +11,15 @@ public final class BackIssueTest {
                 "Why?", "PC 2.0 s · Phone 1.0 s", "2.1 s", Arrays.asList(
                 new HistoryStore.Lane("gpu", "PC GPU", "Maker", "over USB",
                         "Done · 2.0 s", "GPU answer", 2000),
-                new HistoryStore.Lane("phone", "This phone", "NVIDIA", "on this phone",
+                new HistoryStore.Lane("phone", "This phone", "Nemotron Mini 4B · NVIDIA", "on this phone",
                         "Done · 1.0 s", "Phone answer", 1000)));
         BackIssue issue = BackIssue.from(saved);
         equal("You asked: Why?", issue.headline);
-        equal("PC 2.0 s · Phone 1.0 s", issue.timing);
+        equal("Computer 2.0 s · Phone 1.0 s", issue.timing);
         equal("2.1 s", issue.elapsed);
         equal("", issue.elapsedLabel);
-        equal("PC GPU, This phone", issue.answeredBy);
+        equal("Computer GPU, Nemotron Mini 4B", issue.answeredBy);
+        equal("NVIDIA", HistoryDisplay.maker(issue.lanes.get(1)));
         equal("GPU answer", issue.lanes.get(0).text);
         equal("Phone answer", issue.lanes.get(1).text);
         HistoryStore.Issue paused = new HistoryStore.Issue("124", 124, "Pause?",
@@ -37,7 +38,7 @@ public final class BackIssueTest {
         });
         store.upsert(paused);
         BackIssue resumed = BackIssue.from(store.list().get(0));
-        equal("PC  unmeasured\nPhone  1.0 s", resumed.timing);
+        equal("Computer  unmeasured\nPhone  1.0 s", resumed.timing);
         equal("9.2 s", resumed.elapsed);
         equal("Total time includes cable pause", resumed.elapsedLabel);
         equal("Done · time unmeasured", resumed.lanes.get(0).state);
@@ -50,7 +51,7 @@ public final class BackIssueTest {
         equal(1, oldEntries.size());
         BackIssue old = BackIssue.from(oldEntries.get(0));
         equal("Saved time may include a cable pause", old.elapsedLabel);
-        equal("Saved model times may include a cable pause\nPC  2.0 s\nPhone  1.0 s",
+        equal("Saved model times may include a cable pause\nComputer  2.0 s\nPhone  1.0 s",
                 old.timing);
         equal("Done · 2.0 s (may include cable pause)",
                 old.lanes.get(0).state);
