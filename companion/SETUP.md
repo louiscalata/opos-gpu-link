@@ -31,7 +31,7 @@ To have the companion running whenever you sign in to your Mac, install the per-
 python3 gpu_link_login_agent.py install --model-path /path/to/model.gguf --serial SERIAL --adb /path/to/adb
 ```
 
-It writes `~/Library/LaunchAgents/os.opos.gpulink.companion.plist` and starts the companion now and at later logins. It runs `gpu_link_autosetup.py --offline --strict-ports --own-server --no-extras --port 38400` from this checkout, restarts after a crash (not after a clean exit), and logs to `~/Library/Logs/OPOS GPU Link/`. Add `--no-start` to install it for the next login only. No admin rights are needed. `status` shows whether it is loaded, `print` shows the plist without installing it, and `uninstall` stops and removes it. The phone still asks once before it uses a new computer.
+It writes `~/Library/LaunchAgents/os.opos.gpulink.companion.plist` and starts the companion now and at later logins. It runs `gpu_link_autosetup.py --offline --strict-ports --own-server --no-extras --no-pause --port 38400` from this checkout, restarts after a crash (not after a clean exit), and logs to `~/Library/Logs/OPOS GPU Link/`. Add `--no-start` to install it for the next login only. No admin rights are needed. `status` shows whether it is loaded, `print` shows the plist without installing it, and `uninstall` stops and removes it. The phone still asks once before it uses a new computer.
 
 ## Find local model servers
 
@@ -75,7 +75,7 @@ Approximate starting points for one model with roughly 4-bit weights and modest 
 | 24 GB VRAM | 14–24B | Larger models can fit depending on quantization, context and runtime overhead. |
 | 64 GB unified memory | 30–32B | Leave room for the OS and other applications. Check the accelerator's working-set limit. |
 
-Include weights, KV cache, and runtime buffers for every model that may be resident together. Reduce context, concurrency, or quantization size if warmup hits memory pressure. These ranges are estimates, with no hardware measurements in this delivery.
+Include weights, KV cache, and runtime buffers for every model that may be resident together. Reduce context, concurrency, or quantization size if warmup hits memory pressure. These ranges are estimates, not measured results.
 
 ## Unplugging and troubleshooting
 
@@ -87,7 +87,7 @@ When USB disconnects, every open computer lane changes to **paused** after the l
 - **Warming model** — compare the reported ID with `--model`. Check whether the model server can stream answers and has memory to load the model.
 - **Replug doesn't continue the answer** — confirm that the companion is still running and that the phone retained the paused turn. See [companion pairing and recovery](README.md#start-the-companion) for pairing rejection.
 
-## Verification for this delivery
+## Checks
 
 Host tests and the public unit suites are documented in this repository ([companion tests](README.md#tests) and `android/scripts/run-host-tests.sh`). The fake LM Studio HTTP test binds an ephemeral loopback port when the host permits it. The Windows test run, USB unplug/replug, real LM Studio loading, and device rendering remain operator checks.
 

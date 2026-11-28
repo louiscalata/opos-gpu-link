@@ -6,7 +6,7 @@ Ask on your Android phone. A model on your computer and models on your phone can
 
 ## What you need
 
-- An Android phone, a computer with a GPU, and a USB-C data cable. The Dec 10, 2026 show uses a Galaxy Z Flip6 and an M5 Pro MacBook Pro.
+- An Android phone, a computer with a GPU, and a USB-C data cable. The Dec 10, 2026 show uses a Galaxy Z Flip 6 and an M5 Pro MacBook Pro.
 - For this checkout's interface, [build the phone app](CONTRIBUTING.md#build-the-apk) and install `android/app/build/outputs/apk/debug/app-debug.apk`. The [Releases](https://github.com/louiscalata/opos-gpu-link/releases) APK is an earlier demo build. The phone-side service is described in [phone-service/README.md](phone-service/README.md).
 - [Android SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools) on the computer, with USB debugging enabled on the phone.
 - A local model file and a local `llama-server` program on the computer before you start offline. See [computer setup](companion/SETUP.md). Offline startup cannot download missing files.
@@ -55,7 +55,7 @@ If you unplug the cable, the computer answer pauses and keeps the text already s
 
 ## Privacy
 
-Questions and answers are visible to your phone and your own computer. The computer model runs locally. With the offline quick start above, the companion does not download files or send your questions to a cloud service. The phone app talks to its own local service; the computer is reached through the USB cable. Requests after pairing are signed.
+Questions and answers are visible to your phone and your own computer. The computer model runs locally. With the offline quick start above, the companion does not download files or send your questions to a cloud service. The phone app talks to its own local service; the companion reaches the phone service through a USB-C `adb` forward. Requests after pairing are signed.
 
 ## Recorded model files (27 Nov 2026)
 
@@ -82,7 +82,7 @@ Gemma was a measured baseline and rollback. Gemma's SHA-256 was not recorded whi
 
 | | |
 | --- | --- |
-| Phone | Android 10+ (tested on a Galaxy Z Flip6, inner and cover screens) |
+| Phone | Android 10+ (tested on a Galaxy Z Flip 6, inner and cover screens) |
 | macOS | Apple silicon (Metal), Intel with a Vulkan GPU |
 | Windows | x86_64, NVIDIA (CUDA) or AMD/Intel (Vulkan) |
 | Linux | x86_64, NVIDIA (CUDA) or Vulkan |
@@ -93,7 +93,7 @@ Early demo build. USB is the only link today. Wireless: coming later.
 
 - The APK is a debug build signed with a throwaway key. It is not on Google Play.
 - The phone side runs on its own with `phone-service/run_link.py`, including the `/api/ai` endpoint the app reads. To give a phone answer, it needs a local model server on the phone, such as `llama-server`. Without one, questions go to the computer.
-- Hands-on checks for a live Flip 6 and MacBook (screens, Stop, cable pull, copy, soak, rehearsals, screenshots) are in [HANDS-ON-RUNSHEET.md](HANDS-ON-RUNSHEET.md).
+- Hands-on checks for a live Galaxy Z Flip 6 and MacBook (screens, Stop, cable pull, copy, soak, rehearsals, screenshots) are in [HANDS-ON-RUNSHEET.md](HANDS-ON-RUNSHEET.md).
 
 OPOS GPU Link is part of the early Old Phone OS project, coming soon.
 

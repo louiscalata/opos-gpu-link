@@ -31,7 +31,7 @@ cd android
 
 ## Build the APK
 
-This script needs JDK 17 and an Android SDK with platform `android-37.0` and build-tools `37.0.0`. From the checkout root, replace the paths with your installed JDK and SDK:
+This script needs JDK 17 and an Android SDK with platform `android-37.0` and build-tools `37.0.0`. It also expects a debug keystore at `~/.android/debug.keystore`, or at the path set by `DEBUG_KEYSTORE`. From the checkout root, replace the paths with your installed JDK and SDK:
 
 ```sh
 JAVA_HOME=/path/to/jdk17 ANDROID_SDK_ROOT=/path/to/sdk android/scripts/build-debug-apk.sh
