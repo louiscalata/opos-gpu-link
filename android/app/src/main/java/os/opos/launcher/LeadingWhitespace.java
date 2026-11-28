@@ -4,32 +4,50 @@ package os.opos.launcher;
 final class LeadingWhitespace {
     private LeadingWhitespace() {}
 
-    /** Clear an answer's empty start, but keep indentation on a first list item. */
+    /** Clear blank lines and prose padding without changing first-line structure. */
     static String stripAnswerStart(String value) {
-        int start = 0;
         int lineStart = 0;
-        while (start < value.length()) {
-            int codePoint = value.codePointAt(start);
-            if (!Character.isWhitespace(codePoint)) break;
-            start += Character.charCount(codePoint);
-            if (codePoint == '\n' || codePoint == '\r') lineStart = start;
-        }
-        if (start == value.length()) return "";
-        int indent = start - lineStart;
-        if (indent > 0 && indent <= 4 && isListMarker(value, start, indent)) {
-            for (int i = lineStart; i < start; i++) {
-                if (value.charAt(i) != ' ') return value.substring(start);
+        while (lineStart < value.length()) {
+            int start = lineStart;
+            while (start < value.length()) {
+                int codePoint = value.codePointAt(start);
+                if (codePoint == '\n' || codePoint == '\r'
+                        || !Character.isWhitespace(codePoint)) break;
+                start += Character.charCount(codePoint);
             }
-            return value.substring(lineStart);
+            if (start == value.length()) return "";
+            if (value.charAt(start) == '\n' || value.charAt(start) == '\r') {
+                lineStart = start + 1;
+                if (value.charAt(start) == '\r' && lineStart < value.length()
+                        && value.charAt(lineStart) == '\n') lineStart++;
+                continue;
+            }
+            if (isCodeIndent(value, lineStart, start)
+                    || isListMarker(value, start)
+                    || value.startsWith("```", start) || value.startsWith("~~~", start)) {
+                return value.substring(lineStart);
+            }
+            return value.substring(start);
         }
-        return value.substring(start);
+        return "";
     }
 
-    private static boolean isListMarker(String value, int start, int indent) {
+    private static boolean isCodeIndent(String value, int lineStart, int start) {
+        int spaces = 0;
+        for (int i = lineStart; i < start;) {
+            int codePoint = value.codePointAt(i);
+            if (codePoint == '\t') return true;
+            spaces++;
+            i += Character.charCount(codePoint);
+        }
+        return spaces >= 4;
+    }
+
+    private static boolean isListMarker(String value, int start) {
         char marker = value.charAt(start);
         int end = start + 1;
         if (marker != '-' && marker != '*' && marker != '+') {
-            if (indent == 1 || !Character.isDigit(marker)) return false;
+            if (!Character.isDigit(marker)) return false;
             while (end < value.length() && Character.isDigit(value.charAt(end))) end++;
             if (end == value.length() || value.charAt(end) != '.' && value.charAt(end) != ')') {
                 return false;
