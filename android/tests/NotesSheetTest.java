@@ -43,10 +43,23 @@ public final class NotesSheetTest {
         equal(164, NotesSheet.contentBottomPad(200, 56, 92));
         equal(72, NotesSheet.summaryMaxDp(true));
         equal(140, NotesSheet.summaryMaxDp(false));
-        equal(40, NotesSheet.summaryMaxDp(false, true));
-        equal(40, NotesSheet.summaryMinDp(true));
+        equal(48, NotesSheet.summaryMaxDp(false, true));
+        equal(48, NotesSheet.summaryMaxDp(false, true, false));
+        equal(140, NotesSheet.summaryMaxDp(false, true, true));
+        equal(72, NotesSheet.summaryMaxDp(true, false, true));
+        equal(48, NotesSheet.summaryMinDp(true));
+        equal(0, NotesSheet.collapsedTabHeightDp(true));
+        equal(48, NotesSheet.collapsedTabHeightDp(false));
+        equal(0, NotesSheet.collapsedTabHeightDp(
+                CoverScreenPolicy.select(880, 360, 0) == CoverScreenPolicy.Mode.WIDE));
+        equal(0, NotesSheet.collapsedTabHeightDp(
+                CoverScreenPolicy.select(1024, 419, 0) == CoverScreenPolicy.Mode.WIDE));
+        equal(48, NotesSheet.collapsedTabHeightDp(
+                CoverScreenPolicy.select(360, 880, 0) == CoverScreenPolicy.Mode.WIDE));
+        equal(48, NotesSheet.collapsedTabHeightDp(
+                CoverScreenPolicy.select(374, 360, 1) == CoverScreenPolicy.Mode.WIDE));
         equal(56, NotesSheet.summaryMinDp(false));
-        equal(40, NotesSheet.summaryHeight(140,
+        equal(48, NotesSheet.summaryHeight(140,
                 NotesSheet.summaryMinDp(true), NotesSheet.summaryMaxDp(false, true)));
         equal(56, NotesSheet.summaryHeight(0, 56, 72));
         equal(72, NotesSheet.summaryHeight(200, 56, 72));

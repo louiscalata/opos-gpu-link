@@ -159,8 +159,8 @@ public final class MainActivity extends Activity {
     };
 
     private View screen, pairing, pairingClosed;
-    private ScrollView resultsScroll;
-    private LinearLayout header, answers, leftColumn, rightColumn, summaryCard;
+    private ScrollView resultsScroll, summaryScroll;
+    private LinearLayout header, answers, leftColumn, rightColumn, summaryCard, summaryRow;
     private TextView bigMasthead;
     private LinearLayout mastheadBlock;
     private int expandedMastheadHeightPx;
@@ -194,6 +194,7 @@ public final class MainActivity extends Activity {
     private LinearLayout settingsLabList;
     private TextView notesTabLabel;
     private NotesSheet.State notesSheetState = NotesSheet.State.COLLAPSED;
+    private boolean summaryExpanded;
     private ValueAnimator notesSheetAnimator;
     private Choreographer.FrameCallback notesSpringCallback;
     private float notesSpringPos;
@@ -221,7 +222,7 @@ public final class MainActivity extends Activity {
     private int lastPairingProblem;
     private TextView phoneState, phoneAnswer, gpuHeading, gpuState, gpuAnswer;
     private LinearLayout tonightRows;
-    private TextView tonightCount, tonightProvenance, tonightTiming, summaryText,
+    private TextView tonightCount, tonightProvenance, tonightTiming, summaryHeading, summaryText,
             expandedState, expandedAnswer,
             expandedStatus, expandedTitle, expandedByline;
     private ScrollView expandedScroll;
@@ -457,10 +458,21 @@ public final class MainActivity extends Activity {
                 insetLeft = bars.left;
                 insetTop = bars.top;
                 insetRight = bars.right;
+                int previousInsetBottom = insetBottom;
                 insetBottom = NotesSheet.dockInset(bars.bottom, gestures.bottom, keyboard.bottom);
-                applyScreenBottomReserve();
-                if (compactLayout) setCompactKeyboardMode(
-                        windowInsets.isVisible(WindowInsets.Type.ime()));
+                boolean imeVisible = windowInsets.isVisible(WindowInsets.Type.ime());
+                boolean collapseSummary = landscapeLayout && imeVisible && summaryExpanded;
+                if (collapseSummary) {
+                    summaryExpanded = false;
+                    pinSummaryBar();
+                } else {
+                    applyScreenBottomReserve();
+                }
+                if (landscapeLayout && notesSheetState != NotesSheet.State.COLLAPSED
+                        && (collapseSummary || insetBottom != previousInsetBottom)) {
+                    setNotesSheetState(notesSheetState, false);
+                }
+                if (compactLayout) setCompactKeyboardMode(imeVisible);
                 return windowInsets;
             });
             screen.requestApplyInsets();
@@ -478,6 +490,10 @@ public final class MainActivity extends Activity {
         typography.defaults(screen);
         applyDeviceBandMode();
         if (landscapeLayout) {
+            detach(heatMeter);
+            heatMeter.setPadding(dp(8), 0, dp(8), 0);
+            header.addView(heatMeter, header.indexOfChild(info), new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
             arrangeLandscapeTopRow();
             applyComposerRowHeight(false);
             lastCollapseFraction = -1f;
@@ -1011,7 +1027,8 @@ public final class MainActivity extends Activity {
         notesCard.setOnDragListener(notesTargetListener());
         applyNotesCompact();
         summaryCard = box();
-        summaryCard.addView(newspaperText("SUMMARY", 18, true, true));
+        summaryHeading = newspaperText("SUMMARY", 18, true, true);
+        summaryCard.addView(summaryHeading);
         summaryText = newspaperText("Ask the models to compare their answers.", 16, false, true);
         typography.body(summaryText, 16);
         summaryCard.addView(summaryText, new LinearLayout.LayoutParams(
@@ -6046,7 +6063,7 @@ public final class MainActivity extends Activity {
 
     /** Keep the Ask box and results above the collapsed Notes tab + Summary bar. */
     private int summaryCapPx() {
-        return dp(NotesSheet.summaryMaxDp(coverMode, landscapeLayout));
+        return dp(NotesSheet.summaryMaxDp(coverMode, landscapeLayout, summaryExpanded));
     }
 
     private int summaryMinPx() {
@@ -6054,6 +6071,7 @@ public final class MainActivity extends Activity {
     }
 
     private int cappedSummaryHeight(int measured) {
+        if (landscapeLayout) return summaryCapPx();
         return NotesSheet.summaryHeight(measured, summaryMinPx(), summaryCapPx());
     }
 
@@ -6084,7 +6102,6 @@ public final class MainActivity extends Activity {
             setupNotesDock();
         }
         if (bottomDock == null) return;
-        detach(summaryCard);
         summaryCard.setLayoutTransition(null);
         summaryCard.animate().cancel();
         summaryCard.setAlpha(1f);
@@ -6093,16 +6110,82 @@ public final class MainActivity extends Activity {
         int summaryVerticalPad = dp(landscapeLayout ? 4 : LaneCardLayout.CARD_PADDING_DP);
         summaryCard.setPadding(dp(LaneCardLayout.CARD_PADDING_DP), summaryVerticalPad,
                 dp(LaneCardLayout.CARD_PADDING_DP), summaryVerticalPad);
+        if (landscapeLayout) {
+            summaryCard.setPadding(dp(LaneCardLayout.CARD_PADDING_DP), 0,
+                    dp(LaneCardLayout.CARD_PADDING_DP), 0);
+            if (summaryRow == null) {
+                summaryRow = new LinearLayout(this);
+                summaryRow.setOrientation(LinearLayout.HORIZONTAL);
+                summaryRow.setGravity(Gravity.CENTER_VERTICAL);
+                detach(summaryHeading);
+                summaryCard.addView(summaryRow, 0, new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT, dp(NotesSheet.SUMMARY_WIDE_DP)));
+                summaryRow.addView(summaryHeading, new LinearLayout.LayoutParams(0,
+                        LinearLayout.LayoutParams.MATCH_PARENT, 1f));
+                detach(summaryText);
+                summaryScroll = new ScrollView(this);
+                summaryScroll.setVerticalScrollBarEnabled(true);
+                summaryScroll.setPadding(0, 0, dp(8), dp(8));
+                summaryScroll.addView(summaryText, new ScrollView.LayoutParams(
+                        ScrollView.LayoutParams.MATCH_PARENT,
+                        ScrollView.LayoutParams.WRAP_CONTENT));
+                summaryCard.addView(summaryScroll, new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        0, 1f));
+                summaryHeading.setGravity(Gravity.CENTER_VERTICAL);
+                summaryHeading.setSingleLine(true);
+                summaryHeading.setEllipsize(TextUtils.TruncateAt.END);
+                summaryHeading.setFocusable(true);
+                summaryHeading.setAccessibilityDelegate(mastheadButtonRole());
+                summaryHeading.setOnClickListener(view -> {
+                    if (!summaryExpanded && notesSheetState != NotesSheet.State.COLLAPSED) {
+                        setNotesSheetState(NotesSheet.State.COLLAPSED, false);
+                    }
+                    summaryExpanded = !summaryExpanded;
+                    pinSummaryBar();
+                    setNotesSheetState(notesSheetState, false);
+                });
+                LinearLayout tabRow = (LinearLayout) notesTab.getParent();
+                tabRow.setVisibility(View.GONE);
+                detach(notesTab);
+                notesTab.setPadding(dp(12), 0, dp(12), 0);
+                notesTab.setMinimumWidth(dp(48));
+                summaryRow.addView(notesTab, new LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.WRAP_CONTENT, dp(NotesSheet.SUMMARY_WIDE_DP)));
+                notes.setAccessibilityTraversalAfter(notesTab.getId());
+            }
+            String cue = summaryExpanded ? " · Close" : " · Open";
+            SpannableStringBuilder heading = new SpannableStringBuilder("SUMMARY" + cue);
+            heading.setSpan(new TypefaceSpan(typography.interMedium), 7, heading.length(),
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            int cuePx = Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP,
+                    typography.labelSp(), getResources().getDisplayMetrics()));
+            heading.setSpan(new AbsoluteSizeSpan(cuePx, false), 7,
+                    heading.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            summaryHeading.setText(heading);
+            summaryHeading.setContentDescription(getString(summaryExpanded
+                    ? R.string.summary_close : R.string.summary_open));
+            summaryScroll.setVisibility(summaryExpanded ? View.VISIBLE : View.GONE);
+        }
         if (summaryText != null) {
-            summaryText.setVisibility(landscapeLayout ? View.GONE : View.VISIBLE);
-            summaryText.setMaxLines(coverMode ? 3 : 8);
-            summaryText.setEllipsize(android.text.TextUtils.TruncateAt.END);
-            summaryText.setMaxHeight(summaryCapPx());
+            if (landscapeLayout) {
+                summaryText.setMaxLines(Integer.MAX_VALUE);
+                summaryText.setEllipsize(null);
+            } else {
+                summaryText.setMaxLines(coverMode ? 3 : 8);
+                summaryText.setEllipsize(android.text.TextUtils.TruncateAt.END);
+                summaryText.setMaxHeight(summaryCapPx());
+            }
         }
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 summaryCapPx());
-        bottomDock.addView(summaryCard, params);
+        if (landscapeLayout && summaryCard.getParent() == bottomDock) {
+            summaryCard.setLayoutParams(params);
+        } else {
+            detach(summaryCard);
+            bottomDock.addView(summaryCard, params);
+        }
         summaryCard.setVisibility(View.VISIBLE);
         bottomDock.setVisibility(View.VISIBLE);
         bottomDock.bringToFront();
@@ -6124,6 +6207,10 @@ public final class MainActivity extends Activity {
             notesTab.setPadding(dp(18), dp(8), dp(18), dp(6));
             notesTab.setClickable(true);
             notesTab.setFocusable(true);
+            notesTab.setId(View.generateViewId());
+            notesTab.setAccessibilityDelegate(mastheadButtonRole());
+            notesTab.setOnClickListener(view -> setNotesSheetState(
+                    NotesSheet.onTabTap(notesSheetState), true));
             notesTabLabel = newspaperText(NotesSheet.tabLabel(0), typography.labelSp(), true, false);
             typography.kicker(notesTabLabel);
             notesTab.addView(notesTabLabel);
@@ -6201,7 +6288,9 @@ public final class MainActivity extends Activity {
 
     private void styleNotesDock() {
         if (notesTab != null) {
-            notesTab.setBackground(folderTabDrawable(notesDragActive));
+            notesTab.setBackground(landscapeLayout
+                    ? (notesDragActive ? panelDrawable(palette.ink()) : null)
+                    : folderTabDrawable(notesDragActive));
         }
         if (notesCard != null && !notesDragActive) {
             notesCard.setBackground(panelDrawable(palette.stroke()));
@@ -6255,7 +6344,7 @@ public final class MainActivity extends Activity {
     };
 
     private int notesCollapsedH() {
-        return dp(NotesSheet.TAB_TOUCH_DP);
+        return dp(NotesSheet.collapsedTabHeightDp(landscapeLayout));
     }
 
     private ViewGroup notesOverlayHost() {
@@ -6364,6 +6453,10 @@ public final class MainActivity extends Activity {
     }
 
     private void setNotesSheetState(NotesSheet.State state, boolean animate, float velocityPxPerSec) {
+        if (landscapeLayout && state != NotesSheet.State.COLLAPSED && summaryExpanded) {
+            summaryExpanded = false;
+            pinSummaryBar();
+        }
         notesSheetState = state;
         int target = NotesSheet.height(state, notesCollapsedH(), notesHalfH(), notesFullH());
         cancelNotesSheetMotion();
@@ -6453,7 +6546,7 @@ public final class MainActivity extends Activity {
                     boolean dragged = notesSheetDragging;
                     notesSheetDragging = false;
                     if (!dragged && event.getActionMasked() == MotionEvent.ACTION_UP) {
-                        setNotesSheetState(NotesSheet.onTabTap(notesSheetState), true);
+                        view.performClick();
                     } else {
                         NotesSheet.State next = NotesSheet.snap(currentNotesSheetHeight(),
                                 notesCollapsedH(), notesHalfH(), notesFullH(), velocity);
@@ -6591,7 +6684,8 @@ public final class MainActivity extends Activity {
     }
 
     private void highlightNotesTarget(boolean on) {
-        if (notesTab != null) notesTab.setBackground(folderTabDrawable(on));
+        if (notesTab != null) notesTab.setBackground(landscapeLayout
+                ? (on ? panelDrawable(palette.ink()) : null) : folderTabDrawable(on));
         if (notesCard != null) {
             notesCard.setBackground(panelDrawable(on ? palette.ink() : palette.stroke()));
         }
