@@ -15,7 +15,8 @@ final class LaneCardLayout {
      * #5C5C5C on #000 is about 3.1:1, the minimum contrast for a UI boundary.
      */
     static final float STROKE_DP = 0.5f;
-    static final int CARD_PADDING_DP = 8;
+    static final int CARD_PADDING_DP = Space.S;
+    /** Intentional 6 dp exception: keep the newspaper card rhythm compact. */
     static final int CARD_GAP_DP = 6;
     /** Minimum height so an empty or waiting lane still reads as a frame. */
     static final int MIN_LANE_DP = 96;

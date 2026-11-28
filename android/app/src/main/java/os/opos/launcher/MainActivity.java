@@ -533,7 +533,7 @@ public final class MainActivity extends Activity {
         if (compactLayout) {
             LinearLayout root = (LinearLayout) screen;
             ((ViewGroup) status.getParent()).removeView(status);
-            status.setPadding(dp(12), dp(2), dp(12), dp(2));
+            status.setPadding(dp(12), dp(Space.XS), dp(12), dp(Space.XS));
             typography.state(status);
             status.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
             status.setSingleLine(false);
@@ -547,7 +547,7 @@ public final class MainActivity extends Activity {
             if (!coverMode) {
                 compactLaneStatus = stateText("");
                 typography.tabular(compactLaneStatus);
-                compactLaneStatus.setPadding(dp(12), 0, dp(12), dp(2));
+                compactLaneStatus.setPadding(dp(12), 0, dp(12), dp(Space.XS));
                 compactLaneStatus.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
                 root.addView(compactLaneStatus, afterHeader + 1,
                         new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
@@ -703,7 +703,7 @@ public final class MainActivity extends Activity {
             composer.setBackgroundColor(themeColor(R.color.newspaper_paper));
             composer.setClipChildren(false);
             composer.setClipToPadding(false);
-            int vertical = dp(coverMode ? 6 : 8);
+            int vertical = dp(Space.S);
             composer.setPadding(dp(12), vertical, dp(12), vertical);
         }
         if (row != null) {
@@ -723,7 +723,7 @@ public final class MainActivity extends Activity {
         promptParams.bottomMargin = 0;
         promptParams.leftMargin = 0;
         promptParams.rightMargin = 0;
-        prompt.setPadding(dp(12), dp(10), dp(12), dp(10));
+        prompt.setPadding(dp(12), dp(Space.M), dp(12), dp(Space.M));
         prompt.setIncludeFontPadding(true);
         Paint.FontMetricsInt font = prompt.getPaint().getFontMetricsInt();
         prompt.setMinHeight(largeFontInner
@@ -741,7 +741,7 @@ public final class MainActivity extends Activity {
                     : new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, rowHeight);
             action.width = LinearLayout.LayoutParams.WRAP_CONTENT;
             action.height = rowHeight;
-            action.leftMargin = dp(6);
+            action.leftMargin = dp(Space.S);
             action.topMargin = 0;
             action.bottomMargin = 0;
             action.gravity = Gravity.CENTER_VERTICAL;
@@ -804,7 +804,7 @@ public final class MainActivity extends Activity {
             setIfChanged(article.kicker, CoverScreenPolicy.kicker(pane, state));
             applyTone(article.kicker);
             article.kicker.setBackgroundColor(Color.TRANSPARENT);
-            article.kicker.setPadding(dp(6), dp(2), dp(6), dp(2));
+            article.kicker.setPadding(dp(Space.S), dp(Space.XS), dp(Space.S), dp(Space.XS));
         }
         updateCoverMore();
     }
@@ -850,8 +850,8 @@ public final class MainActivity extends Activity {
         mastheadBlock.setVisibility(mastheadDp == 0 ? View.GONE : View.VISIBLE);
         applyComposerRowHeight(keyboardVisible);
         ((LinearLayout) findViewById(R.id.composer)).setPadding(dp(12),
-                keyboardVisible ? 0 : dp(coverMode ? 2 : 4), dp(12),
-                keyboardVisible ? 0 : dp(coverMode ? 4 : 6));
+                keyboardVisible ? 0 : dp(Space.XS), dp(12),
+                keyboardVisible ? 0 : dp(coverMode ? Space.XS : Space.S));
         if (coverMode) reserveCoverActionRow(dp(CoverScreenPolicy.composerRowDp(keyboardVisible)));
         lastCollapseFraction = -1f;
         setHeaderCollapse(resultsScroll.getScrollY());
@@ -1070,7 +1070,7 @@ public final class MainActivity extends Activity {
                 new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT));
         info.setLayoutParams(new LinearLayout.LayoutParams(dp(52), dp(48)));
-        header.setPadding(dp(12), dp(2), dp(12), dp(4));
+        header.setPadding(dp(12), dp(Space.XS), dp(12), dp(4));
         bigMasthead = displayText(
                 getString(R.string.masthead_menu_title, getString(R.string.app_name)),
                 MASTHEAD_DISPLAY_SP);
@@ -1092,8 +1092,8 @@ public final class MainActivity extends Activity {
         mastheadRule.setBackgroundColor(themeColor(R.color.newspaper_stroke));
         LinearLayout.LayoutParams mastheadRuleParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(1));
-        mastheadRuleParams.topMargin = dp(6);
-        mastheadRuleParams.bottomMargin = dp(6);
+        mastheadRuleParams.topMargin = dp(Space.S);
+        mastheadRuleParams.bottomMargin = dp(Space.S);
         mastheadBlock.addView(mastheadRule, mastheadRuleParams);
         mastheadBlock.addOnLayoutChangeListener((view, left, top, right, bottom,
                 oldLeft, oldTop, oldRight, oldBottom) -> {
@@ -1165,12 +1165,12 @@ public final class MainActivity extends Activity {
         timingCard.addView(tonightTiming);
         tonightRows = new LinearLayout(this);
         tonightRows.setOrientation(LinearLayout.VERTICAL);
-        tonightRows.setPadding(0, dp(6), 0, 0);
+        tonightRows.setPadding(0, dp(Space.S), 0, 0);
         timingCard.addView(tonightRows, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         tonightLeader = headingText("");
         typography.tabular(tonightLeader);
-        tonightLeader.setPadding(0, dp(6), 0, 0);
+        tonightLeader.setPadding(0, dp(Space.S), 0, 0);
         tonightLeader.setVisibility(View.GONE);
         timingCard.addView(tonightLeader);
         setTonightTiming(pcWords(R.string.tonight_waiting));
@@ -1220,7 +1220,7 @@ public final class MainActivity extends Activity {
         status.setLayoutParams(new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT));
-        status.setPadding(0, dp(2), 0, dp(2));
+        status.setPadding(0, dp(Space.XS), 0, dp(Space.XS));
         status.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
         status.setSingleLine(false);
         status.setMaxLines(Integer.MAX_VALUE);
@@ -1334,7 +1334,7 @@ public final class MainActivity extends Activity {
         TextView byline = bylineText("");
         typography.byline(byline);
         byline.setIncludeFontPadding(true);
-        byline.setPadding(0, dp(2), 0, dp(2));
+        byline.setPadding(0, dp(Space.XS), 0, dp(Space.XS));
         byline.setTextColor(themeColor(R.color.newspaper_ink));
         card.addView(byline, 2);
         TextView speed = stateText("");
@@ -1345,7 +1345,7 @@ public final class MainActivity extends Activity {
         typography.body(answerView, typography.bodySp());
         LinearLayout.LayoutParams bodyParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        bodyParams.topMargin = dp(6);
+        bodyParams.topMargin = dp(Space.S);
         card.addView(answerView, bodyParams);
         // No inner ScrollView: the card grows with the answer; the page scrolls.
         PaneViews paneView = new PaneViews(pane, card, kicker, heading, byline,
@@ -1777,7 +1777,7 @@ public final class MainActivity extends Activity {
         });
         LinearLayout.LayoutParams body = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1);
-        body.topMargin = dp(14);
+        body.topMargin = dp(Space.L);
         page.addView(expandedScroll, body);
         dialog.setContentView(page);
         dialog.setOnDismissListener(ignored -> {
@@ -2899,7 +2899,7 @@ public final class MainActivity extends Activity {
         View body = findViewById(R.id.pairing_body);
         if (body != null) body.setPadding(pad, pad, pad, pad);
         View actions = findViewById(R.id.pairing_actions);
-        if (actions != null) actions.setPadding(pad, dp(coverMode ? 4 : 8), pad, pad);
+        if (actions != null) actions.setPadding(pad, dp(coverMode ? Space.XS : Space.S), pad, pad);
         layoutPairingForScreen(codeLabel, disclosure, actions);
         if (pairingClosed != null) {
             TextView closedHeader = findViewById(R.id.pairing_closed_header);
@@ -3575,8 +3575,8 @@ public final class MainActivity extends Activity {
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
             LinearLayout.LayoutParams linkParams = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            linkParams.topMargin = dp(4);
-            linkParams.bottomMargin = dp(4);
+            linkParams.topMargin = dp(Space.XS);
+            linkParams.bottomMargin = dp(Space.XS);
             deviceLink.setLayoutParams(linkParams);
             deviceComputer.setLayoutParams(new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
@@ -3590,7 +3590,7 @@ public final class MainActivity extends Activity {
         deviceComputerKicker.setVisibility(coverMode ? View.GONE : View.VISIBLE);
         for (LinearLayout panel : new LinearLayout[]{devicePhone, deviceComputer}) {
             panel.setMinimumHeight(dp(coverMode ? 44 : 64));
-            int pad = dp(coverMode ? 6 : 8);
+            int pad = dp(Space.S);
             panel.setPadding(pad, pad, pad, pad);
         }
     }
@@ -3956,7 +3956,7 @@ public final class MainActivity extends Activity {
             if (row.note()) {
                 TextView note = stateText(row.label);
                 typography.tabular(note);
-                note.setPadding(0, dp(2), 0, dp(2));
+                note.setPadding(0, dp(Space.XS), 0, dp(Space.XS));
                 applyTone(note);
                 container.addView(note, new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
@@ -3966,7 +3966,7 @@ public final class MainActivity extends Activity {
             LinearLayout line = new LinearLayout(this);
             line.setOrientation(LinearLayout.HORIZONTAL);
             line.setGravity(Gravity.BOTTOM);
-            line.setPadding(0, dp(3), 0, dp(3));
+            line.setPadding(0, dp(Space.XS), 0, dp(Space.XS));
             TextView label = bodyText(row.label);
             label.setSingleLine(false);
             TextView value = bodyText(row.value);
@@ -4002,7 +4002,7 @@ public final class MainActivity extends Activity {
                 bar.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 11);
                 bar.setIncludeFontPadding(false);
                 bar.setMaxLines(1);
-                bar.setPadding(0, 0, 0, dp(2));
+                bar.setPadding(0, 0, 0, dp(Space.XS));
                 bar.setText(RaceLine.barWithWords(lane.words, maxWords, RaceLine.CELLS));
                 bar.setTextColor(color);
                 bar.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
@@ -4149,6 +4149,8 @@ public final class MainActivity extends Activity {
     private TextView workingLine(TextView stateView, PaneViews article) {
         TextView view = new TextView(this);
         typography.state(view); // the state slot (S5 face, tabular numbers), same size as above
+        view.setSingleLine(true);
+        view.setEllipsize(TextUtils.TruncateAt.END);
         view.setIncludeFontPadding(stateView.getIncludeFontPadding());
         view.setPadding(stateView.getPaddingLeft(), stateView.getPaddingTop(),
                 stateView.getPaddingRight(), stateView.getPaddingBottom());
@@ -4675,7 +4677,7 @@ public final class MainActivity extends Activity {
     private void addLaneRetryButton(String pane, LinearLayout card, View stateRow) {
         Button button = outlineButton(getString(R.string.lane_retry)); // 0.5dp dark-gray frame
         typography.retry(button);
-        button.setPadding(dp(14), 0, dp(14), 0);
+        button.setPadding(dp(Space.L), 0, dp(Space.L), 0);
         button.setVisibility(View.GONE);
         button.setContentDescription(getString(R.string.lane_retry_description));
         button.setOnClickListener(view -> retryLane(pane, false));
@@ -5455,7 +5457,7 @@ public final class MainActivity extends Activity {
         ruleParams.topMargin = dp(12);
         root.addView(rule, ruleParams);
         TextView note = bodyText(getString(R.string.model_selection_note));
-        note.setPadding(0, dp(14), 0, dp(10));
+        note.setPadding(0, dp(Space.L), 0, dp(Space.M));
         root.addView(note);
         modelSelectionNotice = stateText("");
         root.addView(modelSelectionNotice);
@@ -5527,7 +5529,7 @@ public final class MainActivity extends Activity {
     private void addModelSection(String heading) {
         TextView section = headingText(heading);
         section.setAccessibilityHeading(true);
-        section.setPadding(0, dp(18), 0, dp(8));
+        section.setPadding(0, dp(Space.L), 0, dp(8));
         modelRows.addView(section);
         View rule = new View(this);
         rule.setBackgroundColor(themeColor(R.color.newspaper_stroke));
@@ -5539,7 +5541,7 @@ public final class MainActivity extends Activity {
         JSONObject view = paneOf(snapshot, pane);
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.CENTER_VERTICAL);
-        row.setPadding(0, dp(14), 0, dp(14));
+        row.setPadding(0, dp(Space.L), 0, dp(Space.L));
         LinearLayout details = new LinearLayout(this);
         details.setOrientation(LinearLayout.VERTICAL);
         TextView title = headingText(modelLabel(pane, view));
@@ -5662,7 +5664,7 @@ public final class MainActivity extends Activity {
                 view -> dialog.dismiss()));
         // Palette and typography follow the current theme.
         TextView note = bodyText(getString(R.string.history_subtitle));
-        note.setPadding(0, dp(10), 0, dp(10));
+        note.setPadding(0, dp(Space.M), 0, dp(Space.M));
         root.addView(note);
         View rule = new View(this);
         rule.setBackgroundColor(themeColor(R.color.newspaper_stroke));
@@ -5688,7 +5690,7 @@ public final class MainActivity extends Activity {
                 })));
         LinearLayout.LayoutParams clearParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(48));
-        clearParams.topMargin = dp(10);
+        clearParams.topMargin = dp(Space.M);
         root.addView(clear, clearParams);
         showFullPage(dialog, root);
         fillHistoryRows();
@@ -5779,7 +5781,7 @@ public final class MainActivity extends Activity {
         setMarkdownAnswer(answer, AnswerDisplay.text(lane.pane, lane.text));
         LinearLayout.LayoutParams bodyParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        bodyParams.topMargin = dp(6);
+        bodyParams.topMargin = dp(Space.S);
         card.addView(answer, bodyParams);
         return card;
     }
@@ -5798,7 +5800,7 @@ public final class MainActivity extends Activity {
         rule.setBackgroundColor(themeColor(R.color.newspaper_stroke));
         LinearLayout.LayoutParams lineParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(1));
-        lineParams.topMargin = dp(10);
+        lineParams.topMargin = dp(Space.M);
         root.addView(rule, lineParams);
         ScrollView scroll = new ScrollView(this);
         LinearLayout page = new LinearLayout(this);
@@ -5806,11 +5808,11 @@ public final class MainActivity extends Activity {
         TextView date = stateText(getString(R.string.history_back_issue_date,
                         issueDate(saved.askedAtMs)));
         typography.tabular(date);
-        date.setPadding(0, dp(10), 0, 0);
+        date.setPadding(0, dp(Space.M), 0, 0);
         page.addView(date);
         TextView headline = headingText(issue.headline);
         setQuestionHeadline(headline, issue.headline);
-        headline.setPadding(0, dp(6), 0, dp(10));
+        headline.setPadding(0, dp(Space.S), 0, dp(Space.M));
         page.addView(headline);
         if (!saved.sourceId.isEmpty()) {
             TextView linked = stateText(getString(R.string.history_linked_refresh));
@@ -5826,7 +5828,7 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams refreshParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         refreshParams.topMargin = dp(8);
-        refreshParams.bottomMargin = dp(10);
+        refreshParams.bottomMargin = dp(Space.M);
         page.addView(refresh, refreshParams);
         addThenVersusNow(page, saved);
         LinearLayout timing = savedBox();
@@ -5839,7 +5841,7 @@ public final class MainActivity extends Activity {
         }
         LinearLayout timingRows = new LinearLayout(this);
         timingRows.setOrientation(LinearLayout.VERTICAL);
-        timingRows.setPadding(0, dp(6), 0, 0);
+        timingRows.setPadding(0, dp(Space.S), 0, 0);
         fillTonightRows(timingRows, issue.timing, null);
         timing.addView(timingRows);
         timing.setMinimumHeight(dp(BACK_ISSUE_TIMING_MIN_DP));
@@ -6256,8 +6258,8 @@ public final class MainActivity extends Activity {
             // A paused line is an inverted chip (paper on ink), readable from the back row.
             // The view's own padding and background come back when the pause ends.
             view.setTag(R.id.paused_chip, new PausedChip(view));
-            view.setPadding(view.getPaddingLeft() + dp(6), view.getPaddingTop(),
-                    view.getPaddingRight() + dp(6), view.getPaddingBottom());
+            view.setPadding(view.getPaddingLeft() + dp(Space.S), view.getPaddingTop(),
+                    view.getPaddingRight() + dp(Space.S), view.getPaddingBottom());
         } else if (!paused && saved instanceof PausedChip) {
             ((PausedChip) saved).restore(view);
             view.setTag(R.id.paused_chip, null);
@@ -6583,7 +6585,7 @@ public final class MainActivity extends Activity {
         LinearLayout page = new LinearLayout(this);
         settingsPage = page;
         page.setOrientation(LinearLayout.VERTICAL);
-        int pagePad = dp(coverMode ? 10 : 16);
+        int pagePad = dp(coverMode ? Space.M : Space.L);
         page.setPadding(pagePad, pagePad, pagePad, pagePad);
         page.setBackgroundColor(themeColor(R.color.newspaper_paper));
         page.addView(pageBar(getString(R.string.settings), getString(R.string.close),
@@ -6648,7 +6650,7 @@ public final class MainActivity extends Activity {
             });
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            params.topMargin = dp(coverMode ? 4 : 6);
+            params.topMargin = dp(coverMode ? Space.XS : Space.S);
             themeList.addView(row, params);
         }
     }
@@ -6668,7 +6670,7 @@ public final class MainActivity extends Activity {
             });
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            params.topMargin = dp(coverMode ? 4 : 6);
+            params.topMargin = dp(coverMode ? Space.XS : Space.S);
             labList.addView(row, params);
         }
     }
@@ -6676,7 +6678,7 @@ public final class MainActivity extends Activity {
     private LinearLayout optionRow(String title, String caption, boolean selected) {
         LinearLayout row = new LinearLayout(this);
         row.setOrientation(LinearLayout.VERTICAL);
-        int pad = dp(coverMode ? 6 : 10);
+        int pad = dp(coverMode ? Space.S : Space.M);
         row.setPadding(pad, pad, pad, pad);
         row.setMinimumHeight(dp(48));
         row.setGravity(Gravity.CENTER_VERTICAL);
@@ -6685,7 +6687,7 @@ public final class MainActivity extends Activity {
         row.addView(heading);
         TextView sub = stateText("");
         sub.setTextColor(themeColor(R.color.you_asked_label));
-        sub.setPadding(0, dp(2), 0, 0);
+        sub.setPadding(0, dp(Space.XS), 0, 0);
         row.addView(sub);
         setOptionSelected(row, caption, selected);
         row.setClickable(true);
@@ -6906,7 +6908,7 @@ public final class MainActivity extends Activity {
             notesTab = new LinearLayout(this);
             notesTab.setOrientation(LinearLayout.HORIZONTAL);
             notesTab.setGravity(Gravity.CENTER);
-            notesTab.setPadding(dp(18), dp(8), dp(18), dp(6));
+            notesTab.setPadding(dp(Space.L), dp(8), dp(Space.L), dp(Space.S));
             if (largeFontInner) notesTab.setMinimumHeight(dp(NotesSheet.TAB_DP));
             notesTab.setClickable(true);
             notesTab.setFocusable(true);

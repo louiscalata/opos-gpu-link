@@ -18,7 +18,7 @@ final class PairingPrompt {
     static final int DENY_DP_COVER = 52;
     /** Space above the code label and the disclosure; tighter on the 360 dp-tall cover. */
     static final int GAP_DP_INNER = 20;
-    static final int GAP_DP_COVER = 6;
+    static final int GAP_DP_COVER = Space.S;
     static final int PAD_DP_INNER = 24;
     static final int PAD_DP_COVER = 12;
 
