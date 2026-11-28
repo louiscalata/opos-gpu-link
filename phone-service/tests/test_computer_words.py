@@ -146,7 +146,7 @@ class El{constructor(id){this.id=id;this.text='';this.hidden=false;this.dataset=
  addEventListener(){} focus(){} querySelector(){return null} querySelectorAll(){return []} scrollIntoView(){}}
 function find(root,id){if(root.id===id)return root;for(const child of root.children){const hit=find(child,id);if(hit)return hit}return null}
 const get=id=>{
- if(/^[mg][1-4]-(?:pane|title|model|speed|state|answer|stop)$/.test(id))
+ if(/^[mg][1-4]-(?:pane|title|model|speed|announcement|state|answer|stop)$/.test(id))
   return find(nodes.get('phone-extra'),id)||find(nodes.get('pc-extra'),id);
  if(!nodes.has(id))nodes.set(id,new El(id));return nodes.get(id)};
 get('list').appendChild(get('ai-title'));get('list').appendChild(get('controls'));
@@ -169,6 +169,10 @@ for(let i=0;i<snapshots.length;i++){
  const cards=root=>get(root+'-extra').children.map(c=>({id:c.dataset.pane,title:get(c.dataset.pane+'-title').text,
   sectionName:c.attrs['aria-labelledby'],aria:get(c.dataset.pane+'-answer').attrs['aria-label'],
   speedClass:get(c.dataset.pane+'-speed').className,speedRole:get(c.dataset.pane+'-speed').attrs.role,
+  speedLive:get(c.dataset.pane+'-speed').attrs['aria-live'],
+  announcementRole:get(c.dataset.pane+'-announcement').attrs.role,
+  announcementClass:get(c.dataset.pane+'-announcement').className,
+  announcement:get(c.dataset.pane+'-announcement').text,
   stop:get(c.dataset.pane+'-stop').text,stopHidden:get(c.dataset.pane+'-stop').hidden,
   model:get(c.dataset.pane+'-model').text}));
  out.push({title:get('gpu-title').text,disclosure:get('gpu-disclosure').text,aria:get('gpu-answer').attrs['aria-label'],
@@ -344,7 +348,7 @@ class PageScriptTest(NoNetwork):
         self.assertIn("#phone-extra{grid-column:1 / 4;grid-row:13}", css)
         self.assertIn("#pc-extra{grid-column:1 / 4;grid-row:14}", css)
 
-    def test_extra_cards_have_named_regions_and_matching_status_styles(self):
+    def test_extra_cards_have_named_regions_and_nonlive_speed(self):
         snap = _snapshot(_pc("M5 Pro MacBook Pro"))
         snap["models"] = [_model("m1", "phone", "Nemotron Mini 4B"),
                           _model("g1", "pc", "Granite 4.1 3B", maker="IBM")]
@@ -352,13 +356,26 @@ class PageScriptTest(NoNetwork):
         for card in shown["phoneCards"] + shown["pcCards"]:
             self.assertEqual(card["sectionName"], card["id"] + "-title")
             self.assertEqual(card["speedClass"], "speed")
-            self.assertEqual(card["speedRole"], "status")
+            self.assertIsNone(card.get("speedRole"))
+            self.assertEqual(card["speedLive"], "off")
+            self.assertEqual(card["announcementRole"], "status")
+            self.assertEqual(card["announcementClass"], "sr-only")
+            self.assertIn(": Ready", card["announcement"])
 
     def test_a_saved_answer_names_the_computer_that_wrote_it(self):
         snap = _snapshot(_pc("M5 Pro MacBook Pro"))
         snap["gpu"]["answer"] = {"id": "a1", "state": "failed", "error": "", "where": "RTX 5080 PC", "model": "m",
                                  "question": "q", "text": "", "finish": None}
         self.assertIn("The PC could not finish the answer.", self.run_page([snap])[0]["speed"])
+
+    def test_extra_saved_macbook_failure_announces_the_answer_computer(self):
+        snap = _snapshot(_pc("RTX 5080 PC"))
+        snap["models"] = [_model("g1", "pc", "Nemotron 3.5 Bolt", answer={
+            "id": "a1", "state": "failed", "error": "", "where": "M5 Pro MacBook Pro",
+            "model": "Nemotron 3.5 Bolt", "text": ""})]
+        card = self.run_page([snap], "?pane=gpu")[0]["pcCards"][0]
+        self.assertEqual(card["announcement"],
+                         "Nemotron 3.5 Bolt: The MacBook could not finish the answer.")
 
     def test_pending_pairing_uses_the_requesting_computers_noun(self):
         shown = self.run_page([_snapshot(None, {"label": "M5 Pro MacBook Pro", "code": "123456"})])[0]
