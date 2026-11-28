@@ -25,6 +25,8 @@ public final class LaneCardLayoutTest {
         equal(TypeConfig.header().coverSizeSp, LaneCardLayout.headingSp(true));
         equal(0, LaneCardLayout.gapDp(0));
         equal(6, LaneCardLayout.gapDp(3));
+        equal(4, LaneCardLayout.retryInsertIndex(3, 7));
+        equal(7, LaneCardLayout.retryInsertIndex(-1, 7));
         check(LaneCardLayout.GROW_MS > 0 && LaneCardLayout.GROW_MS <= 200);
         equal(140, LaneCardLayout.GROW_MS);
         equal("#5C5C5C", UiPalette.STROKE);

@@ -7,9 +7,12 @@ import java.util.Map;
 public final class CompactHeaderStatusTest {
     public static void main(String[] args) {
         String paused = "Paused — will continue when the PC is back";
-        equal("This phone: Streaming… · PC GPU: Paused",
+        equal("This phone: Working... · PC GPU: Paused",
                 CompactHeaderStatus.line("This phone", "Streaming…", "PC GPU",
                         paused, paused));
+        equal("This phone: Working... · PC GPU: Working...",
+                CompactHeaderStatus.line("This phone", "Thinking…", "PC GPU",
+                        "Streaming…", paused));
         equal("This phone: Ready · PC GPU: Waiting for the PC",
                 CompactHeaderStatus.line("This phone", "Ready", "PC GPU",
                         "Waiting for the PC", paused));
