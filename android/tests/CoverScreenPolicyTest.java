@@ -142,6 +142,8 @@ public final class CoverScreenPolicyTest {
         eq("failed", CoverScreenPolicy.visibleState("Could not finish. Try again."));
         eq("failed", CoverScreenPolicy.visibleState("Paused — stuck"));
         eq("", CoverScreenPolicy.visibleState("Ready"));
+        eq("", CoverScreenPolicy.visibleState("Not connected"));
+        eq("", CoverScreenPolicy.visibleState("Not ready"));
         check(CoverScreenPolicy.invertIndicator("paused"));
         check(!CoverScreenPolicy.invertIndicator("answering"));
         eq("Computer GPU · PAUSED", CoverScreenPolicy.kicker("g1", "paused"));

@@ -1121,7 +1121,8 @@ public final class MainActivity extends Activity {
         byline.setTextColor(themeColor(R.color.newspaper_ink));
         card.addView(byline, 2);
         TextView speed = newspaperText("", typography.labelSp(), false, false);
-        typography.tabular(speed);
+        typography.state(speed);
+        speed.setVisibility(View.GONE);
         card.addView(speed, 4);
         card.removeView(answerView);
         typography.body(answerView, typography.bodySp());
@@ -1849,6 +1850,7 @@ public final class MainActivity extends Activity {
         for (PaneViews pane : paneViews.values()) {
             setLaneState(pane.state, pane.card, getString(R.string.checking));
             setPlainAnswer(pane.answer, getString(R.string.empty_answer));
+            setLiveSpeed(pane, "");
         }
         updateCompactLaneStatus();
         hidePairingUi();
@@ -1875,6 +1877,7 @@ public final class MainActivity extends Activity {
             for (PaneViews pane : paneViews.values()) {
                 setLaneState(pane.state, pane.card, getString(R.string.checking));
                 setPlainAnswer(pane.answer, getString(R.string.empty_answer));
+                setLiveSpeed(pane, "");
             }
         } else {
             for (PaneViews pane : paneViews.values()) {
@@ -1886,6 +1889,7 @@ public final class MainActivity extends Activity {
                 } else {
                     setLaneState(pane.state, pane.card, getString(R.string.stale_snapshot));
                 }
+                setLiveSpeed(pane, "");
             }
         }
         updateCompactLaneStatus();
@@ -2119,9 +2123,6 @@ public final class MainActivity extends Activity {
             JSONObject model = paneOf(data, pane);
             PaneViews view = paneViews.get(pane);
             nameExtraLane(view, pane, model);
-            Object speed = model == null ? null : model.opt("live_speed");
-            setIfChanged(view.speed, speed == null || speed == JSONObject.NULL
-                    ? "" : speed + " tokens/s");
         }
         updateCompactLaneStatus();
     }
@@ -2679,6 +2680,8 @@ public final class MainActivity extends Activity {
                 if ("phone".equals(pane)) namePhoneLane(article, view);
                 renderPane(article, view, PaneKeys.pc(pane)
                         ? gpu.optJSONObject("link") : null);
+            } else if (article != null && PaneKeys.extra(pane)) {
+                setLiveSpeed(article, "");
             }
         }
         updateSummary();
@@ -2772,6 +2775,7 @@ public final class MainActivity extends Activity {
         article.lastRenderedState = "";
         article.userScrolled = false;
         setPlainAnswer(article.answer, text);
+        setLiveSpeed(article, "");
         if (article.bodyScroll != null) {
             article.programmaticScroll = true;
             article.bodyScroll.scrollTo(0, 0);
@@ -2785,8 +2789,12 @@ public final class MainActivity extends Activity {
         int visibility = waiting ? View.GONE : View.VISIBLE;
         setVisibilityIfNeeded(article.kicker, visibility);
         setVisibilityIfNeeded(article.heading, visibility);
-        setVisibilityIfNeeded(article.speed, visibility);
         setVisibilityIfNeeded(article.answer, visibility);
+    }
+
+    private void setLiveSpeed(PaneViews article, String speed) {
+        setIfChanged(article.speed, speed);
+        setVisibilityIfNeeded(article.speed, speed.isEmpty() ? View.GONE : View.VISIBLE);
     }
 
     private static void setVisibilityIfNeeded(View view, int visibility) {
@@ -2800,6 +2808,7 @@ public final class MainActivity extends Activity {
             article.words = 0;
             article.follow.reset();
             setPlainAnswer(article.answer, "");
+            setLiveSpeed(article, "");
             updateExpanded(article);
         }
         setIfChanged(summaryText, "");
@@ -2855,6 +2864,7 @@ public final class MainActivity extends Activity {
                 setLaneState(stateView, article.card, pcWords(message));
                 setWaitingLayout(article, extra && message == R.string.waiting_turn);
                 if (!pcPaused) plainArticle(article, "");
+                else setLiveSpeed(article, "");
                 return;
             }
             if (!expectedId.equals(answer.optString("id"))) {
@@ -2932,6 +2942,10 @@ public final class MainActivity extends Activity {
             stateWords = pcWords(R.string.gpu_paused);
         } else if (isGpu && awaitingReplugSnapshot && open(answer)) {
             stateWords = pcWords(R.string.cable_checking);
+        }
+        if (extra) {
+            setLiveSpeed(article, LiveSpeedLabel.text(pane.opt("live_speed"), state,
+                    answerShown(paneName, answer), stateWords, getString(R.string.streaming)));
         }
         setLaneState(stateView, article.card, stateWords);
         if (extra && ("queued".equals(state) || "waiting".equals(state)
@@ -5866,7 +5880,7 @@ public final class MainActivity extends Activity {
             typography.byline(pane.byline);
             typography.state(pane.state);
             typography.tabular(pane.state);
-            typography.tabular(pane.speed);
+            typography.state(pane.speed);
             typography.body(pane.answer, typography.bodySp());
             if (pane.working != null) {
                 typography.state(pane.working);
