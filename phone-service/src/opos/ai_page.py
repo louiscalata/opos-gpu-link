@@ -773,6 +773,7 @@ h1,h2,.speed{font-family:Newsreader,serif}
 .pane{min-width:0;margin-top:16px}
 .pane p{margin:0 0 8px}
 .speed{font-size:32px;line-height:1.15}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .answer{white-space:pre-wrap;overflow-wrap:anywhere;height:30vh;max-height:30vh;overflow-y:auto;box-sizing:border-box;border:1px solid var(--fg);padding:12px}
 #err:not(:empty){border:3px double var(--fg);padding:8px}
 #question{width:100%;min-height:48px;background:var(--bg);color:var(--fg);border:1px solid var(--fg);font:inherit}
@@ -830,7 +831,8 @@ _LIST = """
 <section id="phone-pane" class="pane" aria-labelledby="phone-title">
 <h2 id="phone-title">Phone</h2>
 <p id="phone-model" class="model" hidden></p>
-<p id="phone-speed" class="speed" role="status">Waiting for a snapshot</p>
+<p id="phone-speed" class="speed" aria-live="off">Waiting for a snapshot</p>
+<p id="phone-announcement" class="sr-only" role="status"></p>
 <p id="phone-state" class="details" hidden></p>
 <div id="phone-answer" class="answer" tabindex="0" role="region" aria-label="Phone answer"></div>
 <button id="phone-stop" class="stop" type="button" hidden>Stop phone answer</button>
@@ -841,9 +843,11 @@ _THUMB = """
 <section id="gpu-pane" class="pane" aria-labelledby="gpu-title">
 <h2 id="gpu-title">Computer GPU</h2>
 <p id="gpu-model" class="model" hidden></p>
-<p id="gpu-speed" class="speed" role="status">Waiting for a snapshot</p>
+<p id="gpu-speed" class="speed" aria-live="off">Waiting for a snapshot</p>
+<p id="gpu-announcement" class="sr-only" role="status"></p>
 <p id="gpu-state" class="details" hidden></p>
-<p id="gpu-cable" role="status" hidden></p>
+<p id="gpu-cable" hidden></p>
+<p id="gpu-cable-announcement" class="sr-only" role="status"></p>
 <p id="gpu-disclosure">This computer can see what you ask here.</p>
 <div id="gpu-answer" class="answer" tabindex="0" role="region" aria-label="Computer GPU answer"></div>
 <button id="gpu-stop" class="stop" type="button" hidden>Stop GPU answer</button>
@@ -860,6 +864,16 @@ _THUMB = """
 _SCRIPT = r"""
 function G(id){return document.getElementById(id)}
 function text(id,value){var e=G(id);if(e.textContent!==value)e.textContent=value}
+function announce(id,key,value){
+ var e=G(id);
+ if(e.dataset.statusKey!==key){
+  e.dataset.statusKey=key;
+  if(value||e.textContent)e.textContent=value;
+ }
+}
+function answerStateKey(a,state,title){
+ return JSON.stringify([boot,title,a&&a.id,a&&a.state,a&&a.error,a&&a.finish,state]);
+}
 // The paired computer's noun from its display name, as the app and gpu_link.computer_noun name it:
 // "MacBook" or "Mac" for a Mac, "PC" for another paired computer, else "computer".
 function nounOf(label){
@@ -954,14 +968,24 @@ function drawPane(name,p){
  var here=pc&&(!a||(a.where?a.where===pc.label:!final));
  var where=here?[pc.label,pc.gpu&&pc.gpu.name].filter(Boolean).join(' · '):whereWords(p.where);
  line(name+'-model',off?'':[p.model,where].filter(Boolean).join(' · '));
- var state=off?'GPU Link is off.':words(name,p);
+ var baseState=off?'GPU Link is off.':words(name,p),state=baseState;
  if(pc&&pc.state==='copying'&&pc.total>0&&pc.copied!=null&&state==='Copying the model')
   state+=': '+Math.min(100,Math.floor(pc.copied*100/pc.total))+'%';
+ var title=name==='phone'?'Phone':a?answerNoun(a):noun();
+ title=title.charAt(0).toUpperCase()+title.slice(1);
+ if(name==='gpu')title+=' GPU';
+ announce(name+'-announcement',answerStateKey(a,baseState,title),title+': '+baseState);
  var speed=a&&a.tps!=null;
  var live=name==='phone'&&a&&a.state==='answering'&&p.live_speed!=null&&!speed;
  text(name+'-speed',speed?a.tps+' tokens per second · this run':live?'about '+p.live_speed+' pieces per second · this run':state);
  line(name+'-state',[speed||live?state:'',a&&a.tokens!=null?a.tokens+' tokens':''].filter(Boolean).join(' · '));
- if(name==='gpu'){G('gpu-disclosure').hidden=off;line('gpu-cable',cableWords(p));G('gpu-cable').dataset.cable=cableState(p)}
+ if(name==='gpu'){
+  G('gpu-disclosure').hidden=off;
+  var cable=cableWords(p),cableMode=cableState(p),fault=!!(p.link&&p.link.storage_fault);
+  line('gpu-cable',cable);G('gpu-cable').dataset.cable=cableMode;
+  announce('gpu-cable-announcement',JSON.stringify([boot,cableMode,fault,noun()]),
+   cableMode?(fault?'Wait before unplugging.':cable):'');
+ }
  var box=G(name+'-answer'),value=a?a.text:'',follow=box.scrollHeight-box.clientHeight-box.scrollTop<=24;
  var changed=box.dataset.answer!==(a?a.id:'');
  if(changed){follow=true;box.dataset.answer=a?a.id:''}
@@ -985,10 +1009,11 @@ function drawPCModels(s){
   if(!card){
    card=document.createElement('section');card.id=id+'-pane';card.className='pane';card.dataset.pane=id;
    card.setAttribute('aria-labelledby',id+'-title');
-   [['h2','title'],['p','model'],['p','speed'],['p','state'],['div','answer'],['button','stop']].forEach(function(pair){
+   [['h2','title'],['p','model'],['p','speed'],['p','announcement'],['p','state'],['div','answer'],['button','stop']].forEach(function(pair){
     var e=document.createElement(pair[0]);e.id=id+'-'+pair[1];
     if(pair[1]==='answer'){e.className='answer';e.tabIndex=0;e.setAttribute('role','region')}
-    if(pair[1]==='speed'){e.className='speed';e.setAttribute('role','status')}
+    if(pair[1]==='speed'){e.className='speed';e.setAttribute('aria-live','off')}
+    if(pair[1]==='announcement'){e.className='sr-only';e.setAttribute('role','status')}
     if(pair[1]==='stop'){e.className='stop';e.type='button'}
     card.appendChild(e)});
   }
@@ -996,8 +1021,9 @@ function drawPCModels(s){
   var a=m.answer,open=!!(a&&OPEN.indexOf(a.state)>=0),
    state=m.kind==='pc'?'Waiting for the '+noun():'Waiting for the phone model';
   if(a){
-   if(a.state==='failed')state=m.kind==='pc'?'The '+answerNoun(a)+' could not finish the answer.':
-    errorWords(id,a.error)||'The phone could not finish the answer.';
+   if(a.state==='failed')state=m.kind==='pc'?errorWords('gpu',a.error)||
+    'The '+answerNoun(a)+' could not finish the answer.':
+    errorWords('phone',a.error)||'The phone could not finish the answer.';
    else if(a.state==='done')state=a.finish==='length'?'Done: the model reached its answer limit.':'Done';
    else if(a.state==='cancelled')state='Stopped';
    else if(a.state==='paused')state=m.kind==='pc'?'Paused. It continues when the '+answerNoun(a)+' is ready.':'Paused';
@@ -1007,6 +1033,7 @@ function drawPCModels(s){
   }else if(m.ready)state='Ready';
   if(!a&&!m.ready&&m.kind==='phone')state='No model is available on this phone.';
   var title=a&&a.model||m.label||m.model||'Model';
+  announce(id+'-announcement',answerStateKey(a,state,title),title+': '+state);
   text(id+'-title',title);text(id+'-model',[a&&a.model&&a.model!==(m.label||m.model)?'':m.maker,whereWords(m.where)].filter(Boolean).join(' · '));
   G(id+'-answer').setAttribute('aria-label',title+' answer');
   text(id+'-stop','Stop '+title+' answer');
@@ -1044,10 +1071,13 @@ function buttons(){
 function draw(s){
  if(s.locked){current=null;open=false;askQueued=false;G('controls').hidden=true;G('enrol').hidden=true;
   ['phone','gpu'].forEach(function(n){text(n+'-answer','');line(n+'-state','');
-   line(n+'-model','');text(n+'-speed','Unlock the phone to use AI mode.');G(n+'-stop').hidden=true});
+   line(n+'-model','');text(n+'-speed','Unlock the phone to use AI mode.');
+   announce(n+'-announcement',JSON.stringify([boot,'locked',n]),'Unlock the phone to use AI mode.');
+   G(n+'-stop').hidden=true});
   G('phone-extra').textContent='';G('phone-extra').hidden=true;
   G('pc-extra').textContent='';G('pc-extra').hidden=true;
   document.documentElement.setAttribute('data-fanout','false');text('enrol-text','');line('gpu-cable','');
+  announce('gpu-cable-announcement',JSON.stringify([boot,'locked']),'');
   G('allow').hidden=true;G('forget').hidden=true;G('reopen').hidden=true;return;
  }
  if(!s.phone||!s.gpu)return;
