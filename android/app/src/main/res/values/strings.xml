@@ -1,8 +1,9 @@
 <resources>
     <string name="app_name">OPOS GPU Link</string>
     <string name="eyebrow">OPOS / MODELS</string>
-    <string name="subtitle">Compare answers on this phone and on the connected PC GPU.</string>
+    <string name="subtitle">Compare answers on this phone and on the connected computer GPU.</string>
     <string name="connecting">Checking the phone service…</string>
+    <string name="checking_connection">Checking connection…</string>
     <string name="phone_unreachable">Phone unavailable</string>
     <string name="phone_unreachable_detail">Tap Reconnect. Setup help is in Info.</string>
     <string name="stale_snapshot">Showing the last answer</string>
