@@ -17,10 +17,7 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="16dp"
-        android:paddingTop="8dp"
-        android:paddingEnd="16dp">
+        android:orientation="horizontal">
 
         <TextView
             android:id="@+id/title"
@@ -37,7 +34,7 @@
             android:id="@+id/info"
             android:layout_width="wrap_content"
             android:layout_height="48dp"
-            android:minWidth="56dp"
+            android:minWidth="52dp"
             android:background="@drawable/newspaper_outline"
             android:contentDescription="@string/info_description"
             android:text="@string/info"
@@ -64,23 +61,14 @@
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
         android:accessibilityLiveRegion="polite"
-        android:paddingStart="16dp"
-        android:paddingTop="6dp"
-        android:paddingEnd="16dp"
-        android:paddingBottom="8dp"
         android:text="@string/connecting"
-        android:textColor="@color/newspaper_ink"
-        android:textSize="18sp" />
+        android:textColor="@color/newspaper_ink" />
 
     <LinearLayout
         android:id="@+id/composer"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:orientation="vertical"
-        android:paddingStart="16dp"
-        android:paddingTop="8dp"
-        android:paddingEnd="16dp"
-        android:paddingBottom="10dp">
+        android:orientation="vertical">
 
         <TextView
             android:id="@+id/question_label"
@@ -203,11 +191,7 @@
             android:id="@+id/content"
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:orientation="vertical"
-            android:paddingStart="16dp"
-            android:paddingTop="8dp"
-            android:paddingEnd="16dp"
-            android:paddingBottom="24dp">
+            android:orientation="vertical">
 
             <LinearLayout
                 android:id="@+id/pairing_closed"
@@ -386,7 +370,6 @@
                     android:id="@+id/gpu_card"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
                     android:layout_weight="1"
                     android:background="@drawable/newspaper_panel"
                     android:orientation="vertical"
@@ -501,7 +484,6 @@
                     android:fontFeatureSettings="tnum"
                     android:gravity="center"
                     android:importantForAccessibility="yes"
-                    android:letterSpacing="0.08"
                     android:textColor="@color/newspaper_ink"
                     android:textSize="56sp" />
 

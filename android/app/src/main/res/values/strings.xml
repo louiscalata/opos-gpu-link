@@ -1,7 +1,5 @@
 <resources>
     <string name="app_name">OPOS GPU Link</string>
-    <string name="eyebrow">OPOS / MODELS</string>
-    <string name="subtitle">Compare answers on this phone and on the connected computer.</string>
     <string name="connecting">Checking the models…</string>
     <string name="checking_connection">Checking connection…</string>
     <string name="phone_unreachable">Could not reach the models</string>
@@ -14,17 +12,10 @@
     <string name="link_off">GPU Link is off</string>
     <string name="waiting_for_pc">Waiting for a PC pairing or connection</string>
     <string name="pc">PC</string>
-    <string name="link_lost">%1$s · Link lost; waiting to reconnect</string>
-    <string name="cable_disconnected">USB cable disconnected · Waiting for the PC</string>
     <string name="cable_checking">Checking PC connection…</string>
     <string name="paused_plug_cable">Paused · plug the cable back in</string>
-    <string name="cable_reconnecting">%1$s · USB connected; waiting for the PC</string>
     <string name="waiting_for_cable">Waiting for the USB cable</string>
     <string name="gpu_pausing">Connection lost · pausing…</string>
-    <string name="link_connected">%1$s · GPU connected</string>
-    <string name="link_copying">%1$s · Copying model to PC</string>
-    <string name="link_loading">%1$s · Loading GPU model</string>
-    <string name="link_waiting">%1$s · Waiting for GPU</string>
     <string name="pairing_pending">Pair your PC to use its GPU</string>
     <string name="pairing_title">Pair this PC?</string>
     <string name="pairing_request">Compare this code with the one on %1$s. If they match, tap %2$s.</string>
@@ -45,19 +36,16 @@
     <string name="question_label">Ask a question</string>
     <string name="question_hint">Ask the models…</string>
     <string name="ask_both">Ask the models</string>
-    <string name="ask_gpu">Ask the GPU</string>
     <string name="ask_phone">Ask the phone model</string>
     <string name="empty_answer">Answer appears here.</string>
     <string name="open_answer_description">Open answer for %1$s</string>
     <string name="phone_heading">This phone</string>
     <string name="gpu_heading">PC GPU</string>
     <string name="gpu_heading_neutral">Computer GPU</string>
-    <string name="gpu_disclosure">GPU prompts go to the paired computer.</string>
     <string name="ready_to_ask">Ready</string>
     <string name="phone_model_unavailable">No phone model available</string>
     <string name="gpu_ready_or_waiting">Waiting for the GPU model</string>
     <string name="answer_queued">Queued behind an earlier answer</string>
-    <string name="gpu_waiting">Waiting for the PC</string>
     <string name="phone_waiting">Waiting for the phone model</string>
     <string name="answer_loading">Loading model</string>
     <string name="answering">Answering…</string>
@@ -76,7 +64,6 @@
     <string name="gpu_failed_partial">Stopped early. Here is what it sent.</string>
     <string name="phone_failed_partial">Stopped early. Here is what it wrote.</string>
     <string name="stop_phone">Stop phone</string>
-    <string name="stop_gpu">Stop GPU</string>
     <string name="enter_question">Ask a question first.</string>
     <string name="question_too_long">That question is too long. Shorten it and try again.</string>
     <string name="sending">Sending…</string>
@@ -151,7 +138,6 @@
     <string name="thinking">Thinking…</string>
     <string name="streaming">Streaming…</string>
     <string name="done_elapsed">Done · %.1f s</string>
-    <string name="pc_paused">Paused · resumes when the PC is back</string>
     <string name="pc_getting_ready">Getting the PC GPU ready…</string>
     <string name="connect_to_send">Wait for a model, then tap Send.</string>
     <string name="reconnect">Reconnect</string>

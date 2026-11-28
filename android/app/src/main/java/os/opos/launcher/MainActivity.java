@@ -93,6 +93,10 @@ import os.opos.launcher.SettingsPcState.Connection;
 /** Native models screen. The phone-local OPOS service owns answers, trust and link state. */
 public final class MainActivity extends Activity {
     private static final long LINK_STATUS_HOLD_MS = 3500;
+    private static final int TIMING_CARD_MIN_DP = 96;
+    private static final int BACK_ISSUE_TIMING_MIN_DP = 140;
+    private static final int BACK_ISSUE_ARCHIVE_MIN_DP = 200;
+    private static final int BACK_ISSUE_SUMMARY_MIN_DP = 100;
     private static final String PREF_UNRESOLVED_ASK = "ask_post_unresolved";
     private static volatile boolean resumed;
     /** Kept only across a layout-family recreate, so a fold does not blank the newspaper. */
@@ -1266,14 +1270,6 @@ public final class MainActivity extends Activity {
         if (view.getParent() instanceof ViewGroup) ((ViewGroup) view.getParent()).removeView(view);
     }
 
-    private void putCard(LinearLayout parent, View card, int heightDp, int gapDp) {
-        detach(card);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(heightDp));
-        params.topMargin = dp(gapDp);
-        parent.addView(card, params);
-    }
-
     /** The NOTES card shrinks to its content: one short line when empty, no reserved height. */
     private void applyNotesCompact() {
         if (notes == null || notesCard == null) return;
@@ -1316,13 +1312,13 @@ public final class MainActivity extends Activity {
                 putWrapCard(answers, pane.card, LaneCardLayout.MIN_LANE_DP,
                         LaneCardLayout.gapDp(i));
             }
-            putWrapCard(answers, timingCard, 96, LaneCardLayout.CARD_GAP_DP);
+            putWrapCard(answers, timingCard, TIMING_CARD_MIN_DP, LaneCardLayout.CARD_GAP_DP);
             pinSummaryBar();
         } else {
             // Phone answers stay left; computer answers stay right. The primary
             // computer answer leads its column.
             addLabView();
-            if (!landscapeLayout) putWrapCard(answers, timingCard, 96, 0);
+            if (!landscapeLayout) putWrapCard(answers, timingCard, TIMING_CARD_MIN_DP, 0);
             List<String> ordered = orderedDevicePanes();
             for (String pane : paneOrder) {
                 typography.body(paneViews.get(pane).answer, typography.bodySp());
@@ -1351,7 +1347,7 @@ public final class MainActivity extends Activity {
                 }
             }
             if (landscapeLayout) {
-                putWrapCard(answers, timingCard, 96, LaneCardLayout.CARD_GAP_DP);
+                putWrapCard(answers, timingCard, TIMING_CARD_MIN_DP, LaneCardLayout.CARD_GAP_DP);
             }
             pinSummaryBar();
         }
@@ -5321,7 +5317,7 @@ public final class MainActivity extends Activity {
         timingRows.setPadding(0, dp(6), 0, 0);
         fillTonightRows(timingRows, issue.timing, null);
         timing.addView(timingRows);
-        timing.setMinimumHeight(dp(140));
+        timing.setMinimumHeight(dp(BACK_ISSUE_TIMING_MIN_DP));
         if (compactLayout) {
             page.addView(timing, new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
@@ -5353,7 +5349,7 @@ public final class MainActivity extends Activity {
             archive.addView(archiveDate);
             archive.addView(newspaperText("Answered by: " + issue.answeredBy,
                     15, false, false));
-            putWrapCard(left, archive, 200, 8);
+            putWrapCard(left, archive, BACK_ISSUE_ARCHIVE_MIN_DP, 8);
             for (HistoryStore.Lane lane : issue.lanes) {
                 if ("phone".equals(lane.pane)) {
                     putWrapCard(right, savedArticle(lane), LaneCardLayout.MIN_LANE_DP, 0);
@@ -5380,7 +5376,7 @@ public final class MainActivity extends Activity {
                 13, false, false);
         typography.tabular(summaryLine);
         summary.addView(summaryLine);
-        putWrapCard(page, summary, 100, 8);
+        putWrapCard(page, summary, BACK_ISSUE_SUMMARY_MIN_DP, 8);
         scroll.addView(page);
         root.addView(scroll, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
