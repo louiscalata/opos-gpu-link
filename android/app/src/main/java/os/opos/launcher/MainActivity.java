@@ -1085,7 +1085,8 @@ public final class MainActivity extends Activity {
         mastheadBlock.setOrientation(LinearLayout.VERTICAL);
         mastheadBlock.setPadding(dp(12), 0, dp(12), 0);
         mastheadBlock.addView(bigMasthead);
-        dateline = stateText(Dateline.format(LocalDate.now()));
+        dateline = newspaperText(Dateline.format(LocalDate.now()));
+        typography.dateline(dateline);
         pcLabelled(dateline, Dateline.format(LocalDate.now(), ComputerWords.PC));
         mastheadBlock.addView(dateline);
         LinearLayout.LayoutParams mastheadRuleParams = ruleLayoutParams();
@@ -6483,7 +6484,7 @@ public final class MainActivity extends Activity {
         typography.useChoice(uiSettings.typography());
         typography.useCover(coverMode);
         if (smallMasthead != null) typography.display(smallMasthead, COLLAPSED_MASTHEAD_SP);
-        if (dateline != null) typography.state(dateline);
+        if (dateline != null) typography.dateline(dateline);
         typography.state(status);
         if (compactLaneStatus != null) typography.state(compactLaneStatus);
         if (coverMore != null) typography.byline(coverMore);
