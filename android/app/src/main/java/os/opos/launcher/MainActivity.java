@@ -1264,7 +1264,7 @@ public final class MainActivity extends Activity {
         answerView.setOnClickListener(open);
         enableSmoothGrowth(card);
         addReveal(card);
-        addLaneRetryButton(pane, card, paneView.working);
+        addLaneRetryButton(pane, card, paneView.workingRow);
         wireNotesDrag(paneView);
         return paneView;
     }
@@ -4509,7 +4509,7 @@ public final class MainActivity extends Activity {
         return true;
     }
 
-    private void addLaneRetryButton(String pane, LinearLayout card, View working) {
+    private void addLaneRetryButton(String pane, LinearLayout card, View stateRow) {
         Button button = outlineButton(getString(R.string.lane_retry)); // 0.5dp dark-gray frame
         typography.retry(button);
         button.setPadding(dp(14), 0, dp(14), 0);
@@ -4520,7 +4520,8 @@ public final class MainActivity extends Activity {
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         params.topMargin = dp(8);
         // Keep the action next to its state on every card. A long answer must not bury Retry.
-        card.addView(button, card.indexOfChild(working) + 1, params);
+        card.addView(button, LaneCardLayout.retryInsertIndex(
+                card.indexOfChild(stateRow), card.getChildCount()), params);
         laneRetryButtons.put(pane, button);
     }
 
