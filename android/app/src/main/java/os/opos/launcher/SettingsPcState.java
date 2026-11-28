@@ -6,6 +6,11 @@ final class SettingsPcState {
         PREPARING, DISCONNECTED }
     enum Pairing { UNKNOWN, REQUESTED, CLOSED, SAVED, NONE }
 
+    /** Only CONNECTED earns green; all other connection states use ink. */
+    static UiPalette.Tone tone(Connection connection) {
+        return connection == Connection.CONNECTED ? UiPalette.Tone.OK : UiPalette.Tone.NEUTRAL;
+    }
+
     final String label;
     final String fingerprint;
     final Connection connection;

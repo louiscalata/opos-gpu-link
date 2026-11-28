@@ -255,6 +255,7 @@ public final class MainActivity extends Activity {
     private float lastCollapseFraction = -1f;
     private JSONObject snapshot;
     private Dialog infoDialog;
+    private Connection infoPcConnection = Connection.UNKNOWN;
     private Dialog modelSelectionDialog, historyDialog, backIssueDialog, summaryDialog;
     private TextView fullSummaryText;
     private Dialog quitProgressDialog;
@@ -1971,8 +1972,7 @@ public final class MainActivity extends Activity {
         setMainStatus(getString(R.string.phone_unreachable));
         updateModelSelectionRows();
         if (infoDialog != null && infoDialog.isShowing()) {
-            setIfChanged(infoDialog.findViewById(R.id.info_pc_status),
-                    getString(R.string.info_unknown));
+            setInfoPcStatus(infoDialog, Connection.UNKNOWN);
             infoDialog.findViewById(R.id.info_forget_pc).setVisibility(View.GONE);
         }
         hidePairingUi();
@@ -2029,8 +2029,7 @@ public final class MainActivity extends Activity {
             applyComposerState();
             setMainStatus(getString(R.string.phone_locked));
             if (infoDialog != null && infoDialog.isShowing()) {
-                setIfChanged(infoDialog.findViewById(R.id.info_pc_status),
-                        getString(R.string.info_unknown));
+                setInfoPcStatus(infoDialog, Connection.UNKNOWN);
                 infoDialog.findViewById(R.id.info_forget_pc).setVisibility(View.GONE);
             }
             for (PaneViews pane : paneViews.values()) {
@@ -3665,6 +3664,13 @@ public final class MainActivity extends Activity {
         }
     }
 
+    private void setInfoPcStatus(Dialog dialog, Connection connection) {
+        infoPcConnection = connection == null ? Connection.UNKNOWN : connection;
+        TextView view = dialog.findViewById(R.id.info_pc_status);
+        setIfChanged(view, infoPcStatus(infoPcConnection));
+        view.setTextColor(parseHex(palette.colorForTone(SettingsPcState.tone(infoPcConnection))));
+    }
+
     private String infoPairingStatus(SettingsPcState.Pairing pairing) {
         switch (pairing) {
             case REQUESTED: return getString(R.string.info_pairing_requested);
@@ -3689,14 +3695,11 @@ public final class MainActivity extends Activity {
                 : rows.fingerprint;
         // One main-thread pass keeps the Settings rows on the same snapshot.
         // Clear a departed PC's status before showing "No PC selected".
-        if (pc == null) setIfChanged(dialog.findViewById(R.id.info_pc_status),
-                infoPcStatus(rows.connection));
+        if (pc == null) setInfoPcStatus(dialog, rows.connection);
         setIfChanged(dialog.findViewById(R.id.info_pc), pcText);
         setIfChanged(dialog.findViewById(R.id.info_pc_id), idText);
-        if (pc != null) setIfChanged(dialog.findViewById(R.id.info_pc_status),
-                infoPcStatus(rows.connection));
+        if (pc != null) setInfoPcStatus(dialog, rows.connection);
         setIfChanged(dialog.findViewById(R.id.info_pairing), infoPairingStatus(rows.pairing));
-        applyTone(dialog.findViewById(R.id.info_pc_status));
         applyTone(dialog.findViewById(R.id.info_pairing));
         View forgetPc = dialog.findViewById(R.id.info_forget_pc);
         forgetPc.setVisibility(rows.canForget ? View.VISIBLE : View.GONE);
@@ -5649,6 +5652,7 @@ public final class MainActivity extends Activity {
         if (infoDialog != null && infoDialog.isShowing()) return;
         Dialog dialog = new Dialog(this, R.style.InfoDialogTheme);
         infoDialog = dialog;
+        infoPcConnection = Connection.UNKNOWN;
         dialog.setOnDismissListener(ignored -> {
             if (infoDialog == dialog) infoDialog = null;
         });
@@ -6133,7 +6137,7 @@ public final class MainActivity extends Activity {
         recolorChrome(window.getDecorView(), paper, ink,
                 themeColor(R.color.you_asked_label));
         if (dialog == infoDialog) {
-            applyTone(dialog.findViewById(R.id.info_pc_status));
+            setInfoPcStatus(dialog, infoPcConnection);
             applyTone(dialog.findViewById(R.id.info_pairing));
             styleInfoError(dialog);
         }
