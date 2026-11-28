@@ -106,6 +106,7 @@ public final class MainActivity extends Activity {
     private final Runnable coverResultsCheck = this::ensureCoverResultsArea;
     private final Map<String, Long> answerStarts = new HashMap<>();
     private final Map<TextView, String> pcLabelledViews = new java.util.WeakHashMap<>();
+    private final Map<TextView, SummaryPaintPolicy.Paint> summaryPaints = new java.util.WeakHashMap<>();
     private Typography typography;
     private UiSettings uiSettings;
     private UiPalette palette = new UiPalette(UiPalette.Theme.DARK);
@@ -680,6 +681,7 @@ public final class MainActivity extends Activity {
 
     private boolean coverUserBusy() {
         if (articleDialog != null && articleDialog.isShowing()) return true;
+        if (summaryDialog != null && summaryDialog.isShowing()) return true;
         boolean touching = false;
         for (PaneViews article : paneViews.values()) touching |= article.touching;
         long now = SystemClock.uptimeMillis();
@@ -1029,7 +1031,6 @@ public final class MainActivity extends Activity {
         applyNotesCompact();
         summaryCard = box();
         summaryHeading = newspaperText("SUMMARY", typography.headingSp(), true, true);
-        typography.headline(summaryHeading, typography.headingSp());
         summaryCard.addView(summaryHeading);
         summaryText = newspaperText("Ask the models to compare their answers.",
                 typography.bodySp(), false, true);
@@ -3699,26 +3700,30 @@ public final class MainActivity extends Activity {
 
     private void paintSummaryReport(TextView view, String report) {
         if (view == null) return;
-        typography.body(view, typography.bodySp());
-        SpannableStringBuilder styled = new SpannableStringBuilder(report);
+        String text = report == null ? "" : report;
         int ink = themeColor(R.color.newspaper_ink);
         int error = parseHex(palette.error());
+        if (!SummaryPaintPolicy.needsPaint(summaryPaints.get(view), text, ink, error)) return;
+        typography.body(view, typography.bodySp());
+        SpannableStringBuilder styled = new SpannableStringBuilder(text);
         if (styled.length() > 0) {
             styled.setSpan(new ForegroundColorSpan(ink), 0, styled.length(),
                     Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
-        for (ErrorCopy.Range range : ErrorCopy.lineRanges(report)) {
+        for (ErrorCopy.Range range : ErrorCopy.lineRanges(text)) {
             if (!range.error) continue;
             styled.setSpan(new ForegroundColorSpan(error), range.start, range.end,
                     Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
         view.setTextColor(ink);
         view.setText(styled);
+        summaryPaints.put(view, new SummaryPaintPolicy.Paint(text, ink, error));
     }
 
     /** The pinned preview can clip a five-model report; this page shows every line. */
     private void showSummaryPage() {
         if (summaryDialog != null && summaryDialog.isShowing()) return;
+        if (isFinishing() || isDestroyed()) return;
         Dialog dialog = new Dialog(this, R.style.NewspaperDialogTheme);
         summaryDialog = dialog;
         dialog.setOnDismissListener(ignored -> {
@@ -3737,7 +3742,7 @@ public final class MainActivity extends Activity {
         scroll.addView(fullSummaryText);
         root.addView(scroll, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
-        paintSummaryReport(fullSummaryText, summaryText.getText().toString());
+        paintSummaryReport(fullSummaryText, summaryText == null ? "" : summaryText.getText().toString());
         showFullPage(dialog, root);
         applyPaletteToDialog(dialog);
     }
@@ -6205,9 +6210,14 @@ public final class MainActivity extends Activity {
             summaryScroll.setVisibility(summaryExpanded ? View.VISIBLE : View.GONE);
         } else if (NotesSheet.summaryOpensFullPage(landscapeLayout)) {
             summaryCard.setClickable(true);
-            summaryCard.setFocusable(true);
-            summaryCard.setContentDescription(getString(R.string.summary_open));
+            summaryCard.setFocusable(false);
+            // Keep the preview readable on its own after the open action.
+            summaryCard.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
             summaryCard.setOnClickListener(view -> showSummaryPage());
+            summaryHeading.setFocusable(true);
+            summaryHeading.setContentDescription(getString(R.string.summary_open));
+            summaryHeading.setAccessibilityDelegate(mastheadButtonRole());
+            summaryHeading.setOnClickListener(view -> showSummaryPage());
         }
         if (summaryText != null) {
             if (landscapeLayout) {
