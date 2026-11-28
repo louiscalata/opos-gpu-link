@@ -41,25 +41,36 @@ except ImportError:
         return "computer"
 
 try:
-    from opos.gpu_link import display_model_name, display_pool_model
+    from opos.gpu_link import display_model_maker, display_model_name, display_pool_model, display_saved_pool_model
 except ImportError:
+    def display_model_maker(name: Any, maker: Any) -> Any:
+        return maker
+
     def display_model_name(name: Any) -> Any:
         return name
 
     def display_pool_model(label: str, maker: str, filename: str) -> tuple[str, str]:
         return label, maker
 
+    def display_saved_pool_model(stored: Any, current: str, shown: str) -> Any:
+        return stored
+
 # The placeholder place for a computer lane. The snapshot keeps it exactly, because the Android app
 # matches it (PaneKeys.shownWhere); the page script words it for the paired computer.
 PC_WHERE = "on the PC's GPU"
 
 
-def _shown_answer(answer: dict | None) -> dict | None:
+def _shown_answer(answer: dict | None, *, pool_current: str | None = None,
+                  pool_shown: str | None = None) -> dict | None:
     """Show current wording without changing a saved answer."""
     if not answer:
         return answer
     shown_where = _pc_display(answer.get("where")) if answer.get("where") else answer.get("where")
-    shown_model = display_model_name(answer["model"]) if "model" in answer else None
+    shown_model = None
+    if "model" in answer:
+        shown_model = (display_saved_pool_model(answer["model"], pool_current, pool_shown)
+                       if pool_current is not None and pool_shown is not None else
+                       display_model_name(answer["model"]))
     if shown_where == answer.get("where") and ("model" not in answer or shown_model == answer["model"]):
         return answer
     shown = dict(answer)
@@ -453,7 +464,8 @@ class PageState:
             pc_models = list((pc or {}).get("models") or [])
             visible = {item.get("pane") for item in pc_models}
             pc_models.extend({"pane": pane, "id": "", "label": (display_model_name(answer["model"]) or f"{computer_title(answer_noun(answer.get('where'), (pc or {}).get('label')))} {pane}"),
-                              "maker": "", "live": False, "live_speed": None}
+                              "maker": display_model_maker(answer["model"], ""),
+                              "live": False, "live_speed": None}
                              for pane, answer in extra.items() if answer is not None and pane not in visible)
             body = {
                 "phone": {
@@ -492,7 +504,8 @@ class PageState:
                         "model": shown_label,
                         "where": "on this phone",
                         "ready": True,
-                        "answer": _shown_answer(pool[item.pane]),
+                        "answer": _shown_answer(pool[item.pane], pool_current=item.label,
+                                                pool_shown=shown_label),
                         "live_speed": (
                             self.workers[pool[item.pane]["id"]].live_speed
                             if pool[item.pane]

@@ -29,7 +29,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 from opos import ai_answers, gpu_link_server, secure
-from opos.gpu_link import answer_noun, computer_title, display_label, display_model_name
+from opos.gpu_link import answer_noun, computer_title, display_label, display_model_maker, display_model_name
 
 APPEND_INTERVAL = 0.25
 BODY_LIMIT = 6 * ai_answers.MAX_QUESTION_BYTES + 256
@@ -54,11 +54,19 @@ LINK_ACTIONS = ("allow", "deny", "reopen", "forget")
 
 
 def _shown_answer(answer: dict | None) -> dict | None:
-    """Map a saved model name for display, without writing to the answer store."""
+    """Map saved screen words without writing to the answer store."""
     if not answer:
         return answer
     name = display_model_name(answer.get("model"))
-    return answer if name == answer.get("model") else {**answer, "model": name}
+    where = display_label(answer.get("where")) if answer.get("where") else answer.get("where")
+    if name == answer.get("model") and where == answer.get("where"):
+        return answer
+    shown = dict(answer)
+    if name != answer.get("model"):
+        shown["model"] = name
+    if where != answer.get("where"):
+        shown["where"] = where
+    return shown
 
 
 def _link() -> Any:
@@ -306,7 +314,7 @@ class LinkApi:
             pc_models = list((pc or {}).get("models") or [])
             shown = {item.get("pane") for item in pc_models}
             pc_models.extend({"pane": pane, "id": "", "label": display_model_name(answer["model"]) or f"{computer_title(answer_noun(answer.get('where'), (pc or {}).get('label')))} {pane}",
-                              "maker": "",
+                              "maker": display_model_maker(answer["model"], ""),
                               "live": False, "live_speed": None}
                              for pane, answer in extra.items() if answer is not None and pane not in shown)
             storage = bool(link and link.get("storage_notice"))
@@ -323,7 +331,7 @@ class LinkApi:
                     **({"lead_label": lead_label} if lead_label is not None else {}),
                     "model": display_model_name((lead_label if same_pc else None) or (gpu["model"] if gpu else "")
                     or (gpu_model["name"] if gpu_model else "")),
-                    "where": (gpu["where"] if gpu else "") or "on the PC's GPU",
+                    "where": display_label((gpu["where"] if gpu else "") or "on the PC's GPU"),
                     "ready": bool(gpu_model and gpu_model["state"] == "ready" and pc and pc["live"]
                                   and pc.get("main_live", pc["live"]) and pc["state"] == "ready" and not storage),
                     "answer": _shown_answer(gpu),

@@ -788,10 +788,20 @@ def maker_of(name: str) -> str:
 
 def display_model_label(name: str) -> str:
     """Use the show names for known files; leave every other model alone."""
-    if re.search(r"(?i)(?<![a-z0-9])nemotron[-_. ]*3[._ ]5[-_. ]*bolt\b", name):
+    candidate, separator, failed = name.partition(" (fallback for ")
+    if re.search(r"(?i)(?<![a-z0-9])nemotron[-_. ]*3[._ ]5[-_. ]*bolt(?![a-z0-9])", candidate):
         return "Nemotron 3.5 Bolt"
-    if re.search(r"(?i)(?<![a-z0-9])lfm2\b", name):
+    if re.search(r"(?i)(?<![a-z0-9])lfm2(?![a-z0-9])", candidate):
         return "LFM2 (comparison baseline)"
+    if re.search(r"(?i)(?<![a-z0-9])qwen[-_. ]*3[._ ]5[-_. ]*2b(?![a-z0-9])", candidate):
+        return "Qwen3.5-2B"
+    if re.search(r"(?i)(?<![a-z0-9])granite[-_. ]*4[._ ]1[-_. ]*3b(?![a-z0-9])", candidate):
+        return "Granite 4.1 3B"
+    if separator and failed.endswith(")"):
+        original = failed[:-1]
+        shown = display_model_label(original)
+        if shown != original:
+            return f"{candidate} (fallback for {shown})"
     return name
 
 
@@ -802,9 +812,13 @@ def display_maker(name: str, maker: str) -> str:
         return "NVIDIA"
     if shown == "LFM2 (comparison baseline)":
         return "Liquid AI"
+    if shown == "Qwen3.5-2B":
+        return "Qwen (Alibaba)"
+    if shown == "Granite 4.1 3B":
+        return "IBM"
     if maker == "Qwen" or maker == "Qwen (Alibaba)":
         return "Qwen (Alibaba)"
-    if maker == "IBM" or "granite" in name.lower():
+    if maker == "IBM" or "granite" in name.split(" (fallback for ", 1)[0].lower():
         return "IBM"
     return maker
 
@@ -2710,7 +2724,7 @@ class Runtime:
                 lane = next(lane for lane in self.lanes if lane["id"] == lane_id)
                 shown = display_model_label(candidate.name)
                 fallback_label = (shown if shown != candidate.name else
-                                  f"{candidate.name[:23]} (fallback for {original.name[:23]})")
+                                  f"{candidate.name[:23]} (fallback for {display_model_label(original.name)[:23]})")
                 lane.update(label=fallback_label,
                             maker=display_maker(candidate.name, maker_of(candidate.name)),
                             size_mb=candidate.size >> 20, on_gpu=None)
@@ -2831,7 +2845,7 @@ def start_runtime(args, info, runner=subprocess.run):
         if not served:
             raise RuntimeError("Existing server has no usable model label")
         rt.lanes = [{"id": model.get("id") or "opos-gpu-link", "url": url, "label": served,
-                     "maker": display_maker(model.get("label") or model.get("id") or "", "Local"),
+                     "maker": display_maker(served, "Local"),
                      "lead_label": served}]
         rt.evidence = ["existing server; GPU use not measured"]
         return rt
@@ -2895,6 +2909,7 @@ def start_runtime(args, info, runner=subprocess.run):
             port = choose_port(args.port, taken=taken)
             taken.append(port)
             alias = ALIAS if index == 0 else f"{ALIAS}-{index + 1}"
+            label = served_model_label(label, entry.get("name")) or alias
             target = "the CPU" if gpu["backend"] == "cpu" else gpu["name"]
             say(f"Loading {label} on {target} (port {port}) ...")
             used_before = vram_used_mb(gpu, runner) if gpu["backend"] != "cpu" else None
@@ -2938,9 +2953,9 @@ def start_runtime(args, info, runner=subprocess.run):
             elif gpu["backend"] != "cpu":
                 banner([f"RUNNING ON CPU - the GPU is NOT being used for {label}.", *evidence,
                         f"Log: {server.log_path}"])
-            served = served_model_label(label, entry.get("name")) or alias
+            served = label
             lane = {"id": alias, "url": f"{server.base_url}/v1/chat/completions", "label": served,
-                    "maker": display_maker(label, entry.get("maker") or maker_of(entry.get("name", "")))[:32],
+                    "maker": display_maker(served, entry.get("maker") or maker_of(entry.get("name") or ""))[:32],
                     "on_gpu": on_gpu, "gpu_output_bad": gpu_output_bad, "port": port, "size_mb": entry["size_mb"]}
             if index == 0:
                 lane["lead_label"] = served

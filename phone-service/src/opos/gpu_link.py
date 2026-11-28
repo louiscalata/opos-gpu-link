@@ -103,14 +103,20 @@ def display_model_name(name: object) -> object:
     """Screen-only names for models identified by their existing label or file name."""
     if not isinstance(name, str):
         return name
-    if re.search(r"(?i)(?<![a-z0-9])nemotron[-_. ]*3[._ ]5[-_. ]*bolt\b", name):
+    candidate, separator, failed = name.partition(" (fallback for ")
+    if re.search(r"(?i)(?<![a-z0-9])nemotron[-_. ]*3[._ ]5[-_. ]*bolt(?![a-z0-9])", candidate):
         return "Nemotron 3.5 Bolt"
-    if re.search(r"(?i)(?<![a-z0-9])lfm2\b", name):
+    if re.search(r"(?i)(?<![a-z0-9])lfm2(?![a-z0-9])", candidate):
         return "LFM2 (comparison baseline)"
-    if re.search(r"(?i)(?<![a-z0-9])qwen[-_. ]*3[._ ]5[-_. ]*2b\b", name):
+    if re.search(r"(?i)(?<![a-z0-9])qwen[-_. ]*3[._ ]5[-_. ]*2b(?![a-z0-9])", candidate):
         return "Qwen3.5-2B"
-    if re.search(r"(?i)(?<![a-z0-9])granite[-_. ]*4[._ ]1[-_. ]*3b\b", name):
+    if re.search(r"(?i)(?<![a-z0-9])granite[-_. ]*4[._ ]1[-_. ]*3b(?![a-z0-9])", candidate):
         return "Granite 4.1 3B"
+    if separator and failed.endswith(")"):
+        original = failed[:-1]
+        shown = display_model_name(original)
+        if shown != original:
+            return f"{candidate} (fallback for {shown})"
     return name
 
 
@@ -126,7 +132,15 @@ def display_model_maker(name: object, maker: object) -> object:
         return "IBM"
     if maker == "Qwen":
         return "Qwen (Alibaba)"
+    if maker == "IBM" or (isinstance(name, str) and
+                           "granite" in name.split(" (fallback for ", 1)[0].lower()):
+        return "IBM"
     return maker
+
+
+def display_saved_pool_model(stored: object, current: str, shown: str) -> object:
+    """Rename only an answer written by the current pool model."""
+    return shown if isinstance(stored, str) and stored and stored == current else display_model_name(stored)
 
 
 def display_pool_model(label: str, maker: str, filename: str) -> tuple[str, str]:
