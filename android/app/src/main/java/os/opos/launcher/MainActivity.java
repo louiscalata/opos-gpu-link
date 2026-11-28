@@ -5432,25 +5432,30 @@ public final class MainActivity extends Activity {
         TextView kicker = newspaperText(PaneKeys.kicker(row.pane), typography.labelSp(), true, false);
         typography.kicker(kicker);
         card.addView(kicker);
-        card.addView(newspaperText(row.label, typography.headingSp(), true, true));
         card.addView(thenNowBlock(getString(R.string.history_then),
+                row.thenLabel,
                 row.presentThen ? row.thenState : getString(R.string.history_not_asked_then),
                 row.presentThen ? row.thenText : "",
                 row.thenTone));
         card.addView(thenNowBlock(getString(R.string.history_now),
+                row.nowLabel,
                 row.presentNow ? row.nowState : getString(R.string.history_not_asked_now),
                 row.presentNow ? row.nowText : "",
                 row.nowTone));
         return card;
     }
 
-    private LinearLayout thenNowBlock(String heading, String state, String body, UiPalette.Tone tone) {
+    private LinearLayout thenNowBlock(String heading, String modelLabel, String state,
+                                      String body, UiPalette.Tone tone) {
         LinearLayout block = new LinearLayout(this);
         block.setOrientation(LinearLayout.VERTICAL);
         block.setPadding(0, dp(8), 0, 0);
         TextView label = newspaperText(heading, typography.labelSp(), true, false);
         typography.kicker(label);
         block.addView(label);
+        if (!modelLabel.isEmpty()) {
+            block.addView(newspaperText(modelLabel, typography.headingSp(), true, true));
+        }
         TextView stateView = newspaperText(state, typography.labelSp(), true, false);
         typography.state(stateView);
         typography.tabular(stateView);

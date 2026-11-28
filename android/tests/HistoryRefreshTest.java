@@ -8,17 +8,17 @@ import java.util.Map;
 
 public final class HistoryRefreshTest {
     public static void main(String[] args) {
-        HistoryStore.Lane phoneThen = new HistoryStore.Lane("phone", "This phone", "Qwen",
+        HistoryStore.Lane phoneThen = new HistoryStore.Lane("phone", "Nemotron Mini 4B", "NVIDIA",
                 "on this phone", "Done · 1.2 s", "Then phone answer", 1200);
-        HistoryStore.Lane gpuThen = new HistoryStore.Lane("gpu", "PC GPU", "Maker",
+        HistoryStore.Lane gpuThen = new HistoryStore.Lane("gpu", "Nemotron 3.5 Bolt", "NVIDIA",
                 "over USB", "Failed", "Then GPU failed", 800);
         HistoryStore.Issue original = new HistoryStore.Issue("100", 100,
-                "Why do GPUs help with AI?", "Phone 1.2 s\nPC 0.8 s", "1.2 s",
+                "Why do GPUs help with AI?", "Phone 1.2 s\nComputer 0.8 s", "1.2 s",
                 Arrays.asList(phoneThen, gpuThen));
-        HistoryStore.Lane phoneNow = new HistoryStore.Lane("phone", "This phone", "Qwen",
+        HistoryStore.Lane phoneNow = new HistoryStore.Lane("phone", "Qwen3.5-2B", "Qwen/Alibaba",
                 "on this phone", "Done · 1.0 s", "Now phone answer", 1000);
-        HistoryStore.Lane extraNow = new HistoryStore.Lane("m1", "MacBook", "Maker",
-                "on the MacBook", "Stuck — Retry", "Now stuck", 5000);
+        HistoryStore.Lane extraNow = new HistoryStore.Lane("m1", "Nemotron Mini 4B", "NVIDIA",
+                "on this phone", "Stuck — Retry", "Now stuck", 5000);
         HistoryStore.Issue refresh = new HistoryStore.Issue("200", 200,
                 "Why do GPUs help with AI?", "Phone 1.0 s", "1.0 s",
                 Arrays.asList(phoneNow, extraNow), false, "100");
@@ -54,15 +54,28 @@ public final class HistoryRefreshTest {
         equal(3, rows.size());
         equal("phone", rows.get(0).pane);
         check(rows.get(0).presentThen && rows.get(0).presentNow);
+        equal("Nemotron Mini 4B", rows.get(0).thenLabel);
+        equal("Qwen3.5-2B", rows.get(0).nowLabel);
         equal(UiPalette.Tone.OK, rows.get(0).thenTone);
         equal(UiPalette.Tone.OK, rows.get(0).nowTone);
         equal("Now phone answer", rows.get(0).nowText);
         equal("gpu", rows.get(1).pane);
         check(rows.get(1).presentThen && !rows.get(1).presentNow);
+        equal("Nemotron 3.5 Bolt", rows.get(1).thenLabel);
+        equal("", rows.get(1).nowLabel);
         equal(UiPalette.Tone.ERROR, rows.get(1).thenTone);
         equal("m1", rows.get(2).pane);
         check(!rows.get(2).presentThen && rows.get(2).presentNow);
+        equal("", rows.get(2).thenLabel);
+        equal("Nemotron Mini 4B", rows.get(2).nowLabel);
         equal(UiPalette.Tone.ERROR, rows.get(2).nowTone);
+        HistoryStore.Lane unnamed = new HistoryStore.Lane("phone", "", "",
+                "on this phone", "Done", "Older answer", 0);
+        HistoryStore.Issue unnamedOriginal = original.withLanes(Arrays.asList(unnamed));
+        List<HistoryRefresh.LaneCompare> unnamedRows = HistoryRefresh.compare(
+                unnamedOriginal, refresh);
+        equal("Phone model", unnamedRows.get(0).thenLabel);
+        equal("Qwen3.5-2B", unnamedRows.get(0).nowLabel);
 
         Map<String, String> values = new HashMap<>();
         HistoryStore store = new HistoryStore(new HistoryStore.Store() {
@@ -82,6 +95,9 @@ public final class HistoryRefreshTest {
         equal(beforeQuestion, savedOriginal.question);
         check(HistoryRefresh.originalPreserved(original, savedOriginal));
         check(HistoryRefresh.linked(savedOriginal, savedRefresh));
+        List<HistoryRefresh.LaneCompare> savedRows = HistoryRefresh.compare(savedOriginal, savedRefresh);
+        equal("Nemotron Mini 4B", savedRows.get(0).thenLabel);
+        equal("Qwen3.5-2B", savedRows.get(0).nowLabel);
         equal("100", savedRefresh.sourceId);
         equal("Why do GPUs help with AI?", HistoryRefresh.payload(savedRefresh));
         System.out.println("HistoryRefreshTest: OK");
