@@ -2942,8 +2942,8 @@ public final class MainActivity extends Activity {
                 article.programmaticScroll = false;
             }
         }
-        String answerText = PcPausePolicy.textToDisplay(paneName, state, sameRenderedAnswer,
-                article.rawAnswer, answer.optString("text"));
+        String answerText = AnswerDisplay.text(paneName, PcPausePolicy.textToDisplay(
+                paneName, state, sameRenderedAnswer, article.rawAnswer, answer.optString("text")));
         String failureCode = answer.optString("error", answer.optString("code"));
         String stateWords = "answering".equals(state) && answerText.isEmpty()
                 ? getString(R.string.thinking)
@@ -5258,7 +5258,7 @@ public final class MainActivity extends Activity {
         TextView answer = newspaperText("", LaneCardLayout.BODY_SP_FULL, false, true);
         typography.body(answer, LaneCardLayout.BODY_SP_FULL);
         answer.setTextIsSelectable(true);
-        setMarkdownAnswer(answer, lane.text);
+        setMarkdownAnswer(answer, AnswerDisplay.text(lane.pane, lane.text));
         LinearLayout.LayoutParams bodyParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         bodyParams.topMargin = dp(6);
@@ -5438,18 +5438,19 @@ public final class MainActivity extends Activity {
         typography.kicker(kicker);
         card.addView(kicker);
         card.addView(newspaperText(row.label, typography.headingSp(), true, true));
-        card.addView(thenNowBlock(getString(R.string.history_then),
+        card.addView(thenNowBlock(row.pane, getString(R.string.history_then),
                 row.presentThen ? row.thenState : getString(R.string.history_not_asked_then),
                 row.presentThen ? row.thenText : "",
                 row.thenTone));
-        card.addView(thenNowBlock(getString(R.string.history_now),
+        card.addView(thenNowBlock(row.pane, getString(R.string.history_now),
                 row.presentNow ? row.nowState : getString(R.string.history_not_asked_now),
                 row.presentNow ? row.nowText : "",
                 row.nowTone));
         return card;
     }
 
-    private LinearLayout thenNowBlock(String heading, String state, String body, UiPalette.Tone tone) {
+    private LinearLayout thenNowBlock(String pane, String heading, String state,
+                                      String body, UiPalette.Tone tone) {
         LinearLayout block = new LinearLayout(this);
         block.setOrientation(LinearLayout.VERTICAL);
         block.setPadding(0, dp(8), 0, 0);
@@ -5465,7 +5466,7 @@ public final class MainActivity extends Activity {
             TextView answer = newspaperText("", typography.bodySp(), false, true);
             typography.body(answer, typography.bodySp());
             answer.setTextIsSelectable(true);
-            setMarkdownAnswer(answer, body);
+            setMarkdownAnswer(answer, AnswerDisplay.text(pane, body));
             block.addView(answer);
         }
         return block;
