@@ -22,6 +22,20 @@ public final class UiPaletteTest {
         equal(UiPalette.OK_DARK, dark.ok());
         equal(UiPalette.OK_LIGHT, light.ok());
 
+        for (String choice : new String[]{"dark", "light", "system"}) {
+            for (boolean systemDark : new boolean[]{false, true}) {
+                UiPalette selected = new UiPalette(UiPalette.resolve(choice, systemDark));
+                equal(UiPalette.BLACK.equals(selected.ink()), selected.darkSystemBarIcons());
+                equal(selected.ink(), selected.selectionFill(true));
+                equal(selected.paper(), selected.selectionText(true));
+                equal(selected.paper(), selected.selectionFill(false));
+                equal(selected.ink(), selected.selectionText(false));
+                check(UiPalette.contrast(selected.selectionText(true),
+                        selected.selectionFill(true)) >= UiPalette.MIN_TEXT_CONTRAST,
+                        "selected model toggle " + choice + " / " + systemDark);
+            }
+        }
+
         for (UiPalette palette : new UiPalette[]{dark, light}) {
             check(UiPalette.contrast(palette.ink(), palette.paper()) >= UiPalette.MIN_TEXT_CONTRAST,
                     "ink on paper " + palette.theme);
