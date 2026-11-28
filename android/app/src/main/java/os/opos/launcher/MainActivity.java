@@ -2185,14 +2185,10 @@ public final class MainActivity extends Activity {
                 namedModel);
         String where = PaneKeys.shownWhere(pane, textField(model, "where"));
         setIfChanged(view.heading, label);
-        setIfChanged(view.byline, ModelMaker.details(label, maker, where));
+        setIfChanged(view.byline, ModelMaker.details("", maker, where));
     }
 
-    /**
-     * Byline of the phone's lead lane: the model the service reports for it. That is the model
-     * that wrote the answer on screen, else the running model; a hidden older answer's model is
-     * not used. Called again from renderAnswers once the snapshot's request state is final.
-     */
+    /** Name the lead phone card from its shown answer or current model, never a hidden old answer. */
     private void namePhoneLane(PaneViews view, JSONObject phone) {
         if (view == null) return;
         JSONObject answer = phone == null ? null : phone.optJSONObject("answer");
@@ -2201,8 +2197,11 @@ public final class MainActivity extends Activity {
         // An answer the card hides must not name the card; the service's model then reads as
         // that answer's, so fall back to the place alone rather than show a stale model.
         String where = phone == null || phone.isNull("where") ? "" : phone.optString("where", "");
+        boolean shown = answer != null && answerShown("phone", answer);
+        setIfChanged(view.heading, PhoneByline.titleForCard(reported, answered,
+                answer != null, shown, getString(R.string.phone_heading)));
         setIfChanged(view.byline, PhoneByline.forCard(reported, answered, answer != null,
-                answer != null && answerShown("phone", answer), PaneKeys.shownWhere("phone", where)));
+                shown, PaneKeys.shownWhere("phone", where)));
     }
 
     private void reconcileLatestRequest(JSONObject data) {
@@ -3017,12 +3016,11 @@ public final class MainActivity extends Activity {
         List<NewspaperSummary.Lane> lanes = new ArrayList<>();
         boolean allClosed = !latestRequestedPanes.isEmpty();
         boolean anyInterrupted = false;
-        for (String pane : paneOrder) {
+        for (String pane : orderedDevicePanes()) {
             PaneViews article = paneViews.get(pane);
             JSONObject answer = answerOf(snapshot, pane);
             String id = answer == null ? "" : answer.optString("id");
-            String shortLabel = "phone".equals(pane) ? getString(R.string.phone_heading)
-                    : article.heading.getText().toString();
+            String shortLabel = article.heading.getText().toString();
             boolean included = latestRequestedPanes.isEmpty()
                     ? answer != null && !latestQuestion.isEmpty()
                     && latestQuestion.equals(answer.optString("question"))
@@ -3111,8 +3109,7 @@ public final class MainActivity extends Activity {
             PaneViews article = paneViews.get(pane);
             JSONObject model = paneOf(snapshot, pane);
             if (article == null) return;
-            String label = "phone".equals(pane) ? getString(R.string.phone_heading)
-                    : article.heading.getText().toString();
+            String label = article.heading.getText().toString();
             // Keep the model that wrote this answer, even if the slot now holds another one.
             String answerModel = textField(answer, "model");
             String slotLabel = textField(model, "label");
@@ -3122,8 +3119,8 @@ public final class MainActivity extends Activity {
                     ? ModelDisplay.firstNonBlank(PaneKeys.extra(pane) ? slotLabel : "", slotModel)
                     : answerModel;
             String maker = "phone".equals(pane)
-                    // The phone lane's History byline keeps the model that wrote the answer.
-                    ? PhoneByline.modelAndMaker(answerModel)
+                    // The heading has the model; History keeps its maker under that heading.
+                    ? PhoneByline.maker(answerModel)
                     : ModelMaker.maker(AnsweredModel.maker(
                             PaneKeys.extra(pane) ? slotLabel : slotModel,
                             slotMaker, answerModel), resolvedModel);
