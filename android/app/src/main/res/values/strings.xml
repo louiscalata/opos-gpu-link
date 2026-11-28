@@ -1,5 +1,10 @@
 <resources>
     <string name="app_name">OPOS GPU Link</string>
+    <string name="device_phone_kicker">PHONE</string>
+    <string name="device_phone_name">Phone</string>
+    <string name="device_link_waiting">USB-C\nWaiting</string>
+    <string name="device_computer_kicker">COMPUTER</string>
+    <string name="device_computer_name">Computer</string>
     <string name="eyebrow">OPOS / MODELS</string>
     <string name="subtitle">Compare answers on this phone and on the connected computer.</string>
     <string name="connecting">Checking the models…</string>
@@ -55,6 +60,8 @@
     <string name="gpu_disclosure">GPU prompts go to the paired computer.</string>
     <string name="ready_to_ask">Ready</string>
     <string name="phone_model_unavailable">No phone model available</string>
+    <string name="model_selection_minimum">Keep at least one model on.</string>
+    <string name="model_selection_next_question">Your choices apply to the next question.</string>
     <string name="gpu_ready_or_waiting">Waiting for the GPU model</string>
     <string name="answer_queued">Queued behind an earlier answer</string>
     <string name="gpu_waiting">Waiting for the PC</string>
@@ -186,6 +193,13 @@
     <string name="save_to_notes">Save to Notes</string>
     <string name="history_refresh">Refresh</string>
     <string name="history_refresh_description">Ask this original question again on the current models</string>
+    <string name="history_title">History</string>
+    <string name="history_empty">No past questions yet.</string>
+    <string name="history_answered_by">Answered by: %1$s</string>
+    <string name="history_answer_shortened">This saved answer was shortened.</string>
+    <string name="history_back_to_today">Back to today</string>
+    <string name="history_back_issue_date">BACK ISSUE · %1$s</string>
+    <string name="history_archive_label">ARCHIVE</string>
     <string name="history_then">Then</string>
     <string name="history_now">Now</string>
     <string name="history_then_vs_now">Then vs Now</string>
@@ -202,6 +216,11 @@
     <string name="summary_open">Open Summary</string>
     <string name="summary_close">Close Summary</string>
     <string name="summary_title">Summary</string>
+    <string name="summary_label">SUMMARY</string>
+    <string name="summary_empty">Ask the models to compare their answers.</string>
+    <string name="tonight_label">TONIGHT</string>
+    <string name="tonight_initial_time">0.0 s</string>
+    <string name="tonight_waiting">PC waiting\nPhone waiting</string>
     <string name="notes_saved">Saved to Notes</string>
 </resources>
 

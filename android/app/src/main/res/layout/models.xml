@@ -273,7 +273,7 @@
                         android:id="@+id/device_phone_kicker"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="PHONE"
+                        android:text="@string/device_phone_kicker"
                         android:textColor="@color/you_asked_label"
                         android:textSize="11sp" />
 
@@ -281,7 +281,7 @@
                         android:id="@+id/device_phone_name"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Phone"
+                        android:text="@string/device_phone_name"
                         android:textColor="@color/newspaper_ink"
                         android:textSize="21sp" />
                 </LinearLayout>
@@ -294,7 +294,7 @@
                     android:layout_weight="0.9"
                     android:gravity="center"
                     android:importantForAccessibility="no"
-                    android:text="USB-C\nWaiting"
+                    android:text="@string/device_link_waiting"
                     android:textColor="@color/newspaper_ink"
                     android:textSize="11sp" />
 
@@ -313,7 +313,7 @@
                         android:id="@+id/device_computer_kicker"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="COMPUTER"
+                        android:text="@string/device_computer_kicker"
                         android:textColor="@color/you_asked_label"
                         android:textSize="11sp" />
 
@@ -321,7 +321,7 @@
                         android:id="@+id/device_computer_name"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
-                        android:text="Computer"
+                        android:text="@string/device_computer_name"
                         android:textColor="@color/newspaper_ink"
                         android:textSize="21sp" />
                 </LinearLayout>
