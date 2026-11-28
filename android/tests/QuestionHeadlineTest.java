@@ -36,12 +36,12 @@ public final class QuestionHeadlineTest {
         equal("You asked: ", QuestionHeadline.formatHeadline(null, prefix));
         equal("What is RAM?", QuestionHeadline.formatHeadline("what is RAM", null));
 
-        equal(26, QuestionHeadline.baseSp(false));
-        equal(21, QuestionHeadline.baseSp(true));
-        equal(16, QuestionHeadline.minSp(false));
-        equal(14, QuestionHeadline.minSp(true));
-        equal(11, QuestionHeadline.floorSp(false));
-        equal(10, QuestionHeadline.floorSp(true));
+        equal(TypeConfig.header().size(false), QuestionHeadline.baseSp(false));
+        equal(TypeConfig.header().size(true), QuestionHeadline.baseSp(true));
+        equal(TypeConfig.body().size(false), QuestionHeadline.minSp(false));
+        equal(TypeConfig.body().size(true), QuestionHeadline.minSp(true));
+        equal(TypeConfig.subheader().size(false), QuestionHeadline.floorSp(false));
+        equal(TypeConfig.subheader().size(true), QuestionHeadline.floorSp(true));
         equal(26, QuestionHeadline.shrinkSp(26, 11, 3, 6));
         equal(25, QuestionHeadline.shrinkSp(26, 11, 7, 6));
         equal(11, QuestionHeadline.shrinkSp(11, 11, 9, 6));

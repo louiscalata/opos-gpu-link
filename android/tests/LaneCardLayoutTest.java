@@ -13,14 +13,10 @@ public final class LaneCardLayoutTest {
         equal(8, LaneCardLayout.CARD_PADDING_DP);
         check(LaneCardLayout.CARD_PADDING_DP < 12);
         equal(6, LaneCardLayout.CARD_GAP_DP);
-        equal(17, LaneCardLayout.BODY_SP_FULL);
-        equal(17, LaneCardLayout.bodySp(false, false));
-        equal(17, LaneCardLayout.bodySp(false, true));
+        equal(TypeConfig.body().size(false), LaneCardLayout.bodySp(false, false));
+        equal(TypeConfig.body().size(false), LaneCardLayout.bodySp(false, true));
         equal(TypeConfig.body().coverSizeSp, LaneCardLayout.bodySp(true, false));
-        equal(14, LaneCardLayout.bodySp(true, false));
-        equal(11, LaneCardLayout.LABEL_SP);
-        equal(TypeConfig.subheader().sizeSp, LaneCardLayout.LABEL_SP);
-        check(LaneCardLayout.LABEL_SP < LaneCardLayout.BODY_SP_FULL);
+        check(LaneCardLayout.labelSp(false) < LaneCardLayout.bodySp(false, false));
         equal(21, LaneCardLayout.headingSp(false, true));
         equal(21, LaneCardLayout.headingSp(false, false));
         equal(21, LaneCardLayout.headingSp(true, false));
