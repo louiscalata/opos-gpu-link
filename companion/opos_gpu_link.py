@@ -50,14 +50,15 @@ PORT = re.compile(r"[1-9][0-9]{0,4}\Z")
 DEFAULT_SERVER = "http://127.0.0.1:1235/v1/chat/completions"
 
 # Android's H5 + S5 + B5 sizes and optical values. Positive Tk font sizes are
-# points; on macOS, 1 pt is roughly 1 px. Tk labels cannot set letter tracking,
-# tabular figures, or a fixed line height.
+# points; on macOS, 1 pt is roughly 1 px. Tk does not render tracking, so the
+# Mac window approximates S5 caps with uppercase text without tracking.
+# Tk labels also cannot set tabular figures or a fixed line height.
 TK_H5_PT = 21
 TK_S5_PT = 11
 TK_B5_PT = 17
 DIALOG_TYPE = {
     "H5": {"size": TK_H5_PT, "weight": "semibold", "leading": 1.15, "tracking": -0.01},
-    "S5": {"size": TK_S5_PT, "weight": "normal", "leading": 1.25, "tracking": 0.02, "tnum": True},
+    "S5": {"size": TK_S5_PT, "weight": "normal", "leading": 1.25, "tracking": 0.08, "tnum": True},
     "B5": {"size": TK_B5_PT, "weight": "normal", "leading": 1.35, "tracking": 0.0},
 }
 # Match UiPalette's dark theme and the matching values in colors.xml.
