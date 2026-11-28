@@ -2,10 +2,10 @@
 
 import importlib.util
 from pathlib import Path
-import re
 import struct
 import tempfile
 import unittest
+from xml.etree import ElementTree as ET
 
 
 SCRIPT = Path(__file__).with_name("device-layout-preview.py")
@@ -22,9 +22,18 @@ class DeviceLayoutPreviewTest(unittest.TestCase):
                       preview.inner_scene(2640, 1080, landscape=True),
                       preview.cover_scene(), preview.tk_scene()):
             with self.subTest(scene=scene.width):
-                colors = set(re.findall(r"#[0-9A-Fa-f]{6}", scene.svg()))
+                colors = {element.attrib[attr]
+                          for element in ET.fromstring(scene.svg()).iter()
+                          for attr in ("fill", "stroke") if attr in element.attrib}
                 self.assertLessEqual(colors, {preview.BLACK, preview.WHITE,
                                               preview.GREEN, "#008000"})
+
+    def test_article_without_sample_uses_short_answer(self):
+        scene = preview.Scene(400, 300)
+        bottom = preview.article(scene, 10, 10, 380, scale=1, name="Example",
+                                 maker="Local", where="PHONE", paragraphs=1)
+        self.assertGreater(bottom, 10)
+        self.assertIn(preview.SHORT_ANSWER, scene.svg())
 
     def test_column_math_reads_android_policy(self):
         threshold = preview.column_threshold()
@@ -48,7 +57,10 @@ class DeviceLayoutPreviewTest(unittest.TestCase):
             question_y = next(args[1] for args in texts if args[2] == "YOUR QUESTION")
             self.assertLess(band_y, question_y)
             self.assertIn("MOCK PREVIEW", scene.svg())
-            self.assertIn("Scroll for more answers", scene.svg())
+            if scene.width > scene.height:
+                self.assertIn("Scroll for more answers", scene.svg())
+            else:
+                self.assertNotIn("Scroll for more answers", scene.svg())
         for scene, phone, machine in (
             (preview.cover_scene(), "Phone", "MacBook"),
             (preview.tk_scene(), "Phone", "MacBook"),
@@ -97,7 +109,7 @@ class DeviceLayoutPreviewTest(unittest.TestCase):
         self.assertEqual(headings["Qwen3.5-2B"], headings["Granite 4.1 3B"])
         self.assertEqual(headings["Qwen3.5-2B"], headings["LFM2 1.2B (baseline)"])
         self.assertLess(headings["Qwen3.5-2B"], headings["Nemotron 3.5 Bolt"])
-        self.assertIn("PHONE · m3 · COMPARISON BASELINE", scene.svg())
+        self.assertIn("PHONE · m3 · BASELINE", scene.svg())
 
     def test_mac_mock_uses_final_window_copy(self):
         scene = preview.tk_scene().svg()
@@ -107,7 +119,7 @@ class DeviceLayoutPreviewTest(unittest.TestCase):
         self.assertNotIn("Retry after phone recovery", scene)
         self.assertNotIn("THIS COMPUTER", scene)
 
-    def test_primary_leads_portrait_before_baseline(self):
+    def test_portrait_matches_lineup_order_without_false_scroll_prompt(self):
         scene = preview.inner_scene(1080, 2640, landscape=False)
         headings = {op.args[2]: op.args[1] for op in scene.operations
                     if op.kind == "text" and op.args[2] in preview.place_demo_lanes()}

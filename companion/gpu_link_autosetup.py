@@ -788,14 +788,15 @@ def display_model_label(name: str) -> str:
     candidate, separator, failed = name.partition(" (fallback for ")
     if re.search(r"(?i)(?<![a-z0-9])nemotron[-_. ]*3[._ ]5[-_. ]*bolt(?![a-z0-9])", candidate):
         return "Nemotron 3.5 Bolt"
-    lfm = re.search(r"(?i)(?<![a-z0-9])lfm2(?:[-_. ](\d+(?:[._]\d+)?[bm]))?(?![a-z0-9])", candidate)
+    lfm = re.search(r"(?i)(?<![a-z0-9])lfm2(?:[-_. ](\d+(?:[._]\d+)?[bm]))?(?![a-z0-9]|\.\d)", candidate)
     if lfm:
         size = lfm.group(1)
         if size:
             return f"LFM2 {size.replace('_', '.').upper()} (baseline)"
+        candidate = re.sub(r"(?i) \(comparison baseline\)$", "", candidate)
         if candidate.lower() in {"lfm2", "lfm2 (baseline)"}:
             return "LFM2 (baseline)"
-        return candidate if "baseline" in candidate.lower() else f"{candidate} (baseline)"
+        return candidate if "baseline" in candidate.lower() else f"{candidate[:53].rstrip()} (baseline)"
     if re.search(r"(?i)(?<![a-z0-9])qwen[-_. ]*3[._ ]5[-_. ]*2b(?![a-z0-9])", candidate):
         return "Qwen3.5-2B"
     if re.search(r"(?i)(?<![a-z0-9])granite[-_. ]*4[._ ]1[-_. ]*3b(?![a-z0-9])", candidate):
@@ -813,7 +814,8 @@ def display_maker(name: str, maker: str) -> str:
     shown = display_model_label(name)
     if shown == "Nemotron 3.5 Bolt":
         return "NVIDIA"
-    if re.match(r"(?i)^lfm2(?:\b|[-_. ])", shown):
+    primary = name.split(" (fallback for ", 1)[0]
+    if re.search(r"(?i)(?<![a-z0-9])lfm2(?![a-z0-9.])", primary):
         return "Liquid AI"
     if shown == "Qwen3.5-2B":
         return "Qwen (Alibaba)"
@@ -839,7 +841,7 @@ def served_model_label(*parts) -> str | None:
         cleaned = "".join(ch if " " <= ch <= "~" else " " for ch in part)
         cleaned = re.sub(r"\s+", " ", cleaned).strip()[:64]
         if cleaned:
-            return display_model_label(cleaned)
+            return display_model_label(cleaned)[:64].rstrip()
     return None
 
 

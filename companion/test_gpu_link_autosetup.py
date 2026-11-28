@@ -1045,6 +1045,11 @@ class DataDirAndBundle(unittest.TestCase):
         self.assertEqual(a.display_model_label("LFM2_1.2B.gguf"), "LFM2 1.2B (baseline)")
         self.assertEqual(a.display_model_label("LFM2"), "LFM2 (baseline)")
         self.assertEqual(a.display_model_label("LFM2 2.6B"), "LFM2 2.6B (baseline)")
+        self.assertEqual(a.display_model_label("LFM2 (comparison baseline)"), "LFM2 (baseline)")
+        self.assertEqual(a.display_model_label("LFM2.5"), "LFM2.5")
+        self.assertEqual(a.display_maker("LiquidAI/LFM2-VL", "Local"), "Liquid AI")
+        self.assertEqual(a.display_maker("Liquid AI LFM2", "Local"), "Liquid AI")
+        self.assertEqual(a.display_maker("LFM2.5", "Local"), "Local")
         fallback = "Qwen3-4B-Q4_K_M.gguf (fallback for Nemotron-3.5-Bolt-E4B)"
         self.assertEqual(a.display_model_label(fallback),
                          "Qwen3-4B-Q4_K_M.gguf (fallback for Nemotron 3.5 Bolt)")
@@ -1424,6 +1429,12 @@ class ServedLeadLabelTests(unittest.TestCase):
         self.assertEqual(len(rt.lanes[0]["lead_label"]), 64)
         self.assertTrue(proto.valid_model_label(rt.lanes[0]["lead_label"]))
         self.assertTrue(rt.lanes[0]["lead_label"].startswith("Gemma 4 26B "))
+        with patch.object(a, "say"):
+            rt = a.start_runtime(SimpleNamespace(), self._existing(
+                {"id": "LiquidAI/LFM2-VL-" + "x" * 80}))
+        self.assertTrue(rt.lanes[0]["lead_label"].endswith(" (baseline)"))
+        self.assertTrue(proto.valid_model_label(rt.lanes[0]["lead_label"]))
+        self.assertEqual(rt.lanes[0]["maker"], "Liquid AI")
 
     def test_existing_server_rejects_a_missing_model_id(self):
         with patch.object(a, "say"), self.assertRaises(RuntimeError) as raised:

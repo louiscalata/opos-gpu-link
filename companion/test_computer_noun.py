@@ -106,10 +106,10 @@ class ComputerNounTest(unittest.TestCase):
 
 class ScreenWordsTest(unittest.TestCase):
     def test_ready_banner_names_the_mac(self):
-        lanes = [{"label": "Nemotron 3.5 Bolt"}, {"label": "LFM2 (comparison baseline)"}]
+        lanes = [{"label": "Nemotron 3.5 Bolt"}, {"label": "LFM2 1.2B (baseline)"}]
         lines = setup.ready_lines("Apple M5 Pro", lanes, "MacBook")
         self.assertIn("MacBook GPU: Apple M5 Pro.", lines)
-        self.assertIn("Models ready: Nemotron 3.5 Bolt, LFM2 (comparison baseline).", lines)
+        self.assertIn("Models ready: Nemotron 3.5 Bolt, LFM2 1.2B (baseline).", lines)
         self.assertIn("Wireless: coming later.", lines)
         self.assertFalse([line for line in lines if "PC" in line.split()])
 
