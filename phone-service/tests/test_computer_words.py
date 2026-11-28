@@ -133,16 +133,26 @@ class ScreenWordsTest(NoNetwork):
 NODE_HARNESS = r"""
 'use strict';
 const fs=require('node:fs'),vm=require('node:vm');
-const [script,snapshotsPath,search]=process.argv.slice(2).map(p=>fs.readFileSync(p,'utf8'));
+const [script,snapshotsPath,search,actionsPath]=process.argv.slice(2).map(p=>fs.readFileSync(p,'utf8'));
 const snapshots=JSON.parse(snapshotsPath);
+const actions=JSON.parse(actionsPath);
 const nodes=new Map();
 class El{constructor(id){this.id=id;this.text='';this.hidden=false;this.dataset={};this.attrs={};this.children=[];this.parentNode=null;this.value='';this.style={};this.classList={toggle(){},add(){},remove(){}}}
  set textContent(v){this.text=String(v);this.children=[]} get textContent(){return this.text}
  set innerHTML(v){throw new Error('no markup')}
- appendChild(c){c.parentNode=this;this.children.push(c);return c} insertBefore(c){return this.appendChild(c)}
- remove(){} setAttribute(k,v){this.attrs[k]=String(v)} getAttribute(k){return this.attrs[k]} removeAttribute(k){delete this.attrs[k]}
+ appendChild(c){if(c.parentNode)c.remove();c.parentNode=this;this.children.push(c);return c} insertBefore(c){return this.appendChild(c)}
+ remove(){if(this.parentNode){this.parentNode.children=this.parentNode.children.filter(c=>c!==this);this.parentNode=null}}
+ setAttribute(k,v){this.attrs[k]=String(v)} getAttribute(k){return this.attrs[k]} removeAttribute(k){delete this.attrs[k]}
  addEventListener(){} focus(){} querySelector(){return null} querySelectorAll(){return []} scrollIntoView(){}}
-const get=id=>{if(!nodes.has(id))nodes.set(id,new El(id));return nodes.get(id)};
+function find(root,id){if(root.id===id)return root;for(const child of root.children){const hit=find(child,id);if(hit)return hit}return null}
+const get=id=>{
+ if(/^[mg][1-4]-(?:pane|title|model|speed|state|answer|stop)$/.test(id))
+  return find(nodes.get('phone-extra'),id)||find(nodes.get('pc-extra'),id);
+ if(!nodes.has(id))nodes.set(id,new El(id));return nodes.get(id)};
+get('list').appendChild(get('ai-title'));get('list').appendChild(get('controls'));
+get('list').appendChild(get('phone-pane'));get('list').appendChild(get('phone-extra'));
+get('thumb').appendChild(get('gpu-pane'));get('thumb').appendChild(get('pc-extra'));
+const homeParent=new El('home-parent');homeParent.appendChild(get('home'));
 const document={hidden:false,documentElement:new El('html'),getElementById:get,createElement:t=>new El(''),
  activeElement:null,querySelector:()=>({content:'fixture-token'}),addEventListener(){}};
 const refuse=name=>function(){throw new Error(name+' is not allowed in tests')};
@@ -152,11 +162,19 @@ const ctx=vm.createContext({document,location:{search},URLSearchParams,AbortCont
  fetch:()=>new Promise(()=>{})});  // never answers: no request leaves this process
 vm.runInContext(script,ctx);
 const out=[];
-for(const s of snapshots){
+for(let i=0;i<snapshots.length;i++){
+ const s=snapshots[i];
  vm.runInContext('draw('+JSON.stringify(s)+')',ctx);
+ if(actions[i])vm.runInContext(actions[i],ctx);
+ const cards=root=>get(root+'-extra').children.map(c=>({id:c.dataset.pane,title:get(c.dataset.pane+'-title').text,
+  aria:get(c.dataset.pane+'-answer').attrs['aria-label'],stop:get(c.dataset.pane+'-stop').text,
+  stopHidden:get(c.dataset.pane+'-stop').hidden,model:get(c.dataset.pane+'-model').text}));
  out.push({title:get('gpu-title').text,disclosure:get('gpu-disclosure').text,aria:get('gpu-answer').attrs['aria-label'],
   reopen:get('reopen').text,forget:get('forget').text,speed:get('gpu-speed').text,model:get('gpu-model').text,
-  enrol:get('enrol-text').text,ask:get('ask').text});
+  enrol:get('enrol-text').text,ask:get('ask').text,askDisabled:get('ask').disabled,err:get('err').text,
+  targets:Array.from(vm.runInContext('targets()',ctx)),queued:vm.runInContext('queue.length',ctx),
+  phoneCards:cards('phone'),pcCards:cards('pc'),phoneRootHidden:get('phone-extra').hidden,
+  pcRootHidden:get('pc-extra').hidden,listHidden:get('list').hidden,thumbHidden:get('thumb').hidden});
 }
 process.stdout.write(JSON.stringify(out));
 """
@@ -173,14 +191,21 @@ def _pc(label):
     return {"label": label, "live": False, "state": "idle", "models": []}
 
 
+def _model(pane, kind, label, *, ready=True, answer=None, maker="NVIDIA"):
+    return {"pane": pane, "kind": kind, "label": label, "model": label, "maker": maker,
+            "where": "on this phone" if kind == "phone" else "on the PC's GPU",
+            "ready": ready, "answer": answer, "live_speed": None}
+
+
 @unittest.skipIf(shutil.which("node") is None, "needs node to run the page script")
 class PageScriptTest(NoNetwork):
-    def run_page(self, snapshots, search=""):
+    def run_page(self, snapshots, search="", actions=None):
         script = _constants(PAGE, "_SCRIPT")[0][1]
         with tempfile.TemporaryDirectory() as tmp:
             paths = []
             for name, value in (("harness.js", NODE_HARNESS), ("page.js", script),
-                                ("snapshots.json", json.dumps(snapshots)), ("search.txt", search)):
+                                ("snapshots.json", json.dumps(snapshots)), ("search.txt", search),
+                                ("actions.json", json.dumps(actions or []))):
                 path = Path(tmp) / name
                 path.write_text(value, encoding="utf-8")
                 paths.append(str(path))
@@ -231,7 +256,70 @@ class PageScriptTest(NoNetwork):
         snap["gpu"]["link"]["enrol"] = "closed"
         self.assertIn("Computer requests are closed.", self.run_page([snap])[0]["speed"])
         shown = self.run_page([_snapshot(_pc("M5 Pro MacBook Pro"))], "?pane=gpu")[0]
-        self.assertEqual(shown["ask"], "Ask MacBook GPU models")
+        self.assertEqual(shown["ask"], "Ask MacBook GPU model")
+
+    def test_extra_cards_follow_the_visible_pane_and_ask_targets(self):
+        phone_answer = {"id": "a1", "state": "answering", "text": "A live answer", "model": "Nemotron Mini 4B"}
+        snap = _snapshot(_pc("M5 Pro MacBook Pro"))
+        snap["models"] = [
+            _model("m1", "phone", "Nemotron Mini 4B", answer=phone_answer),
+            _model("m3", "phone", "LFM2 1.2B (baseline)", maker="Liquid AI"),
+            _model("g1", "pc", "Qwen3.5-2B", maker="Qwen (Alibaba)"),
+        ]
+        phone = self.run_page([snap], "?pane=phone")[0]
+        self.assertEqual(phone["targets"], ["phone", "m1", "m3"])
+        self.assertEqual([c["id"] for c in phone["phoneCards"]], ["m1", "m3"])
+        self.assertEqual(phone["pcCards"], [])
+        self.assertTrue(phone["thumbHidden"])
+        self.assertEqual(phone["ask"], "Ask the phone models")
+        self.assertEqual(phone["phoneCards"][0]["stop"], "Stop Nemotron Mini 4B answer")
+        self.assertFalse(phone["phoneCards"][0]["stopHidden"])
+        self.assertIn("(baseline)", phone["phoneCards"][1]["title"])
+
+        gpu = self.run_page([snap], "?pane=gpu")[0]
+        self.assertEqual(gpu["targets"], ["gpu", "g1"])
+        self.assertEqual([c["id"] for c in gpu["pcCards"]], ["g1"])
+        self.assertEqual(gpu["phoneCards"], [])
+        self.assertTrue(gpu["listHidden"])
+        self.assertEqual(gpu["ask"], "Ask MacBook GPU models")
+
+        full = self.run_page([snap])[0]
+        self.assertEqual([c["id"] for c in full["phoneCards"]], ["m1", "m3"])
+        self.assertEqual([c["id"] for c in full["pcCards"]], ["g1"])
+        self.assertEqual(full["targets"], ["phone", "gpu", "m1", "m3", "g1"])
+
+    def test_extra_card_names_follow_the_answer_model_when_it_changes(self):
+        snap = _snapshot()
+        snap["models"] = [_model("m1", "phone", "Nemotron Mini 4B", answer={
+            "id": "a1", "state": "answering", "text": "A", "model": "Nemotron Mini 4B"})]
+        later = json.loads(json.dumps(snap))
+        later["rev"] = 2
+        later["models"][0]["answer"] = {
+            "id": "a2", "state": "answering", "text": "B", "model": "Qwen3.5-2B"}
+        first, second = self.run_page([snap, later], "?pane=phone")
+        self.assertEqual(first["phoneCards"][0]["aria"], "Nemotron Mini 4B answer")
+        self.assertEqual(second["phoneCards"][0]["title"], "Qwen3.5-2B")
+        self.assertEqual(second["phoneCards"][0]["aria"], "Qwen3.5-2B answer")
+        self.assertEqual(second["phoneCards"][0]["stop"], "Stop Qwen3.5-2B answer")
+        self.assertEqual(second["phoneCards"][0]["model"], "on this phone")
+
+    def test_immediate_ask_taps_queue_only_one_request(self):
+        snap = _snapshot()
+        snap["presets"] = [{"label": "Why the sky is blue", "question": "Why?"}]
+        action = ("G('ask').onclick();"
+                  "G('question').onkeydown({key:'Enter',preventDefault:function(){}});"
+                  "G('presets').children[0].onclick()")
+        shown = self.run_page([snap], "?pane=phone", [action])[0]
+        self.assertEqual(shown["queued"], 1)
+        self.assertTrue(shown["askDisabled"])
+        self.assertEqual(shown["err"], "")
+
+    def test_phone_extra_has_its_own_page_column(self):
+        self.assertIn('id="phone-extra"', _constants(PAGE, "_LIST")[0][1])
+        self.assertNotIn('id="phone-extra"', _constants(PAGE, "_THUMB")[0][1])
+        css = _constants(PAGE, "_CSS")[0][1]
+        self.assertIn("#phone-extra{grid-column:1 / 4;grid-row:13}", css)
+        self.assertIn("#pc-extra{grid-column:1 / 4;grid-row:14}", css)
 
     def test_a_saved_answer_names_the_computer_that_wrote_it(self):
         snap = _snapshot(_pc("M5 Pro MacBook Pro"))
