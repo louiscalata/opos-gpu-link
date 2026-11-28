@@ -835,7 +835,7 @@ _LIST = """
 <div id="phone-answer" class="answer" tabindex="0" role="region" aria-label="Phone answer"></div>
 <button id="phone-stop" class="stop" type="button" hidden>Stop phone answer</button>
 </section>
-<div id="phone-extra" aria-label="Additional phone models"></div>
+<div id="phone-extra" role="region" aria-label="Additional phone models"></div>
 """
 _THUMB = """
 <section id="gpu-pane" class="pane" aria-labelledby="gpu-title">
@@ -855,7 +855,7 @@ _THUMB = """
 <button id="forget" type="button" hidden>Forget this computer</button>
 </div>
 </section>
-<div id="pc-extra" aria-label="Additional computer models"></div>
+<div id="pc-extra" role="region" aria-label="Additional computer models"></div>
 """
 _SCRIPT = r"""
 function G(id){return document.getElementById(id)}
@@ -984,9 +984,11 @@ function drawPCModels(s){
   var id=m.pane,root=G(m.kind+'-extra'),card=G(id+'-pane');
   if(!card){
    card=document.createElement('section');card.id=id+'-pane';card.className='pane';card.dataset.pane=id;
+   card.setAttribute('aria-labelledby',id+'-title');
    [['h2','title'],['p','model'],['p','speed'],['p','state'],['div','answer'],['button','stop']].forEach(function(pair){
     var e=document.createElement(pair[0]);e.id=id+'-'+pair[1];
     if(pair[1]==='answer'){e.className='answer';e.tabIndex=0;e.setAttribute('role','region')}
+    if(pair[1]==='speed'){e.className='speed';e.setAttribute('role','status')}
     if(pair[1]==='stop'){e.className='stop';e.type='button'}
     card.appendChild(e)});
   }
@@ -1005,7 +1007,7 @@ function drawPCModels(s){
   }else if(m.ready)state='Ready';
   if(!a&&!m.ready&&m.kind==='phone')state='No model is available on this phone.';
   var title=a&&a.model||m.label||m.model||'Model';
-  text(id+'-title',title);text(id+'-model',[a&&a.model&&a.model!==m.model?'':m.maker,whereWords(m.where)].filter(Boolean).join(' · '));
+  text(id+'-title',title);text(id+'-model',[a&&a.model&&a.model!==(m.label||m.model)?'':m.maker,whereWords(m.where)].filter(Boolean).join(' · '));
   G(id+'-answer').setAttribute('aria-label',title+' answer');
   text(id+'-stop','Stop '+title+' answer');
   text(id+'-speed',a&&a.tps!=null?a.tps+' tokens per second · this run':
@@ -1032,18 +1034,20 @@ function answering(){
 function noticeStands(){return targets().indexOf('gpu')>=0&&!!current.gpu.link.storage_notice}
 function askingBusy(){return askQueued||answering()||noticeStands()}
 function buttons(){
- var count=targets().length,disabled=!current||!count||askingBusy();G('ask').disabled=disabled;
+ var count=targets().length,disabled=stale||!current||!count||askingBusy();G('ask').disabled=disabled;
  var many=count!==1;
  text('ask',pane==='gpu'?'Ask '+noun()+' GPU model'+(many?'s':''):
   pane==='phone'||!current||!current.gpu.link?'Ask the phone model'+(many?'s':''):
-  'Ask all ready model'+(many?'s':''));
+  'Ask all ready models');
  Array.from(G('presets').children).forEach(function(b){b.disabled=disabled});
 }
 function draw(s){
- if(s.locked){current=null;open=false;G('controls').hidden=true;G('enrol').hidden=true;
+ if(s.locked){current=null;open=false;askQueued=false;G('controls').hidden=true;G('enrol').hidden=true;
   ['phone','gpu'].forEach(function(n){text(n+'-answer','');line(n+'-state','');
    line(n+'-model','');text(n+'-speed','Unlock the phone to use AI mode.');G(n+'-stop').hidden=true});
-  G('phone-extra').textContent='';G('pc-extra').textContent='';document.documentElement.setAttribute('data-fanout','false');text('enrol-text','');line('gpu-cable','');
+  G('phone-extra').textContent='';G('phone-extra').hidden=true;
+  G('pc-extra').textContent='';G('pc-extra').hidden=true;
+  document.documentElement.setAttribute('data-fanout','false');text('enrol-text','');line('gpu-cable','');
   G('allow').hidden=true;G('forget').hidden=true;G('reopen').hidden=true;return;
  }
  if(!s.phone||!s.gpu)return;
@@ -1092,8 +1096,8 @@ function request(){
  Promise.race([response,deadline]).then(function(result){
    var r=result,s=result.snapshot;
    if(r.status===403&&s&&s.error==='forbidden'){
-    stale=true;text('err','This page is out of date. Reload it, then try again.');return}
-   if(r.status===403&&s&&s.error==='locked'){queue=[];text('err','');draw({locked:true});return}
+    stale=true;queue=[];askQueued=false;buttons();text('err','This page is out of date. Reload it, then try again.');return}
+   if(r.status===403&&s&&s.error==='locked'){queue=[];askQueued=false;text('err','');draw({locked:true});return}
    if(r.status!==200){text('err',s.error||'AI mode could not update.');return}
    text('err','');draw(s);
   }).catch(function(){text('err',timedOut?'The phone did not answer.':'AI mode could not update.');
@@ -1101,7 +1105,7 @@ function request(){
 }
 function send(body){if(document.hidden)return;queue.push(body);schedule()}
 function ask(){
- if(document.hidden||!current||!targets().length)return;
+ if(document.hidden||stale||!current||!targets().length)return;
  if(askQueued)return;
  if(answering()){text('err','Wait for this answer, or stop it.');return}
  if(noticeStands()){text('err',current.gpu.link.storage_notice);return}

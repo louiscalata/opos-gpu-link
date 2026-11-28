@@ -31,16 +31,24 @@ const refuse=name=>function(){throw new Error(name+' is not allowed in tests')};
 const ctx=vm.createContext({document,location:{search:''},URLSearchParams,AbortController,
  WebSocket:refuse('WebSocket'),EventSource:refuse('EventSource'),XMLHttpRequest:refuse('XMLHttpRequest'),
  performance:{now:()=>0},setTimeout:()=>0,clearTimeout(){},console,
- fetch:()=>input.reply?Promise.resolve({status:input.reply.status,
-  json:()=>Promise.resolve(input.reply.body)}):new Promise(()=>{})});
+ fetch:()=>{if(input.duringRequest)vm.runInContext(input.duringRequest,ctx);
+  return input.reply?Promise.resolve({status:input.reply.status,
+   json:()=>Promise.resolve(input.reply.body)}):new Promise(()=>{})}});
 (async()=>{
  vm.runInContext(input.script,ctx);
  vm.runInContext('draw('+JSON.stringify(input.snapshot)+')',ctx);
  if(input.reply){vm.runInContext('request()',ctx);await new Promise(setImmediate)}
+ const responseState={askQueued:vm.runInContext('askQueued',ctx),
+  queued:vm.runInContext('queue.length',ctx),controlsHidden:get('controls').hidden,
+  phoneRootHidden:get('phone-extra').hidden,pcRootHidden:get('pc-extra').hidden};
+ if(input.after)vm.runInContext('draw('+JSON.stringify(input.after)+')',ctx);
+ if(input.afterAction)vm.runInContext(input.afterAction,ctx);
  process.stdout.write(JSON.stringify({phoneSpeed:get('phone-speed').text,
   gpuSpeed:get('gpu-speed').text,m1Speed:get('m1-speed').text,g1Speed:get('g1-speed').text,
   phoneState:get('phone-state').text,m1State:get('m1-state').text,g1State:get('g1-state').text,
-  error:get('err').text,controlsHidden:get('controls').hidden}));
+  error:get('err').text,controlsHidden:get('controls').hidden,
+  askDisabled:get('ask').disabled,askQueued:vm.runInContext('askQueued',ctx),
+  queued:vm.runInContext('queue.length',ctx),responseState}));
 })().catch(err=>{console.error(err);process.exitCode=1});
 """
 
@@ -58,10 +66,12 @@ def _model(pane, kind, answer, *, live_speed=None):
 
 @unittest.skipIf(shutil.which("node") is None, "needs node to run the page script")
 class PageStatusTest(NoNetwork):
-    def run_page(self, snapshot, reply=None):
+    def run_page(self, snapshot, reply=None, *, during_request=None, after=None, after_action=None):
         script = _constants(PAGE, "_SCRIPT")[0][1]
         done = subprocess.run(["node", "-e", NODE_HARNESS],
-                              input=json.dumps({"script": script, "snapshot": snapshot, "reply": reply}),
+                              input=json.dumps({"script": script, "snapshot": snapshot, "reply": reply,
+                                                "duringRequest": during_request, "after": after,
+                                                "afterAction": after_action}),
                               capture_output=True, text=True, timeout=30, check=False)
         self.assertEqual(done.returncode, 0, done.stderr[-2000:])
         return json.loads(done.stdout)
@@ -117,6 +127,28 @@ class PageStatusTest(NoNetwork):
         self.assertEqual(shown["phoneSpeed"], "Unlock the phone to use AI mode.")
         self.assertEqual(shown["gpuSpeed"], "Unlock the phone to use AI mode.")
         self.assertEqual(shown["error"], "")
+
+    def test_locked_response_discards_queued_ask_and_ask_works_after_unlock(self):
+        snap = _snapshot()
+        snap["models"] = [_model("m1", "phone", None), _model("g1", "pc", None)]
+        shown = self.run_page(snap, {"status": 403, "body": {"error": "locked"}},
+                              during_request="G('ask').onclick()", after=snap,
+                              after_action="G('ask').onclick()")
+        self.assertEqual(shown["responseState"],
+                         {"askQueued": False, "queued": 0, "controlsHidden": True,
+                          "phoneRootHidden": True, "pcRootHidden": True})
+        self.assertFalse(shown["controlsHidden"])
+        self.assertTrue(shown["askQueued"])
+        self.assertEqual(shown["queued"], 1)
+
+    def test_forbidden_response_disables_ask_and_discards_queued_ask(self):
+        snap = _snapshot()
+        shown = self.run_page(snap, {"status": 403, "body": {"error": "forbidden"}},
+                              during_request="G('ask').onclick()", after_action="G('ask').onclick()")
+        self.assertTrue(shown["askDisabled"])
+        self.assertFalse(shown["askQueued"])
+        self.assertEqual(shown["queued"], 0)
+        self.assertEqual(shown["error"], "This page is out of date. Reload it, then try again.")
 
 
 if __name__ == "__main__":

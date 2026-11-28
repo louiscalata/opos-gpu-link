@@ -167,11 +167,14 @@ for(let i=0;i<snapshots.length;i++){
  vm.runInContext('draw('+JSON.stringify(s)+')',ctx);
  if(actions[i])vm.runInContext(actions[i],ctx);
  const cards=root=>get(root+'-extra').children.map(c=>({id:c.dataset.pane,title:get(c.dataset.pane+'-title').text,
-  aria:get(c.dataset.pane+'-answer').attrs['aria-label'],stop:get(c.dataset.pane+'-stop').text,
-  stopHidden:get(c.dataset.pane+'-stop').hidden,model:get(c.dataset.pane+'-model').text}));
+  sectionName:c.attrs['aria-labelledby'],aria:get(c.dataset.pane+'-answer').attrs['aria-label'],
+  speedClass:get(c.dataset.pane+'-speed').className,speedRole:get(c.dataset.pane+'-speed').attrs.role,
+  stop:get(c.dataset.pane+'-stop').text,stopHidden:get(c.dataset.pane+'-stop').hidden,
+  model:get(c.dataset.pane+'-model').text}));
  out.push({title:get('gpu-title').text,disclosure:get('gpu-disclosure').text,aria:get('gpu-answer').attrs['aria-label'],
   reopen:get('reopen').text,forget:get('forget').text,speed:get('gpu-speed').text,model:get('gpu-model').text,
   enrol:get('enrol-text').text,ask:get('ask').text,askDisabled:get('ask').disabled,err:get('err').text,
+  askQueued:vm.runInContext('askQueued',ctx),
   targets:Array.from(vm.runInContext('targets()',ctx)),queued:vm.runInContext('queue.length',ctx),
   phoneCards:cards('phone'),pcCards:cards('pc'),phoneRootHidden:get('phone-extra').hidden,
   pcRootHidden:get('pc-extra').hidden,listHidden:get('list').hidden,thumbHidden:get('thumb').hidden});
@@ -287,6 +290,7 @@ class PageScriptTest(NoNetwork):
         self.assertEqual([c["id"] for c in full["phoneCards"]], ["m1", "m3"])
         self.assertEqual([c["id"] for c in full["pcCards"]], ["g1"])
         self.assertEqual(full["targets"], ["phone", "gpu", "m1", "m3", "g1"])
+        self.assertEqual(full["ask"], "Ask all ready models")
 
     def test_extra_card_names_follow_the_answer_model_when_it_changes(self):
         snap = _snapshot()
@@ -303,6 +307,22 @@ class PageScriptTest(NoNetwork):
         self.assertEqual(second["phoneCards"][0]["stop"], "Stop Qwen3.5-2B answer")
         self.assertEqual(second["phoneCards"][0]["model"], "on this phone")
 
+    def test_extra_computer_card_does_not_credit_the_current_slots_maker_for_an_old_answer(self):
+        snap = _snapshot(_pc("M5 Pro MacBook Pro"))
+        snap["models"] = [_model("g1", "pc", "Granite 4.1 3B", maker="IBM")]
+        later = json.loads(json.dumps(snap))
+        later["rev"] = 2
+        later["models"][0]["model"] = "Qwen3.5-2B"  # snapshot() keeps the saved answer model here
+        later["models"][0]["answer"] = {
+            "id": "a1", "state": "done", "text": "Earlier answer", "model": "Qwen3.5-2B"}
+        first, second = self.run_page([snap, later], "?pane=gpu")
+        self.assertIn("IBM", first["pcCards"][0]["model"])
+        card = second["pcCards"][0]
+        self.assertEqual(card["title"], "Qwen3.5-2B")
+        self.assertEqual(card["aria"], "Qwen3.5-2B answer")
+        self.assertEqual(card["stop"], "Stop Qwen3.5-2B answer")
+        self.assertEqual(card["model"], "on the MacBook's GPU")
+
     def test_immediate_ask_taps_queue_only_one_request(self):
         snap = _snapshot()
         snap["presets"] = [{"label": "Why the sky is blue", "question": "Why?"}]
@@ -315,11 +335,24 @@ class PageScriptTest(NoNetwork):
         self.assertEqual(shown["err"], "")
 
     def test_phone_extra_has_its_own_page_column(self):
-        self.assertIn('id="phone-extra"', _constants(PAGE, "_LIST")[0][1])
+        self.assertIn('id="phone-extra" role="region" aria-label="Additional phone models"',
+                      _constants(PAGE, "_LIST")[0][1])
         self.assertNotIn('id="phone-extra"', _constants(PAGE, "_THUMB")[0][1])
+        self.assertIn('id="pc-extra" role="region" aria-label="Additional computer models"',
+                      _constants(PAGE, "_THUMB")[0][1])
         css = _constants(PAGE, "_CSS")[0][1]
         self.assertIn("#phone-extra{grid-column:1 / 4;grid-row:13}", css)
         self.assertIn("#pc-extra{grid-column:1 / 4;grid-row:14}", css)
+
+    def test_extra_cards_have_named_regions_and_matching_status_styles(self):
+        snap = _snapshot(_pc("M5 Pro MacBook Pro"))
+        snap["models"] = [_model("m1", "phone", "Nemotron Mini 4B"),
+                          _model("g1", "pc", "Granite 4.1 3B", maker="IBM")]
+        shown = self.run_page([snap])[0]
+        for card in shown["phoneCards"] + shown["pcCards"]:
+            self.assertEqual(card["sectionName"], card["id"] + "-title")
+            self.assertEqual(card["speedClass"], "speed")
+            self.assertEqual(card["speedRole"], "status")
 
     def test_a_saved_answer_names_the_computer_that_wrote_it(self):
         snap = _snapshot(_pc("M5 Pro MacBook Pro"))
