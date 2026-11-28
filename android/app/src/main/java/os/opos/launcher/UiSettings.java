@@ -2,7 +2,7 @@ package os.opos.launcher;
 
 /**
  * Persisted typography and theme choices. Offline only: a string store, typically
- * SharedPreferences. Invalid values fall back to the defaults (H5+S5+B5, Dark).
+ * SharedPreferences. Type is fixed at H5+S5+B5; theme defaults to Dark.
  */
 final class UiSettings {
     interface Store {
@@ -25,7 +25,7 @@ final class UiSettings {
     }
 
     TypeChoice typography() {
-        return TypeChoice.parse(store.get(KEY_TYPOGRAPHY, TypeChoice.DEFAULT));
+        return TypeChoice.defaults();
     }
 
     String themePreference() {
@@ -45,9 +45,7 @@ final class UiSettings {
     }
 
     boolean setTypography(String id) {
-        if (!TypeChoice.OPTIONS.contains(id)) return false;
-        store.put(KEY_TYPOGRAPHY, id);
-        return true;
+        return TypeChoice.DEFAULT.equals(id);
     }
 
     boolean setTheme(String id) {

@@ -133,10 +133,11 @@ class ModelCopyTests(unittest.TestCase):
     def test_window_button_confirms_and_logs_cache_removal(self):
         owned = self.download_copy()
         tk = FakeTk()
-        root = SimpleNamespace(protocol=lambda *_args: None)
+        root = SimpleNamespace(protocol=lambda *_args: None, configure=lambda **_kwargs: None)
         args = SimpleNamespace(adb="fake-adb", serial="PHONE", key_dir=self.data,
                                always_allow=False, data_dir=self.data, models_dir=self.models)
-        app = link.Companion(args, root, tk)
+        with patch.object(link, "_dialog_fonts", return_value={"small": "S5", "body": "B5"}):
+            app = link.Companion(args, root, tk)
         self.assertIn("Remove model copies", tk.buttons)
         with patch.object(link, "_confirm_remove_model_copies", return_value=False):
             tk.buttons["Remove model copies"]()
@@ -173,10 +174,9 @@ class ModelCopyTests(unittest.TestCase):
             self.assertEqual(setup.vram_used_mb(gpu), 800)
             runtime.stop()
             self.assertEqual(setup.vram_used_mb(gpu), 100)
-        self.assertEqual(events, ["memory", "memory", "memory", "stop", "memory", "memory"])
+        self.assertEqual(events, ["memory", "memory", "stop", "memory", "memory"])
         self.assertEqual(runners[2], runtime.memory_runner)
-        self.assertEqual(runners[3], runtime.memory_runner)
-        log.assert_called_once_with("GPU memory used before/after Stop: 800 -> 100 MiB (total GPU use)")
+        log.assert_called_once_with("GPU use after stop: 100 MiB total.")
 
     def test_memory_probe_failure_does_not_block_fake_stop(self):
         for failure in (OSError("fixture probe failure"), KeyboardInterrupt()):
@@ -189,7 +189,7 @@ class ModelCopyTests(unittest.TestCase):
                 with patch.object(setup, "vram_used_mb", side_effect=failure) as probe:
                     runtime.stop()
                 self.assertEqual(stopped, [True])
-                self.assertEqual(probe.call_count, 2)
+                self.assertEqual(probe.call_count, 1)
 
     def test_partial_cleanup_failure_counts_the_deleted_model(self):
         owned = self.download_copy()
@@ -211,10 +211,11 @@ class ModelCopyTests(unittest.TestCase):
         outside = self.root / "other" / "models"
         outside.mkdir(parents=True)
         tk = FakeTk()
-        root = SimpleNamespace(protocol=lambda *_args: None)
+        root = SimpleNamespace(protocol=lambda *_args: None, configure=lambda **_kwargs: None)
         args = SimpleNamespace(adb="fake-adb", serial="PHONE", key_dir=self.data,
                                always_allow=False, data_dir=self.data, models_dir=outside)
-        app = link.Companion(args, root, tk)
+        with patch.object(link, "_dialog_fonts", return_value={"small": "S5", "body": "B5"}):
+            app = link.Companion(args, root, tk)
         with patch.object(link, "_confirm_remove_model_copies") as confirm,                 patch("builtins.print") as printed:
             tk.buttons["Remove model copies"]()
         confirm.assert_not_called()
@@ -225,10 +226,11 @@ class ModelCopyTests(unittest.TestCase):
     def test_window_logs_a_partial_removal_error(self):
         owned = self.download_copy()
         tk = FakeTk()
-        root = SimpleNamespace(protocol=lambda *_args: None)
+        root = SimpleNamespace(protocol=lambda *_args: None, configure=lambda **_kwargs: None)
         args = SimpleNamespace(adb="fake-adb", serial="PHONE", key_dir=self.data,
                                always_allow=False, data_dir=self.data, models_dir=self.models)
-        app = link.Companion(args, root, tk)
+        with patch.object(link, "_dialog_fonts", return_value={"small": "S5", "body": "B5"}):
+            app = link.Companion(args, root, tk)
         failure = RuntimeError(f"Removed 1 model copy from {self.models}; cleanup could not be completed")
         with patch.object(link, "_confirm_remove_model_copies", return_value=True),                 patch.object(setup, "remove_model_copies", side_effect=failure),                 patch("builtins.print") as printed:
             tk.buttons["Remove model copies"]()

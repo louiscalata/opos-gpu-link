@@ -1,4 +1,4 @@
-# GPU Link paced soak simulator
+# OPOS GPU Link pacing check
 
 Run from this checkout with Python 3.11+:
 

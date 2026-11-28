@@ -397,7 +397,7 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:accessibilityHeading="true"
-                        android:text="@string/gpu_heading"
+                        android:text="@string/gpu_heading_neutral"
                         android:textColor="@color/newspaper_ink"
                         android:textSize="18sp"
                     />

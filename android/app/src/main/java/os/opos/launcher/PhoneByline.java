@@ -20,10 +20,11 @@ final class PhoneByline {
             if (name.length() > maker.length() + 1 && name.regionMatches(true, 0, maker, 0, maker.length())
                     && name.charAt(maker.length()) == ' ') {
                 String rest = name.substring(maker.length() + 1).trim();
-                if (!rest.isEmpty()) return rest + " · " + maker;
+                if (!rest.isEmpty()) return ModelMaker.details(rest,
+                        ModelMaker.maker(maker, rest), "");
             }
         }
-        return name;
+        return ModelMaker.details(name, ModelMaker.maker("", name), "");
     }
 
     /**

@@ -127,6 +127,16 @@ public final class CoverScreenPolicyTest {
         eq("STOPPED", CoverScreenPolicy.indicator("cancelled"));
         eq("", CoverScreenPolicy.indicator(""));
         eq("", CoverScreenPolicy.indicator(null));
+        eq("paused", CoverScreenPolicy.visibleState("Paused · plug the cable back in"));
+        eq("answering", CoverScreenPolicy.visibleState("Streaming…"));
+        eq("waiting", CoverScreenPolicy.visibleState("Checking…"));
+        eq("", CoverScreenPolicy.visibleState("Showing the last answer"));
+        eq("done", CoverScreenPolicy.visibleState("Done · 2.1 s"));
+        eq("cancelled", CoverScreenPolicy.visibleState("Stopped"));
+        eq("cancelled", CoverScreenPolicy.visibleState("Stopped · 1.2 s"));
+        eq("failed", CoverScreenPolicy.visibleState("Could not finish. Try again."));
+        eq("failed", CoverScreenPolicy.visibleState("Paused — stuck"));
+        eq("", CoverScreenPolicy.visibleState("Ready"));
         check(CoverScreenPolicy.invertIndicator("paused"));
         check(!CoverScreenPolicy.invertIndicator("answering"));
         eq("Computer GPU · PAUSED", CoverScreenPolicy.kicker("g1", "paused"));
@@ -145,7 +155,7 @@ public final class CoverScreenPolicyTest {
         eq(40, CoverScreenPolicy.mastheadDp(false));
         eq(0, CoverScreenPolicy.mastheadDp(true));
         eq(52, CoverScreenPolicy.composerRowDp(false));
-        eq(44, CoverScreenPolicy.composerRowDp(true));
+        eq(48, CoverScreenPolicy.composerRowDp(true));
         // 360 dp cover, 80 dp of sticky chrome: 360-80-40-52=188, minus 8 gap = 180.
         eq(80, CoverScreenPolicy.STICKY_CHROME_DP);
         eq(180, CoverScreenPolicy.paneHeightDp(360, CoverScreenPolicy.STICKY_CHROME_DP, 3));
@@ -155,10 +165,11 @@ public final class CoverScreenPolicyTest {
         // Very short window never goes below the minimum, tall window never above the maximum.
         eq(150, CoverScreenPolicy.paneHeightDp(200, 56, 3));
         eq(230, CoverScreenPolicy.paneHeightDp(700, 56, 3));
-        // Every composer/masthead size is smaller than the ordinary compact layout's.
+        // The keyboard row matches the compact layout's touch target size.
         check(CoverScreenPolicy.MASTHEAD_DP < CoverLayoutPolicy.MASTHEAD_DP);
         check(CoverScreenPolicy.COMPOSER_ROW_DP < CoverLayoutPolicy.COMPOSER_ROW_DP);
-        check(CoverScreenPolicy.KEYBOARD_COMPOSER_ROW_DP < CoverLayoutPolicy.KEYBOARD_COMPOSER_ROW_DP);
+        check(CoverScreenPolicy.KEYBOARD_COMPOSER_ROW_DP
+                == CoverLayoutPolicy.KEYBOARD_COMPOSER_ROW_DP);
         eq(32, CoverScreenPolicy.keepHeadlineVisible(120, 32, true, true));
         eq(10, CoverScreenPolicy.keepHeadlineVisible(10, 32, true, true));
         eq(0, CoverScreenPolicy.keepHeadlineVisible(0, 32, true, true));
