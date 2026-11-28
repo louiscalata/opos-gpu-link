@@ -78,8 +78,7 @@ public final class SpacingAuditTest {
         // Borders, a touch threshold, a corner radius and popup width are dimensions,
         // not spacing. Card-gap calls use LaneCardLayout.CARD_GAP_DP instead.
         return switch (value) {
-            case 1 -> line.contains("setPadding(dp(1)")
-                    || line.contains("MATCH_PARENT, dp(1)");
+            case 1 -> line.contains("setPadding(dp(1)");
             case 2 -> line.contains("expandedTouchY) > dp(2)")
                     || line.contains("setStroke(highlight ? dp(2)")
                     || line.contains("setStroke(Math.max(2, dp(2))");

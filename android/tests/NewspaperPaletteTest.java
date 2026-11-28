@@ -16,15 +16,13 @@ public final class NewspaperPaletteTest {
     public static void main(String[] args) throws Exception {
         Document colors = xml("values/colors.xml");
         NodeList definitions = colors.getElementsByTagName("color");
-        equal(14, definitions.getLength(), "black, white, grays, and red/green for both themes");
+        equal(12, definitions.getLength(), "black, white, grays, and red/green for both themes");
         equal("#000000", named(definitions, "newspaper_paper").getTextContent().trim(),
                 "black page");
         equal("#FFFFFF", named(definitions, "newspaper_ink").getTextContent().trim(),
                 "white ink");
         equal("#BFBFBF", named(definitions, "you_asked_label").getTextContent().trim(),
                 "asked label exception");
-        equal("#2EFFFFFF", named(definitions, "notes_rule").getTextContent().trim(),
-                "notes rule exception");
         equal("#5C5C5C", named(definitions, "newspaper_stroke").getTextContent().trim(),
                 "recessive box stroke exception (darker than the text)");
         equal("#FF5A52", named(definitions, "newspaper_error").getTextContent().trim(),
@@ -37,8 +35,6 @@ public final class NewspaperPaletteTest {
                 "light ink");
         equal("#5C5C5C", named(definitions, "you_asked_label_light").getTextContent().trim(),
                 "light label");
-        equal("#2E000000", named(definitions, "notes_rule_light").getTextContent().trim(),
-                "light notes rule");
         equal("#5C5C5C", named(definitions, "newspaper_stroke_light").getTextContent().trim(),
                 "light stroke");
         equal("#B3261E", named(definitions, "newspaper_error_light").getTextContent().trim(),
@@ -73,13 +69,13 @@ public final class NewspaperPaletteTest {
                 .getAttribute("android:color"), "outline fill");
         equal("@color/newspaper_stroke", child(xml("drawable/newspaper_outline.xml"), "stroke")
                 .getAttribute("android:color"), "outline stroke");
-        equal("0.5dp", child(xml("drawable/newspaper_outline.xml"), "stroke")
+        equal("@dimen/card_stroke", child(xml("drawable/newspaper_outline.xml"), "stroke")
                 .getAttribute("android:width"), "outline hairline");
         equal(PAPER, child(xml("drawable/newspaper_panel.xml"), "solid")
                 .getAttribute("android:color"), "lane panel fill");
         equal("@color/newspaper_stroke", child(xml("drawable/newspaper_panel.xml"), "stroke")
                 .getAttribute("android:color"), "lane panel stroke");
-        equal("0.5dp", child(xml("drawable/newspaper_panel.xml"), "stroke")
+        equal("@dimen/card_stroke", child(xml("drawable/newspaper_panel.xml"), "stroke")
                 .getAttribute("android:width"), "lane panel hairline");
 
         Document front = xml("layout/models.xml");
