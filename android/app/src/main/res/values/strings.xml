@@ -160,7 +160,8 @@
     <string name="lane_retry_stuck">Taking too long · Retry</string>
     <string name="answer_garbled">Could not read answer · Retry</string>
     <string name="lane_retry_description">Retry this model with the same question</string>
-    <string name="stop_failed">One answer could not be stopped. Try Stop again.</string>
+    <string name="stop_failed">Could not stop every answer. Try Stop again.</string>
+    <string name="stop_not_ready">The answers are still starting. Try Stop again.</string>
     <string name="pairing_expired">Code expired. Wait for a new code.</string>
     <string name="you_asked">You asked: %1$s</string>
     <string name="settings">Settings</string>

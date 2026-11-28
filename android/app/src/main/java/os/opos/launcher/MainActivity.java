@@ -1701,7 +1701,7 @@ public final class MainActivity extends Activity {
                 JSONObject fresh = client.getSnapshot();
                 handler.post(() -> {
                     polling = false;
-                    if (!visible) return;
+                    if (!visible || acting) return;
                     reachable = true;
                     showSnapshot(fresh);
                     schedule(pollDelay(fresh));
@@ -1709,7 +1709,7 @@ public final class MainActivity extends Activity {
             } catch (IOException | JSONException failure) {
                 handler.post(() -> {
                     polling = false;
-                    if (!visible) return;
+                    if (!visible || acting) return;
                     reachable = false;
                     showOffline(failure);
                     schedule(2000);
@@ -4335,12 +4335,22 @@ public final class MainActivity extends Activity {
     private void stopAnswers() {
         if (snapshot == null || !reachable || acting) return;
         Map<String, String> openIds = new HashMap<>();
+        Map<String, String> openStates = new HashMap<>();
         for (String pane : paneNames(snapshot)) {
             JSONObject work = answerOf(snapshot, pane);
-            if (open(work)) openIds.put(pane, work.optString("id"));
+            if (open(work)) {
+                String id = work.optString("id");
+                openIds.put(pane, id);
+                if (!id.isEmpty()) openStates.put(id, work.optString("state"));
+            }
         }
         List<String> ids = PaneKeys.uniqueOpenIds(paneNames(snapshot), openIds);
-        if (ids.isEmpty()) return;
+        if (ids.isEmpty()) {
+            error.setText(R.string.stop_not_ready);
+            updateButtons();
+            schedule(0);
+            return;
+        }
         acting = true;
         handler.removeCallbacks(poll);
         setMainStatus(getString(R.string.stopping));
@@ -4348,13 +4358,25 @@ public final class MainActivity extends Activity {
         network.execute(() -> {
             JSONObject updated = null;
             String problem = null;
-            if (!ids.isEmpty()) {
-                try {
-                    // One request so the service can flag every lane before any gate is released.
-                    updated = client.post(cancelBody(ids));
-                } catch (IOException | JSONException failure) {
+            try {
+                // The current service flags every lane before releasing the phone decoder.
+                updated = client.post(cancelBody(ids));
+            } catch (AiClient.ApiException failure) {
+                if (StopPolicy.legacyBulkUnsupported(failure.status, failure.getMessage())) {
+                    // Older phone hosts accept one ID at a time. Stop waiting lanes first so
+                    // ending the active answer does not immediately start the next pool lane.
+                    for (String id : StopPolicy.waitingFirst(ids, openStates)) {
+                        try {
+                            updated = client.post(cancelOneBody(id));
+                        } catch (IOException | JSONException singleFailure) {
+                            problem = getString(R.string.stop_failed);
+                        }
+                    }
+                } else {
                     problem = getString(R.string.stop_failed);
                 }
+            } catch (IOException | JSONException failure) {
+                problem = getString(R.string.stop_failed);
             }
             try {
                 updated = client.getSnapshot();
@@ -4531,6 +4553,16 @@ public final class MainActivity extends Activity {
             JSONArray array = new JSONArray();
             for (String id : ids) array.put(id);
             body.put("ids", array);
+        } catch (JSONException impossible) {
+            throw new AssertionError(impossible);
+        }
+        return body;
+    }
+
+    private static JSONObject cancelOneBody(String id) {
+        JSONObject body = action("cancel");
+        try {
+            body.put("id", id);
         } catch (JSONException impossible) {
             throw new AssertionError(impossible);
         }
