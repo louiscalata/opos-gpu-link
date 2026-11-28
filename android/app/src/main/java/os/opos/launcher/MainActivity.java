@@ -5170,9 +5170,7 @@ public final class MainActivity extends Activity {
         LinearLayout card = savedBox();
         // A saved answer keeps the noun of the computer that wrote it, when known.
         String laneWhere = PaneKeys.archivedWhere(lane.where);
-        String laneComputer = laneWhere.isEmpty() || "unknown".equalsIgnoreCase(laneWhere)
-                || "on the computer's GPU".equals(laneWhere)
-                ? ComputerWords.COMPUTER : ComputerWords.noun(laneWhere);
+        String laneComputer = PaneKeys.archivedComputer(lane.where);
         TextView kicker = newspaperText(PaneKeys.kicker(lane.pane, laneComputer),
                 LaneCardLayout.LABEL_SP, true, false);
         typography.kicker(kicker);

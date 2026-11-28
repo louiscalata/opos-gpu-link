@@ -93,7 +93,8 @@ final class UiPalette {
         if (containsAny(lower, "garbled", "stuck", "failed", "failure",
                 "disconnected", "unreachable", "not connected", "unavailable",
                 "validator", "invalid", "stale snapshot", "expired", "could not",
-                "stopped early", "not enough free memory") || hasWord(lower, "stopped")) {
+                "stopped early", "not enough free memory", "taking too long")
+                || hasWord(lower, "stopped")) {
             return Tone.ERROR;
         }
         if (lower.contains("error")) return Tone.ERROR;

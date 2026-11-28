@@ -127,7 +127,9 @@ final class CoverScreenPolicy {
     }
 
     static String moreLabel(int hidden) {
-        return hidden == 0 ? "" : "+" + hidden + " more models · open the phone";
+        if (hidden <= 0) return "";
+        return "+" + hidden + (hidden == 1 ? " more model" : " more models")
+                + " · open the phone";
     }
 
     /** Derive the cover badge from the words on the card, including offline and waiting paths. */

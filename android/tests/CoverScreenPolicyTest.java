@@ -148,6 +148,8 @@ public final class CoverScreenPolicyTest {
         eq("PHONE · LIVE", CoverScreenPolicy.kicker("m1", "answering"));
         eq("Computer GPU", CoverScreenPolicy.kicker("gpu", ""));
         eq("", CoverScreenPolicy.moreLabel(0));
+        eq("", CoverScreenPolicy.moreLabel(-1));
+        eq("+1 more model · open the phone", CoverScreenPolicy.moreLabel(1));
         eq("+6 more models · open the phone", CoverScreenPolicy.moreLabel(6));
         check(!CoverScreenPolicy.userBusy(false, false, 10_000, 5_000));
         check(CoverScreenPolicy.userBusy(true, false, 10_000, 0));
