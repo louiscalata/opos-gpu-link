@@ -4,7 +4,7 @@ Galaxy Z Flip6, USB-C data cable, Apple-silicon MacBook, desktop companion. Comp
 
 In a second Mac terminal, set `ADB` to the exact adb executable the companion uses, for example `ADB=/absolute/path/to/adb`. Use `ADB=$(command -v adb)` only if it finds that same executable. Check with `"$ADB" version`. Run `"$ADB" devices -l` and confirm one authorized phone. A mismatched adb can restart the server. Repeat this setup on a second computer. Leave the ADB server and app data alone.
 
-Write local clock times. Mark each row **PASS**, **FAIL**, or **NOT_RUN** only after observing it. Add a short reason for a failure or an unavailable lane. The stand-alone phone service does not provide the planned `m1` and `m4` pool. Those checks need the full OPOS phone host with ready local models.
+Write local clock times. Mark each row **PASS**, **FAIL**, or **NOT_RUN** only after observing it. Add a short reason for a failure or an unavailable lane. The stand-alone phone service does not provide the `m1`–`m4` pool. Those checks need the full OPOS phone app with ready local models.
 
 ## 1. Flip screens and new-computer prompt
 

@@ -25,11 +25,11 @@ python3 -B run_link.py --phone-url http://127.0.0.1:8080/v1 --phone-model my-mod
 
 Without it, the phone lane shows as not ready and questions go to the computer.
 
-The Dec 10 demo plans two more phone cards: `m1` is Qwen3.5-2B by Qwen (Alibaba), and `m4` is Granite 4.1 3B by IBM. This standalone service does not load those models. They need the full OPOS phone app and its local model files; those files are not included here.
+The demo phone's pool has `m1` Nemotron Mini 4B by NVIDIA, `m2` Qwen3.5-2B by Qwen (Alibaba), `m3` LFM2 1.2B by Liquid AI (the baseline comparison), and `m4` Granite 4.1 3B by IBM. This stand-alone service does not load the pool. Those cards need the full OPOS phone app and its local model files; those files are not included here.
 
 ## What's inside
 
-- `run_link.py`: the standalone runner.
+- `run_link.py`: the stand-alone runner.
 - `src/opos/gpu_link_proto.py`: the signed wire format shared with the computer.
 - `src/opos/gpu_link.py`: pairing, per-lane leases, pause on cable loss and resume on replug.
 - `src/opos/gpu_link_server.py`: the bounded loopback listener.
