@@ -2,12 +2,15 @@ package os.opos.launcher;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 /**
  * Line-level error ranges for Summary and TONIGHT copy. A mixed block (one failed
  * lane and several Done lanes) must not be painted a single colour.
  */
 final class ErrorCopy {
+    private static final Pattern SUMMARY_ROW = Pattern.compile("^.+ · [0-9]+ words? · (.+)$");
     static final class Range {
         final int start;
         final int end;
@@ -23,7 +26,10 @@ final class ErrorCopy {
     private ErrorCopy() {}
 
     static boolean errorLine(String line) {
-        return UiPalette.tone(line) == UiPalette.Tone.ERROR;
+        if (line == null) return false;
+        Matcher summary = SUMMARY_ROW.matcher(line);
+        return UiPalette.tone(summary.matches() ? summary.group(1) : line)
+                == UiPalette.Tone.ERROR;
     }
 
     static List<Range> lineRanges(String text) {
