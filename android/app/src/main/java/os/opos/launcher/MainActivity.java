@@ -548,6 +548,10 @@ public final class MainActivity extends Activity {
                 }
             });
         }
+        if (NewspaperLayoutDecision.stackedHeader(
+                getResources().getConfiguration().fontScale, compactLayout, landscapeLayout)) {
+            stackLargeFontHeader();
+        }
         applyQuestionLayout(question);
         applyResultsContentPadding();
         syncErrorVisibility();
@@ -1080,6 +1084,49 @@ public final class MainActivity extends Activity {
             revealVisible(true);
             initialRevealDone = true;
         });
+    }
+
+    /** Give the title, live state, and controls their own width on the inner screen. */
+    private void stackLargeFontHeader() {
+        header.setOrientation(LinearLayout.VERTICAL);
+        smallMasthead.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+        smallMasthead.setSingleLine(false);
+        smallMasthead.setMaxLines(Integer.MAX_VALUE);
+        smallMasthead.setEllipsize(null);
+        status.setLayoutParams(new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT));
+        status.setPadding(0, dp(2), 0, dp(2));
+        status.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+        status.setSingleLine(false);
+        status.setMaxLines(Integer.MAX_VALUE);
+        status.setEllipsize(null);
+
+        header.removeView(info);
+        header.removeView(settings);
+        LinearLayout actions = new LinearLayout(this);
+        actions.setOrientation(LinearLayout.HORIZONTAL);
+        LinearLayout.LayoutParams actionsParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        actionsParams.topMargin = dp(8);
+        header.addView(actions, actionsParams);
+        info.setMinHeight(dp(48));
+        settings.setMinHeight(dp(48));
+        info.setSingleLine(false);
+        settings.setSingleLine(false);
+        info.setMaxLines(Integer.MAX_VALUE);
+        settings.setMaxLines(Integer.MAX_VALUE);
+        info.setEllipsize(null);
+        settings.setEllipsize(null);
+        actions.addView(info, new LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        LinearLayout.LayoutParams settingsParams = new LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f);
+        settingsParams.leftMargin = dp(12);
+        actions.addView(settings, settingsParams);
     }
 
     private void toggleMenu() {
