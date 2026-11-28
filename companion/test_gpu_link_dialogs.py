@@ -1,6 +1,7 @@
 # SPDX-License-Identifier: Apache-2.0
 """Tk dialog copy and behavior checks without a display, phone, or model server."""
 
+import re
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -144,7 +145,7 @@ class DialogTests(unittest.TestCase):
         self.assertEqual((link.TK_H5_PT, link.TK_S5_PT, link.TK_B5_PT), (21, 11, 17))
         self.assertEqual(link.DIALOG_TYPE, {
             "H5": {"size": 21, "weight": "semibold", "leading": 1.15, "tracking": -0.01},
-            "S5": {"size": 11, "weight": "normal", "leading": 1.25, "tracking": 0.02, "tnum": True},
+            "S5": {"size": 11, "weight": "normal", "leading": 1.25, "tracking": 0.08, "tnum": True},
             "B5": {"size": 17, "weight": "normal", "leading": 1.35, "tracking": 0.0},
         })
         self.assertEqual((link.DIALOG_PAPER, link.DIALOG_INK, link.DIALOG_SECONDARY,
@@ -184,6 +185,15 @@ class DialogTests(unittest.TestCase):
         self.assertEqual(fallback, {"title": ("Tk heading", 21, "bold"),
                                     "small": ("Tk text", 11, "normal"),
                                     "body": ("Tk text", 17, "normal")})
+
+    def test_s5_tracking_matches_android_literal(self):
+        java = (Path(__file__).resolve().parents[1] / "android" / "app" / "src" /
+                "main" / "java" / "os" / "opos" / "launcher" / "TypeConfig.java")
+        source = java.read_text(encoding="utf-8")
+        match = re.search(r"\bstatic\s+final\s+float\s+S5_CAPS_TRACKING\s*=\s*"
+                          r"([+-]?\d+(?:\.\d+)?)f\s*;", source)
+        self.assertIsNotNone(match, "Android S5_CAPS_TRACKING literal is missing")
+        self.assertEqual(link.DIALOG_TYPE["S5"]["tracking"], float(match.group(1)))
 
     def test_identity_lines_only_use_supplied_phone_and_gpu_names(self):
         args = SimpleNamespace(phone_label=" Pixel 9 ",
