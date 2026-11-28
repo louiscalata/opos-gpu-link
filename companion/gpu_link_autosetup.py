@@ -2812,7 +2812,7 @@ def fetch_plan(args, info):
     return out
 
 
-def looks_like_text(text: str) -> bool:
+def looks_like_text(text: str | None) -> bool:
     """True when a reply holds real words (a broken GPU backend can return blank or junk)."""
     words = re.findall(r"[A-Za-z]{2,}", re.sub(r"<[^>\s]*>", " ", text or ""))
     return len(words) >= 2
@@ -2822,8 +2822,14 @@ def check_lane_output(port: int, key: str, alias: str = ALIAS, timeout=60):
     """Ask the lane for a few words. Returns (ok, detail). Catches GPU backends that
     load and run fast but return empty text (seen: Gemma 3 on an RX 580 via MoltenVK)."""
     import http.client
-    body = json.dumps({"model": alias, "max_tokens": 48, "temperature": 0, "stream": False,
-                       "messages": [{"role": "user", "content": "Say hello to the audience in one short sentence."}]})
+    request = {"model": alias, "max_tokens": 48, "temperature": 0, "stream": False,
+               "messages": [{"role": "user", "content": "Say hello to the audience in one short sentence."}]}
+    effort = os.environ.get("OPOS_GPU_LINK_REASONING_EFFORT", "none").strip()
+    if effort and effort != "default":
+        request["reasoning_effort"] = effort
+        if effort == "none":
+            request["chat_template_kwargs"] = {"enable_thinking": False}
+    body = json.dumps(request)
     conn = None
     try:
         conn = http.client.HTTPConnection("127.0.0.1", port, timeout=timeout)

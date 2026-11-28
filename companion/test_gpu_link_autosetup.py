@@ -1126,7 +1126,8 @@ class GpuOutputCheck(unittest.TestCase):
 
     def test_good_reply_passes_and_sends_the_key(self):
         port, seen = self.fake_reply("Hello, wonderful audience!")
-        self.assertEqual(a.check_lane_output(port, "k3y"), (True, "ok"))
+        with patch.dict(os.environ, {"OPOS_GPU_LINK_REASONING_EFFORT": "none"}):
+            self.assertEqual(a.check_lane_output(port, "k3y"), (True, "ok"))
         self.assertEqual(seen["auth"], "Bearer k3y")
         self.assertEqual(seen["address"], ("127.0.0.1", port))
         self.assertEqual((seen["method"], seen["target"]), ("POST", "/v1/chat/completions"))
@@ -1134,9 +1135,24 @@ class GpuOutputCheck(unittest.TestCase):
         self.assertEqual(seen["body"], {
             "model": a.ALIAS, "max_tokens": 48, "temperature": 0, "stream": False,
             "messages": [{"role": "user", "content": "Say hello to the audience in one short sentence."}],
+            "reasoning_effort": "none", "chat_template_kwargs": {"enable_thinking": False},
         })
         self.assertNotIn("k3y", json.dumps(seen["body"]))
         self.assertTrue(seen["closed"])
+
+    def test_reasoning_effort_override_is_used_for_the_probe(self):
+        port, seen = self.fake_reply("Hello, wonderful audience!")
+        with patch.dict(os.environ, {"OPOS_GPU_LINK_REASONING_EFFORT": "medium"}):
+            self.assertEqual(a.check_lane_output(port, "k"), (True, "ok"))
+        self.assertEqual(seen["body"]["reasoning_effort"], "medium")
+        self.assertNotIn("chat_template_kwargs", seen["body"])
+
+    def test_default_reasoning_effort_override_is_omitted(self):
+        port, seen = self.fake_reply("Hello, wonderful audience!")
+        with patch.dict(os.environ, {"OPOS_GPU_LINK_REASONING_EFFORT": "default"}):
+            self.assertEqual(a.check_lane_output(port, "k"), (True, "ok"))
+        self.assertNotIn("reasoning_effort", seen["body"])
+        self.assertNotIn("chat_template_kwargs", seen["body"])
 
     def test_blank_reply_fails(self):
         port, _ = self.fake_reply("\n\n\n")
@@ -1202,6 +1218,31 @@ class StopReportTests(unittest.TestCase):
                 patch.object(link, "main", return_value=0):
             self.assertEqual(a.run(args), 2)
         rt.stop.assert_called_once_with()
+        self.assertIn("Error: Model server did not stop. Check the running server.", output.getvalue())
+        self.assertNotIn("private stop detail", output.getvalue())
+
+    def test_requested_stop_with_server_stop_failure_has_failure_exit_code(self):
+        import opos_gpu_link as link
+
+        args = SimpleNamespace(detect_only=False, prefetch=False, no_phone=False,
+                               runtime_dir=Path("/unused/runtime"), adb=None, no_download=True,
+                               serial="fixture", data_dir=Path("/unused/data"),
+                               models_dir=Path("/unused/models"), keep_server=False)
+        info = {"gpu": {"name": "Fixture GPU"}}
+        rt = SimpleNamespace(lanes=[], stop=Mock(side_effect=OSError("private stop detail")))
+        with contextlib.redirect_stdout(io.StringIO()) as output, \
+                patch.object(a, "install_term_handler"), \
+                patch.object(a, "plan", return_value=info), \
+                patch.object(a, "start_runtime", return_value=rt), \
+                patch.object(a, "ensure_adb", return_value=Path("/unused/adb")), \
+                patch.object(a, "ready_lines", return_value=[]), \
+                patch.object(a, "banner"), \
+                patch.object(a, "companion_args", return_value=[]), \
+                patch.object(link, "computer_noun", return_value="MacBook"), \
+                patch.object(link, "main", side_effect=a.Terminated):
+            self.assertEqual(a.run(args), 2)
+        rt.stop.assert_called_once_with()
+        self.assertIn("Stopping.", output.getvalue())
         self.assertIn("Error: Model server did not stop. Check the running server.", output.getvalue())
         self.assertNotIn("private stop detail", output.getvalue())
 
