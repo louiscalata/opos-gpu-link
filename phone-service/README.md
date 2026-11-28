@@ -29,7 +29,7 @@ The demo phone's pool has `m1` Nemotron Mini 4B by NVIDIA, `m2` Qwen3.5-2B by Qw
 
 ## What's inside
 
-- `run_link.py`: the standalone runner.
+- `run_link.py`: the stand-alone runner.
 - `src/opos/gpu_link_proto.py`: the signed wire format shared with the computer.
 - `src/opos/gpu_link.py`: pairing, per-lane leases, pause on cable loss and resume on replug.
 - `src/opos/gpu_link_server.py`: the bounded loopback listener.

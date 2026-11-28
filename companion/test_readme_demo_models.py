@@ -32,17 +32,17 @@ class DemoModelReadmeTest(unittest.TestCase):
     def test_current_cards_have_owner_names_without_invented_file_details(self):
         lines = [line for line in self.current.splitlines() if line.startswith("| ")]
         self.assertEqual(lines[0], "| Card | Model | Maker | Role |")
-        cards = {
-            cells[0]: cells[1:]
+        cards = [
+            (cells[0], cells[1:])
             for cells in (line.strip("| ").split(" | ") for line in lines[2:])
-        }
-        self.assertEqual(cards, {
-            "Computer": ["Nemotron 3.5 Bolt", "NVIDIA", "Primary; runs on the computer GPU"],
-            "Phone `m1`": ["Nemotron Mini 4B", "NVIDIA", "Phone model"],
-            "Phone `m2`": ["Qwen3.5-2B", "Qwen (Alibaba)", "Phone model"],
-            "Phone `m3`": ["LFM2 1.2B (baseline)", "Liquid AI", "Baseline (comparison)"],
-            "Phone `m4`": ["Granite 4.1 3B", "IBM", "Phone model"],
-        })
+        ]
+        self.assertEqual(cards, [
+            ("Computer", ["Nemotron 3.5 Bolt", "NVIDIA", "Primary; runs on the computer GPU"]),
+            ("Phone `m1`", ["Nemotron Mini 4B", "NVIDIA", "Phone model"]),
+            ("Phone `m2`", ["Qwen3.5-2B", "Qwen (Alibaba)", "Phone model"]),
+            ("Phone `m3`", ["LFM2 1.2B (baseline)", "Liquid AI", "Baseline (comparison)"]),
+            ("Phone `m4`", ["Granite 4.1 3B", "IBM", "Phone model"]),
+        ])
         self.assertNotIn("AceInstruct", self.current)
         for line in lines[2:]:
             with self.subTest(card=line):

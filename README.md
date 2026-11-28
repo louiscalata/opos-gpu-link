@@ -38,6 +38,8 @@ The Dec 10 show is a newspaper-style front page: one card for each model answer,
 | Phone `m3` | LFM2 1.2B (baseline) | Liquid AI | Baseline (comparison) |
 | Phone `m4` | Granite 4.1 3B | IBM | Phone model |
 
+Nemotron 3.5 Bolt is post-trained by NVIDIA from Google's Gemma 4 E4B, so Gemma's terms also apply. On a MacBook, Bolt runs on Apple's GPU through Metal, not on an NVIDIA GPU.
+
 The model files for Qwen3.5-2B and Granite 4.1 3B are not listed in this repository. Their file sizes and hashes have not been recorded here.
 
 ## Stop and unplug
@@ -75,8 +77,6 @@ These files were also recorded on 27 Nov 2026. They are not in the current demo 
 | MacBook, comparison only | [Gemma 4 26B (Google)](https://huggingface.co/google/gemma-4-26B-A4B-it-qat-q4_0-gguf) | `gemma-4-26B_q4_0-it.gguf` | 14.44 GB (14,439,363,584 bytes) | Not recorded | Apache-2.0 |
 
 Gemma was a measured baseline and rollback. Gemma's SHA-256 was not recorded while LM Studio was serving it.
-
-Nemotron 3.5 Bolt is post-trained by NVIDIA from Google's Gemma 4 E4B, so Gemma's terms also apply. On a MacBook, Bolt runs on Apple's GPU through Metal, not on an NVIDIA GPU.
 
 ## Supported platforms
 
