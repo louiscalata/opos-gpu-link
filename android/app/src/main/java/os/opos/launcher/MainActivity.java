@@ -835,7 +835,7 @@ public final class MainActivity extends Activity {
         view.setTextColor(themeColor(R.color.newspaper_ink));
         view.setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp);
         if (serif && bold) typography.headline(view, sizeSp);
-        else if (serif) view.setTypeface(typography.smTextRegular);
+        else if (serif) view.setTypeface(typography.face(TypeConfig.body().face));
         else view.setTypeface(bold ? typography.interSemibold : typography.interMedium);
         return view;
     }
@@ -5912,6 +5912,7 @@ public final class MainActivity extends Activity {
             typography.headline(devicePhoneName, typography.headingSp());
             typography.headline(deviceComputerName, typography.headingSp());
             typography.state(deviceLink);
+            deviceLink.setFontFeatureSettings(null);
         }
         if (bigMasthead != null) {
             typography.display(bigMasthead, coverMode ? CoverScreenPolicy.MASTHEAD_SP : 34);
