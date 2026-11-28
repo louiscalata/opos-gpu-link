@@ -33,7 +33,7 @@ python3 gpu_link_login_agent.py install --model-path /path/to/model.gguf --seria
 
 It writes `~/Library/LaunchAgents/os.opos.gpulink.companion.plist`, which runs `gpu_link_autosetup.py --offline --strict-ports --own-server --port 38400` from this checkout at login, restarts it after a crash (not after a clean exit), and logs to `~/Library/Logs/OPOS GPU Link/`. No admin rights are needed. `status` shows whether it is loaded, `print` shows the plist without installing it, and `uninstall` stops and removes it. The phone still asks once before it uses a new computer.
 
-## Discover backends
+## Find local model servers
 
 Append `--discover` to any launcher. For example:
 
@@ -47,18 +47,17 @@ Ports 1234, 1236, 8080, 8081, 8765, 8767, 11434, 11435 and 4173 require both an 
 
 ## Models and memory
 
-Keep the lead computer model in `--model`. Add up to three more models from the same OpenAI-compatible chat endpoint with repeatable `--extra-model ID:LABEL:MAKER` flags. Quote an entry when its label or maker contains spaces. Model IDs may contain slashes. All three launchers forward the flags unchanged:
+Keep the lead computer model in `--model`. Add up to three more models from the same OpenAI-compatible chat endpoint with repeatable `--extra-model ID:LABEL:MAKER` flags. Replace the placeholders below with IDs, labels, and makers from your local server. Quote an entry when its label or maker contains spaces. Model IDs may contain slashes. All three launchers forward the flags unchanged:
 
 ```sh
-./run-linux.sh --model main-model \
-  --extra-model 'qwen/qwen3-4b:Qwen 3 4B:Qwen' \
-  --extra-model 'lfm3-1.7b:LFM 3:Liquid AI'
+./run-linux.sh --model MAIN_ID \
+  --extra-model 'OTHER_ID:OTHER_LABEL:OTHER_MAKER'
 ```
 
-On macOS use `./run-mac.sh` with the same arguments. On Windows PowerShell use `.\run-windows.ps1 --model main-model --extra-model 'qwen/qwen3-4b:Qwen 3 4B:Qwen'`. Use `--models-file models.json` instead of the flags to load an ordered JSON object:
+On macOS use `./run-mac.sh` with the same arguments. On Windows PowerShell use `.\run-windows.ps1 --model MAIN_ID --extra-model 'OTHER_ID:OTHER_LABEL:OTHER_MAKER'`. Use `--models-file models.json` instead of the flags to load an ordered JSON object:
 
 ```json
-{"models":[{"id":"qwen/qwen3-4b","label":"Qwen 3 4B","maker":"Qwen"},{"id":"lfm3-1.7b","label":"LFM 3","maker":"Liquid AI"}]}
+{"models":[{"id":"OTHER_ID","label":"OTHER_LABEL","maker":"OTHER_MAKER"}]}
 ```
 
 The optional `gpu` field on each JSON model can describe its computer GPU with `name` (up to 64 printable characters), `memory_mb` (nonnegative integer), and `driver` (up to 32 printable characters). The list is limited to three unique IDs, distinct from the lead model ID, and a 2,048-byte JSON file. The phone shows these models as `g1`–`g3` next to the lead `gpu` lane. A single question can start the lead, all ready extra computer lanes, and the phone lanes together. Each computer lane owns its stream and saved byte offset; the companion sends at most one text post per second per lane when fan-out is enabled, keeping the phone's existing four-posts-per-second limit.
@@ -86,14 +85,15 @@ When USB disconnects, every open computer lane changes to **paused** after the l
 - **Cannot verify a forward** — check that `lsof` is on `PATH` on macOS/Linux, or that Windows PowerShell can inspect local listener owners. Use the same adb executable that owns the listener.
 - **No backend found** — confirm the running server's bind address and port and add its URL with `--probe-url`. Discovery expects an unauthenticated OpenAI-compatible models response. Check the port restrictions above.
 - **Warming model** — compare the reported ID with `--model`. Check whether the backend can serve streaming chat and has memory to load the model.
-- **Replug doesn't continue the answer** — confirm that the companion is still running and that the phone retained the paused turn. See [companion pairing and recovery](README.md#run) for pairing rejection.
+- **Replug doesn't continue the answer** — confirm that the companion is still running and that the phone retained the paused turn. See [companion pairing and recovery](README.md#start-the-companion) for pairing rejection.
 
 ## Verification for this delivery
 
 Host tests and the public unit suites are documented in this repository (`companion/README.md` Isolated tests, and `android/scripts/run-host-tests.sh`). The fake LM Studio HTTP test binds an ephemeral loopback port when the host permits it. The Windows test run, USB unplug/replug, real LM Studio loading, and device rendering remain operator checks.
 
 ## LM Studio note: preload extra computer models
-LM Studio's just-in-time loading keeps only one auto-loaded model at a time. If two extra models (for example `qwen/qwen3-4b` and `lfm3-1.7b`) are both cold when a question arrives, loading one can evict the other and one lane fails. Before a demo load them explicitly (`lms load qwen/qwen3-4b`, `lms load lfm3-1.7b`); explicitly loaded models stay resident next to the lead model. Check with `lms ps`.
+
+LM Studio's just-in-time loading keeps only one auto-loaded model at a time. If two extra models are both cold when a question arrives, loading one can evict the other and one lane fails. Before a demo, load each extra model explicitly with `lms load MODEL_ID`. Explicitly loaded models stay resident next to the lead model. Check with `lms ps`.
 
 ## Show-day guards
 

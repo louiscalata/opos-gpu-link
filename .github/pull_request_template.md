@@ -4,7 +4,7 @@
 <!-- The change in two or three sentences. Link an issue only after explaining it. -->
 
 ## Why?
-<!-- The engineering goal and the reason it matters to users. -->
+<!-- What this helps people do, and why it matters. -->
 
 ## How?
 <!-- Notable design decisions or tools. Don't restate the diff. -->
@@ -17,4 +17,4 @@
 <!-- UI changes: before and after. Backend changes: a short command output. Delete if not relevant. -->
 
 ## Anything else?
-<!-- Follow-ups, technical debt, alternatives considered. -->
+<!-- Remaining work or other approaches you considered. -->

@@ -11,7 +11,7 @@ labels: []
 <!-- What went wrong, in two or three sentences. -->
 
 ## Why?
-<!-- Why it matters: a setup step, a show-day path, or a claim in the docs. -->
+<!-- Why it matters: a setup step, a demo step, or a claim in the docs. -->
 
 ## How?
 <!-- Steps to reproduce, or the command you ran. Mention the phone, computer, and build if you know them. -->

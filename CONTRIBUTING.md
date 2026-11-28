@@ -5,7 +5,7 @@ Thank you for looking. OPOS GPU Link is an early public demo. Issues are welcome
 ## Before you start
 
 - Read [README.md](README.md) and, for running from source, [companion/SETUP.md](companion/SETUP.md).
-- USB is the only link today. Wireless isn't built yet.
+- USB is the only link today. Wireless: coming later.
 - Do not paste API keys, pairing codes, model-server keys, or private host-app code into issues or pull requests. Security reports go to [SECURITY.md](SECURITY.md).
 
 ## Tests
