@@ -2285,12 +2285,13 @@ def safe_label(gpu, system=None, model_name=None) -> str:
 
 
 def ready_lines(gpu_name, lanes, noun):
-    """Short presenter lines, naming this computer by its actual noun."""
+    """Show what loaded and what the person must do before the link is ready."""
     names = ", ".join(lane["label"] for lane in lanes)
-    return [f"{noun} GPU: {gpu_name}.",
-            f"Models ready: {names}." if names else "No models are ready.",
-            "Ask a question on the phone.",
-            "Unplug to pause. Replug to resume.",
+    return [f"{noun} hardware: {gpu_name}.",
+            f"Computer {'models' if len(lanes) != 1 else 'model'}: {names}." if names else "No computer model selected.",
+            "If a pairing code appears, compare it on both screens and tap Allow on the phone.",
+            "Wait until GPU Link says it is ready before asking.",
+            "Unplug to pause. Replug while GPU Link is running to reconnect.",
             "Wireless: coming later.",
             "Press Ctrl-C to stop."]
 
@@ -2433,7 +2434,7 @@ def plan(args, runner=subprocess.run):
 
 def arguments(argv=None):
     base = data_dir()
-    p = argparse.ArgumentParser(description="Plug-and-play OPOS GPU Link companion")
+    p = argparse.ArgumentParser(description="Connect this computer's model to your Android phone over USB-C.")
     p.add_argument("--hide-nvidia", action="store_true",
                    help="pretend this computer has no NVIDIA GPU (tests the AMD/Intel/CPU fallback)")
     p.add_argument("--detect-only", action="store_true", help="print what would be used and exit")
@@ -2442,12 +2443,12 @@ def arguments(argv=None):
     p.add_argument("--selftest", action="store_true", help="print platform/bundle facts and exit; loads nothing")
     p.add_argument("--e2e", action="store_true", help="headless end-to-end check with a fake phone lane")
     p.add_argument("--receipt", type=Path, help="where --e2e writes its JSON receipt")
-    p.add_argument("--json", action="store_true")
+    p.add_argument("--json", action="store_true", help="print --detect-only results as JSON")
     p.add_argument("--strict-ports", action="store_true",
-                   help="never probe protected ports, even an LM Studio on 1234")
-    p.add_argument("--own-server", action="store_true", help="ignore running servers; launch llama-server")
+                   help="skip reserved ports when looking for a model server")
+    p.add_argument("--own-server", action="store_true", help="start a model server here instead of using one already running")
     p.add_argument("--port", type=int, default=DEFAULT_LAUNCH_PORT, help="first port to try for our servers")
-    p.add_argument("--model-path", help="GGUF path or name fragment to prefer (may be a coder model)")
+    p.add_argument("--model-path", help="model file to prefer; another local model may be used if it is missing")
     p.add_argument("--budget-mb", type=int, help="override detected GPU memory budget")
     p.add_argument("--gpu", choices=GPU_CHOICES, default=normalize_gpu_choice(os.environ.get(GPU_ENV)),
                    help="use only this GPU vendor and hide the others (default auto, or $" + GPU_ENV + "); "

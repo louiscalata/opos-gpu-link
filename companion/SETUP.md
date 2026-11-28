@@ -62,7 +62,7 @@ On macOS use `./run-mac.sh` with the same arguments. On Windows PowerShell use `
 
 The optional `gpu` field on each JSON model can describe its computer GPU with `name` (up to 64 printable characters), `memory_mb` (nonnegative integer), and `driver` (up to 32 printable characters). The list is limited to three unique IDs, distinct from the lead model ID, and a 2,048-byte JSON file. The phone shows these models as `g1`–`g3` next to the lead `gpu` lane. A single question can start the lead, all ready extra computer lanes, and the phone lanes together. Each computer lane owns its stream and saved byte offset; the companion sends at most one text post per second per lane when fan-out is enabled, keeping the phone's existing four-posts-per-second limit.
 
-The lead model still gets a one-token streamed check at its server. Extra model IDs use the existing `--lm-url` or `--server` address; the companion never calls a load or unload API. Each extra model gets that check only on first use. While a model first loads, its lane shows **Warming model**. If an extra model fails that check or its stream, only that lane fails with the safe `server` code. `OPOS_GPU_LINK_REASONING_EFFORT` applies to every stream and preflight request; its default is `none`. Set it to `default` to omit the field.
+The lead model still gets a one-token streamed check at its server. Extra model IDs use the existing `--lm-url` or `--server` address; the companion never calls a load or unload API. Each extra model gets that check only on first use. While an extra model loads for the first time, its phone card says **Waiting for its turn…**. If an extra model fails that check or its stream, only that lane fails with the safe `server` code. `OPOS_GPU_LINK_REASONING_EFFORT` applies to every stream and preflight request; its default is `none`. Set it to `default` to omit the field.
 
 LM Studio can load an available model on the first inference request when just-in-time (JIT) loading is enabled. That first request can take longer than later requests, so check that the companion's warmup completes. A standard single-model `llama-server` process loads the model it was configured with at startup. Use separately configured instances for separate models in that mode. If your llama.cpp build offers router mode, loading behavior depends on its router configuration.
 
@@ -84,7 +84,7 @@ When USB disconnects, every open computer lane changes to **paused** after the l
 - **Waiting for a phone** — check the cable and USB debugging approval. If multiple devices are authorized, use the intended USB serial explicitly.
 - **Cannot verify a forward** — check that `lsof` is on `PATH` on macOS/Linux, or that Windows PowerShell can inspect local listener owners. Use the same adb executable that owns the listener.
 - **No model server found** — confirm the running server's address and port and add its URL with `--probe-url`. The search expects an unauthenticated OpenAI-compatible models response. Check the port restrictions above.
-- **Warming model** — compare the reported ID with `--model`. Check whether the model server can stream answers and has memory to load the model.
+- **Checking the model.** — compare the reported ID with `--model`. Check whether the model server can stream answers and has memory to load the model.
 - **Replug doesn't continue the answer** — confirm that the companion is still running and that the phone retained the paused turn. See [companion pairing and recovery](README.md#start-the-companion) for pairing rejection.
 
 ## Checks

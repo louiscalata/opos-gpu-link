@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""User-level adb watcher for the existing OPOS GPU Link signed computer worker.
+"""Connect this computer's model to an Android phone over USB-C.
 
 This program is deliberately inert until a person starts it on their own computer.
 It is not run against a phone by the build or the tests.
@@ -833,7 +833,7 @@ class LazyServerSource:
                 result = False
             if result is None:
                 self.stop.wait(1)
-                continue  # A slow JIT load remains Warming model, never a lane error.
+                continue  # A slow first load stays in the loading state, never a lane error.
             ready = result
             break
         if ready and not self.stop.is_set():
@@ -1523,7 +1523,7 @@ class Companion:
                 status, state = self.bridge.enrol(pc)
                 if status != 202 or state != "pending":
                     if status == 403 and state == "closed":
-                        raise CompanionError("Error: Pairing is closed. Tap Allow computer requests again on the phone.")
+                        raise CompanionError("Error: Pairing is closed. Tap Allow pairing again on the phone.")
                     if status == 409 and state == "enrolled":
                         raise CompanionError("Error: Phone is already paired. Use Forget on the phone, then retry.")
                     raise CompanionError("Error: Phone did not accept pairing. Check the phone, then retry.")
@@ -1827,17 +1827,17 @@ class Companion:
 
 
 def arguments(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__)
+    parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n", 1)[0] or None)
     parser.add_argument("--serial", help="authorized USB adb device serial; auto-select if exactly one")
     parser.add_argument("--adb", default="adb", help="adb executable from Android platform tools")
     parser.add_argument("--label", help="pairing label sent to the phone (1 to 24 letters, digits, spaces or hyphens); "
                         "the phone keeps the label it saw at pairing, so a new one takes effect only "
                         "after Forget on the phone and --reset-pairing here")
     routes = parser.add_mutually_exclusive_group()
-    routes.add_argument("--server", help="existing loopback chat completions URL")
-    routes.add_argument("--lm-url", help="existing loopback backend base or chat completions URL")
-    parser.add_argument("--discover", action="store_true", help="list local backends and exit")
-    parser.add_argument("--probe-url", action="append", default=[], help="additional loopback backend URL")
+    routes.add_argument("--server", help="local model server chat URL")
+    routes.add_argument("--lm-url", help="local model server address or chat URL")
+    parser.add_argument("--discover", action="store_true", help="list local model servers and exit")
+    parser.add_argument("--probe-url", action="append", default=[], help="also check this local model server address")
     parser.add_argument("--allow-protected-port", action="store_true",
                         help="permit protected ports only for exact --probe-url entries")
     parser.add_argument("--json", action="store_true", help="emit machine-readable discovery results")
@@ -1845,13 +1845,13 @@ def arguments(argv=None):
                         help="model name at that local server (or OPOS_GPU_LINK_MODEL)")
     extra = parser.add_mutually_exclusive_group()
     extra.add_argument("--extra-model", action="append", default=[], metavar="ID:LABEL:MAKER",
-                       help="additional LM Studio model, repeat up to three times")
+                       help="another computer model, repeat up to three times")
     extra.add_argument("--models-file", type=Path, metavar="JSON",
                        help="JSON object with an ordered models array (up to three)")
     parser.add_argument("--model-server", action="append", default=[], metavar="ID=URL",
-                        help="serve extra model ID from its own loopback chat route (plug-and-play launcher)")
+                        help="local chat URL for an extra model ID")
     parser.add_argument("--key-dir", type=Path, default=None, help="per-user pairing directory")
-    parser.add_argument("--headless", action="store_true", help="print status without a Tk window")
+    parser.add_argument("--headless", action="store_true", help="print status in the terminal without a window")
     parser.add_argument("--always-allow", action="store_true",
                         help="remember this computer's permission for this phone while the companion runs")
     parser.add_argument("--no-launch", action="store_true", help="do not bring the models UI forward")
