@@ -41,6 +41,19 @@ public final class SettingsPcStateTest {
                 SettingsPcState.Connection.UNKNOWN, false);
         check(!offline.canForget);
         equal(SettingsPcState.Pairing.SAVED, offline.pairing);
+
+        for (SettingsPcState.Connection connection : SettingsPcState.Connection.values()) {
+            UiPalette.Tone expected = connection == SettingsPcState.Connection.CONNECTED
+                    ? UiPalette.Tone.OK : UiPalette.Tone.NEUTRAL;
+            equal(expected, SettingsPcState.tone(connection));
+            for (UiPalette.Theme theme : UiPalette.Theme.values()) {
+                UiPalette palette = new UiPalette(theme);
+                equal(connection == SettingsPcState.Connection.CONNECTED
+                                ? palette.ok() : palette.ink(),
+                        palette.colorForTone(SettingsPcState.tone(connection)));
+            }
+        }
+        equal(UiPalette.Tone.NEUTRAL, SettingsPcState.tone(null));
         System.out.println("SettingsPcStateTest: OK");
     }
 

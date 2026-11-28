@@ -6,8 +6,9 @@ import java.util.List;
 
 /** The masthead's four-action menu state, independent of Android views. */
 final class MenuState {
+    static final String MODEL_SELECTION = "Model Selection";
     static final List<String> ENTRIES = Collections.unmodifiableList(Arrays.asList(
-            "Model Selection", "History", "Settings", "Quit"));
+            MODEL_SELECTION, "History", "Settings", "Quit"));
     private boolean open;
 
     boolean isOpen() { return open; }
