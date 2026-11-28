@@ -49,25 +49,37 @@ class FakeWidget:
 
 
 class FakeVar:
-    def __init__(self, value, messages):
+    def __init__(self, value, messages=None):
         self.value, self.messages = value, messages
-        self.messages.append(value)
+        self.traces = []
+        if self.messages is not None:
+            self.messages.append(value)
 
     def set(self, value):
         self.value = value
-        self.messages.append(value)
+        if self.messages is not None:
+            self.messages.append(value)
+        for callback in self.traces:
+            callback("", "", "write")
 
     def get(self):
         return self.value
+
+    def trace_add(self, mode, callback):
+        assert mode == "write"
+        self.traces.append(callback)
 
 
 class FakeTk:
     def __init__(self):
         self.buttons = {}
         self.messages = []
+        self.variables = []
 
     def StringVar(self, value):
-        return FakeVar(value, self.messages)
+        var = FakeVar(value, self.messages if not self.variables else None)
+        self.variables.append(var)
+        return var
 
     def Frame(self, _root, **options):
         return FakeWidget(**options)

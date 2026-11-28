@@ -71,6 +71,7 @@ def _dialog_font_specs(available, heading_fallback, text_fallback):
                      if name.casefold() in names), fallback)
 
     title = pick(("Source Serif 4 Subhead SemiBold", "Source Serif 4 Subhead",
+                  "Source Serif 4 SemiBold", "Source Serif 4",
                   "Source Serif Pro", "Source Serif"), heading_fallback)
     # A SemiBold family name is already heavy; asking Tk for weight=bold can double-bold it.
     title_weight = "normal" if "semibold" in title.casefold() else DIALOG_TYPE["H5"]["weight"]
@@ -108,33 +109,31 @@ def _build_main_window(tk, root, status, computer_label, fonts, on_retry,
     root.configure(bg=DIALOG_PAPER)
     root.columnconfigure(0, weight=1)
     root.rowconfigure(1, weight=1)
-    root.minsize(480, 300)
+    root.minsize(600, 300)
 
     band = tk.Frame(root, bg=DIALOG_PAPER)
     band.grid(row=0, column=0, sticky="ew", padx=18, pady=(18, 10))
-    band.columnconfigure(0, weight=1)
-    band.columnconfigure(2, weight=1)
+    band.columnconfigure(0, weight=1, uniform="device")
+    band.columnconfigure(2, weight=1, uniform="device")
 
-    def device_panel(column, title, name):
+    def device_panel(column, name):
         panel = tk.Frame(band, bg=DIALOG_PAPER, highlightbackground=DIALOG_INK,
                          highlightthickness=1, bd=0)
         panel.grid(row=0, column=column, sticky="nsew")
         panel.columnconfigure(0, weight=1)
-        _dialog_label(tk, panel, title, fonts["small"]).grid(
-            row=0, column=0, sticky="ew", padx=12, pady=(10, 3))
         name_label = _dialog_label(tk, panel, name, fonts["title"])
-        name_label.grid(row=1, column=0, sticky="ew", padx=12, pady=(0, 12))
+        name_label.grid(row=0, column=0, sticky="ew", padx=12, pady=12)
         panel.bind("<Configure>", lambda event: name_label.configure(
-            wraplength=max(100, event.width - 24)))
+            wraplength=max(100, event.width - 32)))
         return panel
 
-    phone_panel = device_panel(0, "PHONE", "Phone")
+    phone_panel = device_panel(0, "Phone")
     link_state = tk.StringVar(value="USB-C\nWaiting")
     link_label = tk.Label(band, textvariable=link_state, font=fonts["small"],
                           fg=DIALOG_INK, bg=DIALOG_PAPER, justify="center",
-                          anchor="center", width=11)
+                          anchor="center", width=18)
     link_label.grid(row=0, column=1, sticky="ns", padx=8)
-    computer_panel = device_panel(2, "THIS COMPUTER", computer_label)
+    computer_panel = device_panel(2, computer_label)
 
     status_frame = tk.Frame(root, bg=DIALOG_PAPER, highlightbackground=DIALOG_INK,
                             highlightthickness=1, bd=0)
@@ -147,12 +146,12 @@ def _build_main_window(tk, root, status, computer_label, fonts, on_retry,
                             fg=DIALOG_INK, bg=DIALOG_PAPER, justify="left", anchor="nw")
     status_label.grid(row=1, column=0, sticky="nsew", padx=12, pady=(0, 12))
     status_frame.bind("<Configure>", lambda event: status_label.configure(
-        wraplength=max(100, event.width - 24)))
+        wraplength=max(100, event.width - 32)))
 
     controls = tk.Frame(root, bg=DIALOG_PAPER)
     controls.grid(row=2, column=0, sticky="ew", padx=18, pady=(0, 18))
     for column, (label, command) in enumerate((
-        ("Retry after phone recovery", on_retry),
+        ("Retry connection", on_retry),
         ("Remove model copies", on_remove),
         ("Stop GPU Link", on_stop),
     )):
@@ -169,17 +168,18 @@ def _status_is_error(message: str) -> bool:
     """Reserve red for a reported failure, not for an unplug or a normal pause."""
     return bool(re.search(
         r"\b(failed|unavailable|rejected|declined|error|refused|unconfirmed)\b"
-        r"|\bcould not\b|\bcannot\b|\bstopped; retrying\b",
+        r"|\bcould not\b|\bcannot\b|\bnot removed\b|\bstopped; retrying\b",
         message, re.IGNORECASE,
     ))
 
 
 def _main_window_tone(online: bool, message: str) -> tuple[str, str, str]:
     """Return link words, link ink, and status ink from known runtime state."""
+    if online:
+        return ("USB-C\nConnected", DIALOG_SUCCESS,
+                DIALOG_ERROR if _status_is_error(message) else DIALOG_INK)
     if _status_is_error(message):
         return "USB-C\nNeeds attention", DIALOG_ERROR, DIALOG_ERROR
-    if online:
-        return "USB-C\nConnected", DIALOG_SUCCESS, DIALOG_INK
     return "USB-C\nWaiting", DIALOG_INK, DIALOG_INK
 
 
@@ -983,9 +983,9 @@ class Companion:
         self.wake = threading.Event()
         if headless:
             self.status = ConsoleStatus()
-            self.status.set("Watching for the authorized USB phone")
+            self.status.set("Waiting for the phone over USB-C")
         else:
-            self.status = tk.StringVar(value="Watching for the authorized USB phone")
+            self.status = tk.StringVar(value="Waiting for the phone over USB-C")
             self.main_window = _build_main_window(
                 tk, root, self.status, computer_noun(), _dialog_fonts(root),
                 self.retry, self.remove_model_copies, self.stop,
@@ -994,9 +994,10 @@ class Companion:
         self.running = True
         self.online = False
         if not headless:
+            self.status.trace_add("write", lambda *_: self._refresh_main_window())
             self._refresh_main_window()
         # Starting a headless process is a grant for this run. --always-allow
-        # retains that grant across an extended unplug, without a PC dialog.
+        # retains that grant across an extended unplug, without a computer dialog.
         self.granted = bool(headless or args.always_allow)
         self.detached_at: float | None = None
         self.blocked_until_detach = False

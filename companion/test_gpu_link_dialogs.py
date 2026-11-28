@@ -112,6 +112,14 @@ class DialogTests(unittest.TestCase):
         self.assertEqual(specs, {"title": ("Source Serif 4 Subhead SemiBold", 21, "normal"),
                                  "small": ("Inter Medium", 11, "normal"),
                                  "body": ("Source Serif 4 Text", 17, "normal")})
+        standard_family = link._dialog_font_specs(
+            {"Source Serif 4", "Inter"}, "Tk heading", "Tk text")
+        self.assertEqual(standard_family["title"], ("Source Serif 4", 21, "bold"))
+        self.assertEqual(standard_family["body"], ("Source Serif 4", 17, "normal"))
+        semibold_family = link._dialog_font_specs(
+            {"Source Serif 4 SemiBold"}, "Tk heading", "Tk text")
+        self.assertEqual(semibold_family["title"],
+                         ("Source Serif 4 SemiBold", 21, "normal"))
         fallback = link._dialog_font_specs(set(), "Tk heading", "Tk text")
         self.assertEqual(fallback, {"title": ("Tk heading", 21, "bold"),
                                     "small": ("Tk text", 11, "normal"),
