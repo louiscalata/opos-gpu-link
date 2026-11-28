@@ -69,10 +69,11 @@ def _dialog_font_specs(available, heading_fallback, text_fallback):
         return next((names[name.casefold()] for name in candidates
                      if name.casefold() in names), fallback)
 
-    title = pick(("Subhead SemiBold", "Subhead Semibold", "Subhead"), heading_fallback)
+    title = pick(("Source Serif 4 Subhead Semibold", "Source Serif 4 Subhead",
+                  "Newsreader SemiBold", "Newsreader", "Newsreader 72pt"), heading_fallback)
     # Tk has no semibold weight. Use the real cut when installed, else bold.
     title_weight = "normal" if "semibold" in title.casefold() else "bold"
-    text = pick(("Text Regular", "Text"), text_fallback)
+    text = pick(("Source Serif 4", "Newsreader", "Inter"), text_fallback)
     small = pick(("Inter Medium", "Inter"), text_fallback)
     return {"title": (title, DIALOG_TYPE["H5"]["size"], title_weight),
             "small": (small, DIALOG_TYPE["S5"]["size"], DIALOG_TYPE["S5"]["weight"]),
@@ -99,6 +100,36 @@ def _dialog_button(tk, parent, text, font, **options):
                      highlightbackground=DIALOG_PAPER, **options)
 
 
+class _DialogLifetime:
+    """Cancel a dialog's pending Tk callbacks before destroying its window."""
+
+    def __init__(self, top):
+        self.top = top
+        self.pending = set()
+        self.closed = False
+
+    def after(self, delay, callback):
+        if self.closed:
+            return
+
+        def run():
+            self.pending.discard(timer_id)
+            if not self.closed:
+                callback()
+
+        timer_id = self.top.after(delay, run)
+        self.pending.add(timer_id)
+
+    def close(self):
+        if self.closed:
+            return
+        self.closed = True
+        for timer_id in tuple(self.pending):
+            self.top.after_cancel(timer_id)
+        self.pending.clear()
+        self.top.destroy()
+
+
 def _confirm_remove_model_copies(root, models_dir: Path, tk, clock=time.monotonic) -> bool:
     """A styled, guarded confirmation for this companion's marked downloads."""
     top = tk.Toplevel(root)
@@ -115,24 +146,30 @@ def _confirm_remove_model_copies(root, models_dir: Path, tk, clock=time.monotoni
         padx=24, pady=(0, 14), anchor="w")
     choice = {"remove": False}
     unblock = clock() + 0.7
+    lifetime = _DialogLifetime(top)
 
     def finish(remove=False):
-        if clock() < unblock:
+        if lifetime.closed or (remove and clock() < unblock):
             return
         choice["remove"] = remove
-        top.destroy()
+        lifetime.close()
 
     remove = _dialog_button(tk, top, "Remove copies", fonts["small"], state="disabled",
                             command=lambda: finish(True))
-    deny = _dialog_button(tk, top, "Not now", fonts["small"], state="disabled",
+    deny = _dialog_button(tk, top, "Not now", fonts["small"], state="normal",
                           command=finish)
     remove.pack(side="right", padx=(0, 24), pady=(0, 18))
     deny.pack(side="right", padx=12, pady=(0, 18))
+    deny.focus_set()
+
+    def on_return(_event):
+        finish(top.focus_get() == remove)
+        return "break"
+
     top.bind("<Escape>", lambda event: finish())
-    top.bind("<Return>", lambda event: finish())
+    top.bind("<Return>", on_return)
     top.protocol("WM_DELETE_WINDOW", finish)
-    top.after(700, lambda: (remove.configure(state="normal"), deny.configure(state="normal"),
-                            deny.focus_set()))
+    lifetime.after(700, lambda: remove.configure(state="normal"))
     root.wait_window(top)
     return choice["remove"]
 
@@ -925,14 +962,14 @@ class Companion:
         self.wake = threading.Event()
         if headless:
             self.status = ConsoleStatus()
-            self.status.set("Watching for the authorized USB phone")
+            self.status.set("Waiting for the phone on USB.")
         else:
             root.configure(bg=DIALOG_PAPER)
             fonts = _dialog_fonts(root)
-            self.status = tk.StringVar(value="Watching for the authorized USB phone")
-            tk.Label(root, textvariable=self.status, width=56, wraplength=400,
+            self.status = tk.StringVar(value="Waiting for the phone on USB.")
+            tk.Label(root, textvariable=self.status, wraplength=400,
                      font=fonts["body"], fg=DIALOG_INK, bg=DIALOG_PAPER).pack(padx=18, pady=18)
-            _dialog_button(tk, root, "Retry after phone recovery", fonts["small"],
+            _dialog_button(tk, root, "Try again", fonts["small"],
                            command=self.retry).pack(pady=(0, 8))
             _dialog_button(tk, root, "Remove model copies", fonts["small"],
                            command=self.remove_model_copies).pack(pady=(0, 8))
@@ -981,41 +1018,47 @@ class Companion:
                 padx=24, pady=(0, 3), anchor="w")
         for index, line in enumerate((
                 f"The phone can use this {noun}'s GPU while the cable is plugged in.",
-                f"This {noun} can see what you ask the GPU model.",
+                f"This {noun} can see your questions and the answers.",
                 f"A copy of the model file stays on this {noun} until you remove it.",
         )):
             _dialog_label(self.tk, top, line, fonts["body"]).pack(
                 padx=24, pady=(10 if index == 0 else 0, 6), anchor="w")
         _dialog_label(self.tk, top,
-                      "Unplug to pause. Access ends after 2 minutes unplugged or when you stop GPU Link.",
+                      "Unplug to pause. Access ends after 2 minutes unplugged or when you choose Stop GPU Link.",
                       fonts["small"]).pack(padx=24, pady=(8, 14), anchor="w")
         choice = {"allowed": False}
         unblock = self.clock() + 0.7
+        lifetime = _DialogLifetime(top)
 
         def finish(allowed=False):
-            if self.clock() < unblock:
+            if lifetime.closed or (allowed and self.clock() < unblock):
                 return
             choice["allowed"] = allowed and self.link_present()
-            top.destroy()
+            lifetime.close()
 
         def still_attached():
             if not self.link_present():
-                top.destroy()
+                lifetime.close()
             else:
-                top.after(1000, still_attached)
+                lifetime.after(1000, still_attached)
 
         allow = _dialog_button(self.tk, top, "Allow this phone", fonts["small"], state="disabled",
                                command=lambda: finish(True))
-        deny = _dialog_button(self.tk, top, "Not now", fonts["small"], state="disabled",
+        deny = _dialog_button(self.tk, top, "Not now", fonts["small"], state="normal",
                               command=finish)
         allow.pack(side="right", padx=(0, 24), pady=(0, 18))
         deny.pack(side="right", padx=12, pady=(0, 18))
+        deny.focus_set()
+
+        def on_return(_event):
+            finish(top.focus_get() == allow)
+            return "break"
+
         top.bind("<Escape>", lambda event: finish())
-        top.bind("<Return>", lambda event: finish())
+        top.bind("<Return>", on_return)
         top.protocol("WM_DELETE_WINDOW", finish)
-        top.after(700, lambda: (allow.configure(state="normal"), deny.configure(state="normal"),
-                                deny.focus_set()))
-        top.after(1000, still_attached)
+        lifetime.after(700, lambda: allow.configure(state="normal"))
+        lifetime.after(1000, still_attached)
         self.root.wait_window(top)
         return choice["allowed"]
 
@@ -1050,31 +1093,33 @@ class Companion:
             padx=24, pady=(0, 4), anchor="w")
         _dialog_label(self.tk, top, f"{code[:3]} {code[3:]}", fonts["title"]).pack(
             padx=24, pady=(0, 6), anchor="w")
-        countdown = _dialog_label(self.tk, top, "60 s left", fonts["small"])
+        countdown = _dialog_label(self.tk, top, "60 seconds left", fonts["small"])
         countdown.pack(padx=24, pady=(0, 12), anchor="w")
         _dialog_label(self.tk, top,
-                      f"If allowed, this {noun} can see what you ask the GPU model and keeps a copy of the model file.",
+                      f"If allowed, this {noun} can see your questions and the answers. A model file stays here.",
                       fonts["body"]).pack(padx=24, pady=(0, 8), anchor="w")
         note = _dialog_label(self.tk, top, f"On the phone, tap Allow this {noun}.",
                              fonts["small"])
         note.pack(padx=24, pady=(0, 14), anchor="w")
         accepted = {"yes": False}
+        lifetime = _DialogLifetime(top)
 
         def close():
-            top.destroy()
+            lifetime.close()
 
         def probe():
             if not self.link_present():
-                note.configure(text="Error: USB link lost. Replug to try again.", fg=DIALOG_ERROR)
-                top.after(1500, close)
+                note.configure(text="Error: Phone not ready. Check the cable and USB access.", fg=DIALOG_ERROR)
+                countdown.configure(text="")
+                lifetime.after(5000, close)
                 return
             if self.clock() >= deadline:
                 note.configure(text="Error: Pairing expired. Wait for a new code on the phone.",
                                fg=DIALOG_ERROR)
                 countdown.configure(text="Expired", fg=DIALOG_ERROR)
-                top.after(1500, close)
+                lifetime.after(5000, close)
                 return
-            countdown.configure(text=f"{max(1, int(deadline - self.clock() + 0.999))} s left")
+            countdown.configure(text=f"{max(1, int(deadline - self.clock() + 0.999))} seconds left")
             try:
                 if authenticated_idle(pc):
                     accepted["yes"] = self.running and self.clock() < deadline and self.link_present()
@@ -1082,7 +1127,7 @@ class Companion:
                     return
             except (OSError, ToolError, CompanionError):
                 pass
-            top.after(1000, probe)
+            lifetime.after(1000, probe)
 
         deny = _dialog_button(self.tk, top, "Not now", fonts["small"], command=close)
         deny.pack(padx=24, pady=(0, 18), anchor="e")
@@ -1090,7 +1135,7 @@ class Companion:
         top.bind("<Escape>", lambda event: close())
         top.bind("<Return>", lambda event: close())
         top.protocol("WM_DELETE_WINDOW", close)
-        top.after(750, probe)
+        lifetime.after(750, probe)
         self.root.wait_window(top)
         return accepted["yes"]
 
