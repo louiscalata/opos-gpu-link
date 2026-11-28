@@ -2194,14 +2194,10 @@ public final class MainActivity extends Activity {
                 namedModel);
         String where = PaneKeys.shownWhere(pane, textField(model, "where"));
         setIfChanged(view.heading, label);
-        setIfChanged(view.byline, ModelMaker.details(label, maker, where));
+        setIfChanged(view.byline, ModelMaker.details("", maker, where));
     }
 
-    /**
-     * Byline of the phone's lead lane: the model the service reports for it. That is the model
-     * that wrote the answer on screen, else the running model; a hidden older answer's model is
-     * not used. Called again from renderAnswers once the snapshot's request state is final.
-     */
+    /** Name the lead phone card from its shown answer or current model, never a hidden old answer. */
     private void namePhoneLane(PaneViews view, JSONObject phone) {
         if (view == null) return;
         JSONObject answer = phone == null ? null : phone.optJSONObject("answer");
@@ -2210,8 +2206,11 @@ public final class MainActivity extends Activity {
         // An answer the card hides must not name the card; the service's model then reads as
         // that answer's, so fall back to the place alone rather than show a stale model.
         String where = phone == null || phone.isNull("where") ? "" : phone.optString("where", "");
+        boolean shown = answer != null && answerShown("phone", answer);
+        setIfChanged(view.heading, PhoneByline.titleForCard(reported, answered,
+                answer != null, shown, getString(R.string.phone_heading)));
         setIfChanged(view.byline, PhoneByline.forCard(reported, answered, answer != null,
-                answer != null && answerShown("phone", answer), PaneKeys.shownWhere("phone", where)));
+                shown, PaneKeys.shownWhere("phone", where)));
     }
 
     private void reconcileLatestRequest(JSONObject data) {
@@ -3028,12 +3027,12 @@ public final class MainActivity extends Activity {
         List<NewspaperSummary.Lane> lanes = new ArrayList<>();
         boolean allClosed = !latestRequestedPanes.isEmpty();
         boolean anyInterrupted = false;
-        for (String pane : paneOrder) {
+        for (String pane : orderedDevicePanes()) {
             PaneViews article = paneViews.get(pane);
+            if (article == null) continue;
             JSONObject answer = answerOf(snapshot, pane);
             String id = answer == null ? "" : answer.optString("id");
-            String shortLabel = "phone".equals(pane) ? getString(R.string.phone_heading)
-                    : article.heading.getText().toString();
+            String shortLabel = article.heading.getText().toString();
             boolean included = latestRequestedPanes.isEmpty()
                     ? answer != null && !latestQuestion.isEmpty()
                     && latestQuestion.equals(answer.optString("question"))
@@ -3109,7 +3108,7 @@ public final class MainActivity extends Activity {
         if (issueId.equals(archivedIssueId) || issueId.equals(suppressedIssueId)) return;
         List<HistoryStore.Lane> lanes = new ArrayList<>();
         boolean anyInterrupted = false;
-        for (String pane : paneOrder) {
+        for (String pane : orderedDevicePanes()) {
             if (!latestRequestedPanes.contains(pane)) continue;
             JSONObject answer = answerOf(snapshot, pane);
             String expectedId = latestRequestIds.get(pane);
@@ -3122,8 +3121,7 @@ public final class MainActivity extends Activity {
             PaneViews article = paneViews.get(pane);
             JSONObject model = paneOf(snapshot, pane);
             if (article == null) return;
-            String label = "phone".equals(pane) ? getString(R.string.phone_heading)
-                    : article.heading.getText().toString();
+            String label = article.heading.getText().toString();
             // Keep the model that wrote this answer, even if the slot now holds another one.
             String answerModel = textField(answer, "model");
             String slotLabel = textField(model, "label");
@@ -3132,13 +3130,16 @@ public final class MainActivity extends Activity {
             String resolvedModel = answerModel.isEmpty()
                     ? ModelDisplay.firstNonBlank(PaneKeys.extra(pane) ? slotLabel : "", slotModel)
                     : answerModel;
-            String maker = "phone".equals(pane)
-                    // The phone lane's History byline keeps the model that wrote the answer.
-                    ? PhoneByline.modelAndMaker(answerModel)
+            PhoneByline.ArchiveName phoneName = "phone".equals(pane)
+                    ? PhoneByline.archived(answerModel, slotModel, getString(R.string.phone_heading))
+                    : null;
+            String maker = phoneName != null ? phoneName.maker
                     : ModelMaker.maker(AnsweredModel.maker(
                             PaneKeys.extra(pane) ? slotLabel : slotModel,
                             slotMaker, answerModel), resolvedModel);
-            if (PaneKeys.extra(pane)) {
+            if (phoneName != null) {
+                label = phoneName.title;
+            } else if (PaneKeys.extra(pane)) {
                 label = AnsweredModel.label(label, answerModel);
             } else if ("gpu".equals(pane)) {
                 if (!resolvedModel.isEmpty()) label = ModelDisplay.label(resolvedModel);
@@ -3630,7 +3631,10 @@ public final class MainActivity extends Activity {
                     : lanes == null ? View.GONE : View.INVISIBLE);
             tonightLeader.setTextColor(parseHex(palette.ok()));
         }
-        for (TonightRows.Row row : TonightRows.parse(timing)) {
+        List<TonightRows.Row> rows = TonightRows.parse(timing);
+        List<NewspaperSummary.Lane> rowLanes = TonightRows.matchingLanes(rows, lanes);
+        for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
+            TonightRows.Row row = rows.get(rowIndex);
             if (row.note()) {
                 TextView note = newspaperText(row.label, 12, false, false);
                 typography.tabular(note);
@@ -3651,7 +3655,9 @@ public final class MainActivity extends Activity {
             typography.tabular(value);
             value.setGravity(Gravity.END);
             value.setMinWidth(dp(56));
-            String toneSource = tonightToneSource(row, lanes);
+            NewspaperSummary.Lane lane = rowLanes.get(rowIndex);
+            String toneSource = lane == null ? row.label + " " + row.value
+                    : lane.state + " " + row.value;
             int color = parseHex(palette.colorForTone(UiPalette.tone(toneSource)));
             label.setTextColor(color);
             value.setTextColor(color);
@@ -3663,7 +3669,6 @@ public final class MainActivity extends Activity {
             line.addView(value, valueParams);
             container.addView(line, new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-            NewspaperSummary.Lane lane = tonightLane(row, lanes);
             if (lane != null && lane.included) {
                 line.setContentDescription(RaceLine.rowDescription(row.label, row.value, lane.words));
                 // One TalkBack stop per row that reads the description, not label and time apart.
@@ -3690,27 +3695,6 @@ public final class MainActivity extends Activity {
                         LinearLayout.LayoutParams.WRAP_CONTENT));
             }
         }
-    }
-
-    private static NewspaperSummary.Lane tonightLane(TonightRows.Row row,
-                                                     List<NewspaperSummary.Lane> lanes) {
-        if (lanes == null || row == null) return null;
-        for (NewspaperSummary.Lane lane : lanes) {
-            if (lane != null && java.util.Objects.equals(row.label, lane.label)) return lane;
-        }
-        return null;
-    }
-
-    private static String tonightToneSource(TonightRows.Row row,
-                                            List<NewspaperSummary.Lane> lanes) {
-        if (lanes != null) {
-            for (NewspaperSummary.Lane lane : lanes) {
-                if (row.label.equals(lane.label)) {
-                    return lane.state + " " + row.value;
-                }
-            }
-        }
-        return row.label + " " + row.value;
     }
 
     private void setSummaryReport(String report) {
@@ -4973,24 +4957,35 @@ public final class MainActivity extends Activity {
     }
 
     private String modelLabel(String pane, JSONObject view) {
-        if ("phone".equals(pane)) return getString(R.string.phone_heading);
+        if ("phone".equals(pane)) {
+            String model = PhoneByline.modelName(phoneSelectionModel(view));
+            return model.isEmpty() ? getString(R.string.phone_heading) : model;
+        }
         if ("gpu".equals(pane)) return leadTitle(view);
         String label = ModelDisplay.firstNonBlank(textField(view, "label"),
                 textField(view, "model"));
         return label.isEmpty() ? PaneKeys.fallbackLabel(pane) : ModelDisplay.label(label);
     }
 
+    private String phoneSelectionModel(JSONObject view) {
+        JSONObject answer = view == null ? null : view.optJSONObject("answer");
+        return PhoneByline.cardModel(textField(view, "model"), textField(answer, "model"),
+                answer != null, answer != null && answerShown("phone", answer));
+    }
+
     private String modelDetails(String pane, JSONObject view) {
-        String model = ModelDisplay.firstNonBlank(
-                PaneKeys.extra(pane) ? textField(view, "label") : "",
-                textField(view, "model"));
-        String maker = textField(view, "maker");
+        String model = "phone".equals(pane) ? phoneSelectionModel(view)
+                : ModelDisplay.firstNonBlank(
+                        PaneKeys.extra(pane) ? textField(view, "label") : "",
+                        textField(view, "model"));
+        String maker = "phone".equals(pane) ? PhoneByline.maker(model)
+                : textField(view, "maker");
         String where = PaneKeys.shownWhere(pane, textField(view, "where"));
         StringBuilder details = new StringBuilder(
-                ModelMaker.details(model, ModelMaker.maker(maker, model), where));
+                ModelMaker.details("", ModelMaker.maker(maker, model), where));
         double fileMb = view == null ? Double.NaN : view.optDouble("file_mb", Double.NaN);
         if (Double.isFinite(fileMb) && fileMb >= 0) {
-            details.append(" · ");
+            if (details.length() > 0) details.append(" · ");
             details.append(fileMb == Math.rint(fileMb)
                     ? String.format(Locale.US, "%.0f MB", fileMb)
                     : String.format(Locale.US, "%.1f MB", fileMb));

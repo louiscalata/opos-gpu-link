@@ -18,6 +18,8 @@ public final class ModelMakerTest {
         equal("LFM2 1.2B (baseline) · Liquid AI · on this phone",
                 ModelMaker.details("LFM2-1.2B", "Liquid AI", "on this phone"));
         equal("Some Other 3B · on this phone", ModelMaker.details("Some Other 3B", "", "on this phone"));
+        equal("NVIDIA · on this phone", ModelMaker.details("", "NVIDIA", "on this phone"));
+        equal("on this phone", ModelMaker.details("", "", "on this phone"));
         check(!ModelMaker.details("X", "", "y").contains("unavailable"), "never Maker unavailable");
         System.out.println("ModelMakerTest OK");
     }

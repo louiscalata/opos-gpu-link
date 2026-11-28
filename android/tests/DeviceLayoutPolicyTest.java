@@ -37,6 +37,10 @@ public final class DeviceLayoutPolicyTest {
                 DeviceLayoutPolicy.column(DeviceLayoutPolicy.Side.COMPUTER, 0, 3));
         eq(Arrays.asList("gpu", "m1", "m4", "phone"), DeviceLayoutPolicy.orderedPanes(
                 Arrays.asList("phone", "m1", "gpu", "m4"), new HashMap<>()));
+        eq(Arrays.asList("gpu", "m1", "m2", "m3", "m4", "g1", "phone"),
+                DeviceLayoutPolicy.orderedPanes(
+                        Arrays.asList("gpu", "phone", "m1", "m2", "m3", "m4", "g1"),
+                        Collections.emptyMap()));
         eq(Arrays.asList("gpu", "phone"), DeviceLayoutPolicy.orderedPanes(
                 Arrays.asList("phone", "gpu"), Collections.emptyMap()));
         eq(DeviceLayoutPolicy.LinkState.CABLE_OUT,
