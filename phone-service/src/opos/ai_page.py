@@ -981,10 +981,9 @@ function drawPane(name,p){
  line(name+'-state',[speed||live?state:'',a&&a.tokens!=null?a.tokens+' tokens':''].filter(Boolean).join(' · '));
  if(name==='gpu'){
   G('gpu-disclosure').hidden=off;
-  var cable=cableWords(p),cableMode=cableState(p),fault=!!(p.link&&p.link.storage_fault);
+  var cable=cableWords(p),cableMode=cableState(p);
   line('gpu-cable',cable);G('gpu-cable').dataset.cable=cableMode;
-  announce('gpu-cable-announcement',JSON.stringify([boot,cableMode,fault,noun()]),
-   cableMode?(fault?'Wait before unplugging.':cable):'');
+  announce('gpu-cable-announcement',JSON.stringify([boot,cable]),cable);
  }
  var box=G(name+'-answer'),value=a?a.text:'',follow=box.scrollHeight-box.clientHeight-box.scrollTop<=24;
  var changed=box.dataset.answer!==(a?a.id:'');

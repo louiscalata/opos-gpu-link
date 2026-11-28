@@ -216,7 +216,8 @@ class PageStatusTest(NoNetwork):
                           for writes in shown["pollWrites"]], [
                               ["Not connected. Check the cable and the MacBook."],
                               ["Connected. Safe to unplug."], [], [],
-                              ["Wait before unplugging."], ["Connected. Safe to unplug."]])
+                              ["A saved answer was damaged and moved aside. Wait before unplugging."],
+                              ["Connected. Safe to unplug."]])
 
         copying = json.loads(json.dumps(snap))
         copying["gpu"]["link"]["pc"].update(state="copying", total=100, copied=10)
@@ -226,6 +227,39 @@ class PageStatusTest(NoNetwork):
         shown = self.run_page(copying, polls=[later])
         self.assertIn("80%", shown["gpuSpeed"])
         self.assertEqual(shown["pollWrites"], [[]])
+
+    def test_cable_announcement_matches_visible_text_for_link_and_storage_states(self):
+        cases = (
+            (False, True, "The phone could not save the answer."),
+            (True, True, "The phone could not save the answer. Wait before unplugging."),
+            (False, False, "Not connected. Check the cable and the MacBook."),
+            (True, False, "Connected. Safe to unplug."),
+        )
+        for live, fault, expected in cases:
+            with self.subTest(live=live, storage_fault=fault):
+                snap = _snapshot({"label": "M5 Pro MacBook Pro", "live": live, "state": "ready"})
+                snap["gpu"]["link"]["model"] = {"state": "ready"}
+                snap["gpu"]["link"]["storage_fault"] = fault
+                snap["gpu"]["link"]["storage"] = "error" if fault else None
+                shown = self.run_page(snap)
+                announced = [words for ident, words in shown["initialWrites"]
+                             if ident == "gpu-cable-announcement"]
+                self.assertEqual(shown["gpuCable"], expected)
+                self.assertEqual(announced, [shown["gpuCable"]])
+
+    def test_answer_start_announces_changed_cable_words_without_link_change(self):
+        snap = _snapshot({"label": "M5 Pro MacBook Pro", "live": True, "state": "ready"})
+        snap["gpu"]["link"]["model"] = {"state": "ready"}
+        answering = json.loads(json.dumps(snap))
+        answering["rev"] = 2
+        answering["gpu"]["answer"] = _answer("g", "answering")
+        repeated = json.loads(json.dumps(answering))
+        repeated["rev"] = 3
+        shown = self.run_page(snap, polls=[answering, repeated])
+        self.assertEqual(shown["gpuCable"],
+                         "Connected. Safe to unplug: the answer is saved and continues when the MacBook is ready again.")
+        self.assertEqual([[words for ident, words in writes if ident == "gpu-cable-announcement"]
+                          for writes in shown["pollWrites"]], [[shown["gpuCable"]], []])
 
     def test_live_speed_names_the_measured_unit_and_this_run(self):
         snap = _snapshot()
