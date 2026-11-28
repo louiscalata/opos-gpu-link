@@ -111,7 +111,7 @@ final class AnswerMarkdownParser {
             }
             int openingWidth = fenceLength(line, (char) 0, 3, false);
             if (openingWidth > 0) {
-                fence = line.stripLeading().charAt(0);
+                fence = LeadingWhitespace.strip(line).charAt(0);
                 fenceWidth = openingWidth;
                 tableColumns = 0;
                 previousNestedOrNumbered = false;

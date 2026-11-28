@@ -26,6 +26,21 @@ public final class TonightRowsTest {
         row(note.get(1), "PC", "2.0\u00a0s");
         // Older saved issues used two spaces between label and value.
         row(TonightRows.parse("PC  2.0 s").get(0), "PC", "2.0\u00a0s");
+        NewspaperSummary.Lane first = new NewspaperSummary.Lane(
+                "Nemotron Mini 4B", "one", "Done", 1000L);
+        NewspaperSummary.Lane second = new NewspaperSummary.Lane(
+                "Nemotron Mini 4B", "two words", "Could not finish", null);
+        List<NewspaperSummary.Lane> sameNames = Arrays.asList(first, second);
+        String duplicateTiming = NewspaperSummary.timing(sameNames);
+        List<NewspaperSummary.Lane> matches = TonightRows.matchingLanes(
+                TonightRows.parse(duplicateTiming), sameNames);
+        check(matches.get(0) == first);
+        check(matches.get(1) == second);
+        List<NewspaperSummary.Lane> withNote = TonightRows.matchingLanes(
+                TonightRows.parse("A note\n" + duplicateTiming), sameNames);
+        check(withNote.get(0) == null);
+        check(withNote.get(1) == first);
+        check(withNote.get(2) == second);
         equal(0, TonightRows.parse("").size());
         equal(0, TonightRows.parse(null).size());
         System.out.println("TonightRowsTest: OK");

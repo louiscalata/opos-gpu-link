@@ -183,6 +183,10 @@ public final class AnswerMarkdownParserTest {
         equal("# **literal**", tildeFence.text);
         mark(tildeFence, "# **literal**", AnswerMarkdownParser.CODE);
         equal(1, tildeFence.marks.size());
+        AnswerMarkdownParser.Result indentedFence = AnswerMarkdownParser.parse(
+                "   ```\n**literal**\n   ```");
+        equal("**literal**", indentedFence.text);
+        mark(indentedFence, "**literal**", AnswerMarkdownParser.CODE);
         AnswerMarkdownParser.Result openFence = AnswerMarkdownParser.parse(
                 "```js\n**still literal**\n> no quote");
         equal("**still literal**\n> no quote", openFence.text);

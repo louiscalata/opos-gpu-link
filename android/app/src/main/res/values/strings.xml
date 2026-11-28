@@ -1,5 +1,10 @@
 <resources>
     <string name="app_name">OPOS GPU Link</string>
+    <string name="device_phone_kicker">PHONE</string>
+    <string name="device_phone_name">Phone</string>
+    <string name="device_link_waiting">USB-C\nWaiting</string>
+    <string name="device_computer_kicker">COMPUTER</string>
+    <string name="device_computer_name">Computer</string>
     <string name="eyebrow">OPOS / MODELS</string>
     <string name="subtitle">Compare answers on this phone and on the connected computer.</string>
     <string name="connecting">Checking the models…</string>
@@ -55,6 +60,8 @@
     <string name="gpu_disclosure">GPU prompts go to the paired computer.</string>
     <string name="ready_to_ask">Ready</string>
     <string name="phone_model_unavailable">No phone model available</string>
+    <string name="model_selection_minimum">Keep at least one model on.</string>
+    <string name="model_selection_next_question">Your choices apply to the next question.</string>
     <string name="gpu_ready_or_waiting">Waiting for the GPU model</string>
     <string name="answer_queued">Queued behind an earlier answer</string>
     <string name="gpu_waiting">Waiting for the PC</string>
@@ -83,6 +90,13 @@
     <string name="action_failed">The phone did not accept that action. Try again.</string>
     <string name="answer_ack_uncertain">Checking whether the phone accepted your question…</string>
     <string name="answer_id_missing">No answer appeared. Tap Try again.</string>
+    <string name="quit_confirm_title">Quit OPOS GPU Link?</string>
+    <string name="quit_confirm_message">Answers in progress will stop.</string>
+    <string name="quit_action">Quit</string>
+    <string name="quit_stopping">Stopping answers…</string>
+    <string name="quit_still_running_title">Answers may still be running</string>
+    <string name="quit_still_running_message">The phone could not confirm that every answer stopped.</string>
+    <string name="quit_close_app">Close app</string>
     <string name="reset_ask">Reset</string>
     <string name="reset_ask_copy">Your last question may still be running. Reset clears this screen’s check but does not stop the answer.</string>
     <string name="ready">Watching for USB-C</string>
@@ -92,7 +106,6 @@
     <string name="link_notification">USB-C cable connected. Tap to open GPU Link.</string>
     <string name="link_question">Open OPOS GPU Link to compare answers on this phone and a computer over USB-C?</string>
     <string name="open_link">Open GPU Link</string>
-    <string name="later">Not now</string>
     <string name="info">Info</string>
     <string name="info_description">Show GPU Link information</string>
     <string name="info_title">Info</string>
@@ -138,6 +151,10 @@
     <string name="forget_pc_final">Forget PC</string>
     <string name="forget_pc_changed">PC state changed. Open Info and check it again.</string>
     <string name="close">Close</string>
+    <string name="cancel">Cancel</string>
+    <string name="history_clear_action">Clear history</string>
+    <string name="history_clear_title">Clear history?</string>
+    <string name="history_clear_message">Remove all saved questions from this phone?</string>
     <string name="send">Send</string>
     <string name="stop">Stop</string>
     <string name="try_again">Try again</string>
@@ -175,9 +192,15 @@
     <string name="settings_theme_system">Follow system</string>
     <string name="settings_selected">Selected</string>
     <string name="save_to_notes">Save to Notes</string>
-    <string name="settings_close">Close</string>
     <string name="history_refresh">Refresh</string>
     <string name="history_refresh_description">Ask this original question again on the current models</string>
+    <string name="history_title">History</string>
+    <string name="history_empty">No past questions yet.</string>
+    <string name="history_answered_by">Answered by: %1$s</string>
+    <string name="history_answer_shortened">This saved answer was shortened.</string>
+    <string name="history_back_to_today">Back to today</string>
+    <string name="history_back_issue_date">BACK ISSUE · %1$s</string>
+    <string name="history_archive_label">ARCHIVE</string>
     <string name="history_then">Then</string>
     <string name="history_now">Now</string>
     <string name="history_then_vs_now">Then vs Now</string>
@@ -194,6 +217,11 @@
     <string name="summary_open">Open Summary</string>
     <string name="summary_close">Close Summary</string>
     <string name="summary_title">Summary</string>
+    <string name="summary_label">SUMMARY</string>
+    <string name="summary_empty">Ask the models to compare their answers.</string>
+    <string name="tonight_label">TONIGHT</string>
+    <string name="tonight_initial_time">0.0 s</string>
+    <string name="tonight_waiting">PC waiting\nPhone waiting</string>
     <string name="notes_saved">Saved to Notes</string>
 </resources>
 

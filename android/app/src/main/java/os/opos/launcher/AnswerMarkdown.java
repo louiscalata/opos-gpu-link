@@ -1,6 +1,5 @@
 package os.opos.launcher;
 
-import android.graphics.Typeface;
 import android.text.Spannable;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
@@ -27,7 +26,7 @@ final class AnswerMarkdown {
                             TypeConfig.italicFace(TypeConfig.body().face)));
                     break;
                 case MarkdownFace.MONOSPACE:
-                    span = new TypefaceSpan(Typeface.MONOSPACE);
+                    span = new TypefaceSpan(typography.face(TypeConfig.FACE_JETBRAINS_MONO_MEDIUM));
                     break;
                 default:
                     continue;
