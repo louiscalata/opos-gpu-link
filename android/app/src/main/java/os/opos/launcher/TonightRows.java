@@ -37,6 +37,22 @@ final class TonightRows {
         return rows;
     }
 
+    /** Timing writes one row per lane, in pane order; note rows have no lane. */
+    static List<NewspaperSummary.Lane> matchingLanes(List<Row> rows,
+                                                     List<NewspaperSummary.Lane> lanes) {
+        List<NewspaperSummary.Lane> matches = new ArrayList<>();
+        int laneIndex = 0;
+        for (Row row : rows) {
+            if (row.note()) {
+                matches.add(null);
+                continue;
+            }
+            matches.add(lanes != null && laneIndex < lanes.size() ? lanes.get(laneIndex) : null);
+            laneIndex++;
+        }
+        return matches;
+    }
+
     private static Row parseLine(String line) {
         String[] tokens = line.split(String.valueOf(NBSP), -1);
         if (tokens.length < 2) return new Row(line.trim(), "");

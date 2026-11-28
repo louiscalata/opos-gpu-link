@@ -849,7 +849,7 @@ public final class MainActivity extends Activity {
         view.setTextColor(themeColor(R.color.newspaper_ink));
         view.setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp);
         if (serif && bold) typography.headline(view, sizeSp);
-        else if (serif) view.setTypeface(typography.smTextRegular);
+        else if (serif) view.setTypeface(typography.face(TypeConfig.body().face));
         else view.setTypeface(bold ? typography.interSemibold : typography.interMedium);
         return view;
     }
@@ -858,7 +858,25 @@ public final class MainActivity extends Activity {
         AlertDialog dialog = builder.create();
         dialog.show();
         typography.defaults(dialog.getWindow().getDecorView());
+        applyPaletteToAlert(dialog);
         return dialog;
+    }
+
+    private void applyPaletteToAlert(Dialog dialog) {
+        Window window = dialog.getWindow();
+        if (window == null) return;
+        window.setBackgroundDrawable(new ColorDrawable(themeColor(R.color.newspaper_paper)));
+        recolorAlertText(window.getDecorView(), themeColor(R.color.newspaper_ink));
+    }
+
+    private void recolorAlertText(View view, int ink) {
+        if (view instanceof TextView) ((TextView) view).setTextColor(ink);
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                recolorAlertText(group.getChildAt(i), ink);
+            }
+        }
     }
 
     private LinearLayout box() {
@@ -996,10 +1014,10 @@ public final class MainActivity extends Activity {
         rightColumn = new LinearLayout(this);
         rightColumn.setOrientation(LinearLayout.VERTICAL);
         timingCard = box();
-        TextView tonightKicker = newspaperText("TONIGHT", 12, true, false);
+        TextView tonightKicker = newspaperText(getString(R.string.tonight_label), 12, true, false);
         typography.kicker(tonightKicker);
         timingCard.addView(tonightKicker);
-        tonightCount = newspaperText("0.0 s", 28, true, false);
+        tonightCount = newspaperText(getString(R.string.tonight_initial_time), 28, true, false);
         typography.tabular(tonightCount);
         timingCard.addView(tonightCount);
         tonightProvenance = newspaperText("", 13, false, false);
@@ -1019,7 +1037,7 @@ public final class MainActivity extends Activity {
         tonightLeader.setPadding(0, dp(6), 0, 0);
         tonightLeader.setVisibility(View.GONE);
         timingCard.addView(tonightLeader);
-        setTonightTiming(ComputerWords.apply("PC\u00a0waiting\nPhone\u00a0waiting"));
+        setTonightTiming(pcWords(R.string.tonight_waiting));
         notesCard = box();
         notes = new LinedNotesEditText(this);
         notes.setTextColor(themeColor(R.color.newspaper_ink));
@@ -1045,9 +1063,9 @@ public final class MainActivity extends Activity {
         notesCard.setOnDragListener(notesTargetListener());
         applyNotesCompact();
         summaryCard = box();
-        summaryHeading = newspaperText("SUMMARY", typography.headingSp(), true, true);
+        summaryHeading = newspaperText(getString(R.string.summary_label), typography.headingSp(), true, true);
         summaryCard.addView(summaryHeading);
-        summaryText = newspaperText("Ask the models to compare their answers.",
+        summaryText = newspaperText(getString(R.string.summary_empty),
                 typography.bodySp(), false, true);
         typography.body(summaryText, typography.bodySp());
         summaryCard.addView(summaryText, new LinearLayout.LayoutParams(
@@ -2241,14 +2259,10 @@ public final class MainActivity extends Activity {
                 namedModel);
         String where = PaneKeys.shownWhere(pane, textField(model, "where"));
         setIfChanged(view.heading, label);
-        setIfChanged(view.byline, ModelMaker.details(label, maker, where));
+        setIfChanged(view.byline, ModelMaker.details("", maker, where));
     }
 
-    /**
-     * Byline of the phone's lead lane: the model the service reports for it. That is the model
-     * that wrote the answer on screen, else the running model; a hidden older answer's model is
-     * not used. Called again from renderAnswers once the snapshot's request state is final.
-     */
+    /** Name the lead phone card from its shown answer or current model, never a hidden old answer. */
     private void namePhoneLane(PaneViews view, JSONObject phone) {
         if (view == null) return;
         JSONObject answer = phone == null ? null : phone.optJSONObject("answer");
@@ -2257,8 +2271,11 @@ public final class MainActivity extends Activity {
         // An answer the card hides must not name the card; the service's model then reads as
         // that answer's, so fall back to the place alone rather than show a stale model.
         String where = phone == null || phone.isNull("where") ? "" : phone.optString("where", "");
+        boolean shown = answer != null && answerShown("phone", answer);
+        setIfChanged(view.heading, PhoneByline.titleForCard(reported, answered,
+                answer != null, shown, getString(R.string.phone_heading)));
         setIfChanged(view.byline, PhoneByline.forCard(reported, answered, answer != null,
-                answer != null && answerShown("phone", answer), PaneKeys.shownWhere("phone", where)));
+                shown, PaneKeys.shownWhere("phone", where)));
     }
 
     private void reconcileLatestRequest(JSONObject data) {
@@ -2989,8 +3006,8 @@ public final class MainActivity extends Activity {
                 article.programmaticScroll = false;
             }
         }
-        String answerText = PcPausePolicy.textToDisplay(paneName, state, sameRenderedAnswer,
-                article.rawAnswer, answer.optString("text"));
+        String answerText = AnswerDisplay.text(paneName, PcPausePolicy.textToDisplay(
+                paneName, state, sameRenderedAnswer, article.rawAnswer, answer.optString("text")));
         String failureCode = answer.optString("error", answer.optString("code"));
         String stateWords = "answering".equals(state) && answerText.isEmpty()
                 ? getString(R.string.thinking)
@@ -3075,12 +3092,12 @@ public final class MainActivity extends Activity {
         List<NewspaperSummary.Lane> lanes = new ArrayList<>();
         boolean allClosed = !latestRequestedPanes.isEmpty();
         boolean anyInterrupted = false;
-        for (String pane : paneOrder) {
+        for (String pane : orderedDevicePanes()) {
             PaneViews article = paneViews.get(pane);
+            if (article == null) continue;
             JSONObject answer = answerOf(snapshot, pane);
             String id = answer == null ? "" : answer.optString("id");
-            String shortLabel = "phone".equals(pane) ? getString(R.string.phone_heading)
-                    : article.heading.getText().toString();
+            String shortLabel = article.heading.getText().toString();
             boolean included = latestRequestedPanes.isEmpty()
                     ? answer != null && !latestQuestion.isEmpty()
                     && latestQuestion.equals(answer.optString("question"))
@@ -3156,7 +3173,7 @@ public final class MainActivity extends Activity {
         if (issueId.equals(archivedIssueId) || issueId.equals(suppressedIssueId)) return;
         List<HistoryStore.Lane> lanes = new ArrayList<>();
         boolean anyInterrupted = false;
-        for (String pane : paneOrder) {
+        for (String pane : orderedDevicePanes()) {
             if (!latestRequestedPanes.contains(pane)) continue;
             JSONObject answer = answerOf(snapshot, pane);
             String expectedId = latestRequestIds.get(pane);
@@ -3169,8 +3186,7 @@ public final class MainActivity extends Activity {
             PaneViews article = paneViews.get(pane);
             JSONObject model = paneOf(snapshot, pane);
             if (article == null) return;
-            String label = "phone".equals(pane) ? getString(R.string.phone_heading)
-                    : article.heading.getText().toString();
+            String label = article.heading.getText().toString();
             // Keep the model that wrote this answer, even if the slot now holds another one.
             String answerModel = textField(answer, "model");
             String slotLabel = textField(model, "label");
@@ -3179,13 +3195,16 @@ public final class MainActivity extends Activity {
             String resolvedModel = answerModel.isEmpty()
                     ? ModelDisplay.firstNonBlank(PaneKeys.extra(pane) ? slotLabel : "", slotModel)
                     : answerModel;
-            String maker = "phone".equals(pane)
-                    // The phone lane's History byline keeps the model that wrote the answer.
-                    ? PhoneByline.modelAndMaker(answerModel)
+            PhoneByline.ArchiveName phoneName = "phone".equals(pane)
+                    ? PhoneByline.archived(answerModel, slotModel, getString(R.string.phone_heading))
+                    : null;
+            String maker = phoneName != null ? phoneName.maker
                     : ModelMaker.maker(AnsweredModel.maker(
                             PaneKeys.extra(pane) ? slotLabel : slotModel,
                             slotMaker, answerModel), resolvedModel);
-            if (PaneKeys.extra(pane)) {
+            if (phoneName != null) {
+                label = phoneName.title;
+            } else if (PaneKeys.extra(pane)) {
                 label = AnsweredModel.label(label, answerModel);
             } else if ("gpu".equals(pane)) {
                 if (!resolvedModel.isEmpty()) label = ModelDisplay.label(resolvedModel);
@@ -3677,7 +3696,10 @@ public final class MainActivity extends Activity {
                     : lanes == null ? View.GONE : View.INVISIBLE);
             tonightLeader.setTextColor(parseHex(palette.ok()));
         }
-        for (TonightRows.Row row : TonightRows.parse(timing)) {
+        List<TonightRows.Row> rows = TonightRows.parse(timing);
+        List<NewspaperSummary.Lane> rowLanes = TonightRows.matchingLanes(rows, lanes);
+        for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
+            TonightRows.Row row = rows.get(rowIndex);
             if (row.note()) {
                 TextView note = newspaperText(row.label, 12, false, false);
                 typography.tabular(note);
@@ -3698,7 +3720,9 @@ public final class MainActivity extends Activity {
             typography.tabular(value);
             value.setGravity(Gravity.END);
             value.setMinWidth(dp(56));
-            String toneSource = tonightToneSource(row, lanes);
+            NewspaperSummary.Lane lane = rowLanes.get(rowIndex);
+            String toneSource = lane == null ? row.label + " " + row.value
+                    : lane.state + " " + row.value;
             int color = parseHex(palette.colorForTone(UiPalette.tone(toneSource)));
             label.setTextColor(color);
             value.setTextColor(color);
@@ -3710,7 +3734,6 @@ public final class MainActivity extends Activity {
             line.addView(value, valueParams);
             container.addView(line, new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-            NewspaperSummary.Lane lane = tonightLane(row, lanes);
             if (lane != null && lane.included) {
                 line.setContentDescription(RaceLine.rowDescription(row.label, row.value, lane.words));
                 // One TalkBack stop per row that reads the description, not label and time apart.
@@ -3737,27 +3760,6 @@ public final class MainActivity extends Activity {
                         LinearLayout.LayoutParams.WRAP_CONTENT));
             }
         }
-    }
-
-    private static NewspaperSummary.Lane tonightLane(TonightRows.Row row,
-                                                     List<NewspaperSummary.Lane> lanes) {
-        if (lanes == null || row == null) return null;
-        for (NewspaperSummary.Lane lane : lanes) {
-            if (lane != null && java.util.Objects.equals(row.label, lane.label)) return lane;
-        }
-        return null;
-    }
-
-    private static String tonightToneSource(TonightRows.Row row,
-                                            List<NewspaperSummary.Lane> lanes) {
-        if (lanes != null) {
-            for (NewspaperSummary.Lane lane : lanes) {
-                if (row.label.equals(lane.label)) {
-                    return lane.state + " " + row.value;
-                }
-            }
-        }
-        return row.label + " " + row.value;
     }
 
     private void setSummaryReport(String report) {
@@ -4585,10 +4587,10 @@ public final class MainActivity extends Activity {
 
     private void confirmQuit() {
         showAlert(new AlertDialog.Builder(this, R.style.LinkDialogTheme)
-                .setTitle("Quit OPOS GPU Link?")
-                .setMessage("Answers in progress will stop.")
-                .setNegativeButton(R.string.not_now, null)
-                .setPositiveButton("Quit", (dialog, which) -> quitActivity()));
+                .setTitle(R.string.quit_confirm_title)
+                .setMessage(R.string.quit_confirm_message)
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.quit_action, (dialog, which) -> quitActivity()));
     }
 
     private static List<String> openAnswerIds(JSONObject data) {
@@ -4606,12 +4608,13 @@ public final class MainActivity extends Activity {
         handler.removeCallbacks(poll);
         updateButtons();
         quitProgressDialog = new AlertDialog.Builder(this, R.style.LinkDialogTheme)
-                .setMessage("Stopping answers…")
+                .setMessage(R.string.quit_stopping)
                 .setCancelable(false)
                 .create();
         quitProgressDialog.setCanceledOnTouchOutside(false);
         quitProgressDialog.show();
         typography.defaults(quitProgressDialog.getWindow().getDecorView());
+        applyPaletteToAlert(quitProgressDialog);
         JSONObject lastSeen = snapshot;
         network.execute(() -> {
             JSONObject latest = null;
@@ -4661,10 +4664,10 @@ public final class MainActivity extends Activity {
                     updateButtons();
                     schedule(0);
                     showAlert(new AlertDialog.Builder(this, R.style.LinkDialogTheme)
-                            .setTitle("Answers may still be running")
-                            .setMessage("The phone could not confirm that every answer stopped.")
-                            .setPositiveButton("Try again", (dialog, which) -> quitActivity())
-                            .setNegativeButton("Close app", (dialog, which) -> finishAndRemoveTask()));
+                            .setTitle(R.string.quit_still_running_title)
+                            .setMessage(R.string.quit_still_running_message)
+                            .setPositiveButton(R.string.try_again, (dialog, which) -> quitActivity())
+                            .setNegativeButton(R.string.quit_close_app, (dialog, which) -> finishAndRemoveTask()));
                 } else finishAndRemoveTask();
             });
         });
@@ -5125,24 +5128,35 @@ public final class MainActivity extends Activity {
     }
 
     private String modelLabel(String pane, JSONObject view) {
-        if ("phone".equals(pane)) return getString(R.string.phone_heading);
+        if ("phone".equals(pane)) {
+            String model = PhoneByline.modelName(phoneSelectionModel(view));
+            return model.isEmpty() ? getString(R.string.phone_heading) : model;
+        }
         if ("gpu".equals(pane)) return leadTitle(view);
         String label = ModelDisplay.firstNonBlank(textField(view, "label"),
                 textField(view, "model"));
         return label.isEmpty() ? PaneKeys.fallbackLabel(pane) : ModelDisplay.label(label);
     }
 
+    private String phoneSelectionModel(JSONObject view) {
+        JSONObject answer = view == null ? null : view.optJSONObject("answer");
+        return PhoneByline.cardModel(textField(view, "model"), textField(answer, "model"),
+                answer != null, answer != null && answerShown("phone", answer));
+    }
+
     private String modelDetails(String pane, JSONObject view) {
-        String model = ModelDisplay.firstNonBlank(
-                PaneKeys.extra(pane) ? textField(view, "label") : "",
-                textField(view, "model"));
-        String maker = textField(view, "maker");
+        String model = "phone".equals(pane) ? phoneSelectionModel(view)
+                : ModelDisplay.firstNonBlank(
+                        PaneKeys.extra(pane) ? textField(view, "label") : "",
+                        textField(view, "model"));
+        String maker = "phone".equals(pane) ? PhoneByline.maker(model)
+                : textField(view, "maker");
         String where = PaneKeys.shownWhere(pane, textField(view, "where"));
         StringBuilder details = new StringBuilder(
-                ModelMaker.details(model, ModelMaker.maker(maker, model), where));
+                ModelMaker.details("", ModelMaker.maker(maker, model), where));
         double fileMb = view == null ? Double.NaN : view.optDouble("file_mb", Double.NaN);
         if (Double.isFinite(fileMb) && fileMb >= 0) {
-            details.append(" · ");
+            if (details.length() > 0) details.append(" · ");
             details.append(fileMb == Math.rint(fileMb)
                     ? String.format(Locale.US, "%.0f MB", fileMb)
                     : String.format(Locale.US, "%.1f MB", fileMb));
@@ -5207,10 +5221,10 @@ public final class MainActivity extends Activity {
             Map<String, Boolean> readyNow = readyPanes(snapshot);
             boolean next = !laneSelection.isOn(available, readyNow, pane);
             if (!laneSelection.set(available, readyNow, pane, next)) {
-                setIfChanged(modelSelectionNotice, "Keep at least one model on.");
+                setIfChanged(modelSelectionNotice, getString(R.string.model_selection_minimum));
                 return;
             }
-            setIfChanged(modelSelectionNotice, "Your choices apply to the next question.");
+            setIfChanged(modelSelectionNotice, getString(R.string.model_selection_next_question));
             updateModelSelectionRows();
             if (!displayPinned && snapshot != null) syncModelViews(snapshot);
             updateButtons();
@@ -5286,7 +5300,8 @@ public final class MainActivity extends Activity {
             }
         });
         LinearLayout root = pageRoot();
-        root.addView(pageBar("History", "Close", view -> dialog.dismiss()));
+        root.addView(pageBar(getString(R.string.history_title), getString(R.string.close),
+                view -> dialog.dismiss()));
         // Palette and typography follow the current theme.
         TextView note = newspaperText(getString(R.string.history_subtitle), 14, false, false);
         note.setPadding(0, dp(10), 0, dp(10));
@@ -5301,12 +5316,12 @@ public final class MainActivity extends Activity {
         scroll.addView(historyRows);
         root.addView(scroll, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
-        Button clear = outlineButton("Clear history");
+        Button clear = outlineButton(getString(R.string.history_clear_action));
         clear.setOnClickListener(view -> showAlert(new AlertDialog.Builder(this, R.style.LinkDialogTheme)
-                .setTitle("Clear history?")
-                .setMessage("Remove all saved questions from this phone?")
-                .setNegativeButton(R.string.not_now, null)
-                .setPositiveButton("Clear history", (confirmed, which) -> {
+                .setTitle(R.string.history_clear_title)
+                .setMessage(R.string.history_clear_message)
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.history_clear_action, (confirmed, which) -> {
                     String currentId = latestRequestAtWallMs > 0
                             ? Long.toString(latestRequestAtWallMs) : "";
                     suppressedIssueId = historyStore.contains(currentId) ? currentId : "";
@@ -5327,7 +5342,7 @@ public final class MainActivity extends Activity {
         historyRows.removeAllViews();
         List<HistoryStore.Issue> issues = historyStore.list();
         if (issues.isEmpty()) {
-            TextView empty = newspaperText("No past questions yet.", 18, false, true);
+            TextView empty = newspaperText(getString(R.string.history_empty), 18, false, true);
             empty.setPadding(0, dp(24), 0, 0);
             historyRows.addView(empty);
             return;
@@ -5351,7 +5366,8 @@ public final class MainActivity extends Activity {
             TextView headline = newspaperText(mapped.headline, 23, true, true);
             setQuestionHeadline(headline, mapped.headline);
             row.addView(headline);
-            row.addView(newspaperText("Answered by: " + mapped.answeredBy, 13, false, false));
+            row.addView(newspaperText(getString(R.string.history_answered_by, mapped.answeredBy),
+                    13, false, false));
             if (!issue.sourceId.isEmpty()) {
                 TextView link = newspaperText(getString(R.string.history_linked_refresh), 13, false, false);
                 link.setTextColor(themeColor(R.color.you_asked_label));
@@ -5402,7 +5418,7 @@ public final class MainActivity extends Activity {
         applyTone(stateView);
         card.addView(stateView);
         if (lane.truncated) {
-            TextView excerpt = newspaperText("This saved answer was shortened.",
+            TextView excerpt = newspaperText(getString(R.string.history_answer_shortened),
                     LaneCardLayout.LABEL_SP, true, false);
             typography.tabular(excerpt);
             card.addView(excerpt);
@@ -5410,7 +5426,7 @@ public final class MainActivity extends Activity {
         TextView answer = newspaperText("", LaneCardLayout.BODY_SP_FULL, false, true);
         typography.body(answer, LaneCardLayout.BODY_SP_FULL);
         answer.setTextIsSelectable(true);
-        setMarkdownAnswer(answer, lane.text);
+        setMarkdownAnswer(answer, AnswerDisplay.text(lane.pane, lane.text));
         LinearLayout.LayoutParams bodyParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         bodyParams.topMargin = dp(6);
@@ -5426,7 +5442,7 @@ public final class MainActivity extends Activity {
             if (backIssueDialog == dialog) backIssueDialog = null;
         });
         LinearLayout root = pageRoot();
-        root.addView(pageBar(getString(R.string.app_name), "Back to today",
+        root.addView(pageBar(getString(R.string.app_name), getString(R.string.history_back_to_today),
                 view -> dialog.dismiss()));
         View rule = new View(this);
         rule.setBackgroundColor(themeColor(R.color.newspaper_stroke));
@@ -5437,7 +5453,8 @@ public final class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        TextView date = newspaperText("BACK ISSUE · " + issueDate(saved.askedAtMs),
+        TextView date = newspaperText(getString(R.string.history_back_issue_date,
+                        issueDate(saved.askedAtMs)),
                 13, true, false);
         typography.tabular(date);
         date.setPadding(0, dp(10), 0, 0);
@@ -5464,7 +5481,7 @@ public final class MainActivity extends Activity {
         page.addView(refresh, refreshParams);
         addThenVersusNow(page, saved);
         LinearLayout timing = savedBox();
-        TextView timingKicker = newspaperText("TONIGHT", 12, true, false);
+        TextView timingKicker = newspaperText(getString(R.string.tonight_label), 12, true, false);
         typography.kicker(timingKicker);
         timing.addView(timingKicker);
         TextView timingCount = newspaperText(issue.elapsed, 28, true, false);
@@ -5497,20 +5514,20 @@ public final class MainActivity extends Activity {
                     LinearLayout.LayoutParams.WRAP_CONTENT, 0.42f));
             LinearLayout.LayoutParams rightParams = new LinearLayout.LayoutParams(0,
                     LinearLayout.LayoutParams.WRAP_CONTENT, 0.58f);
-            rightParams.leftMargin = dp(8);
+            rightParams.leftMargin = dp(LaneCardLayout.CARD_GAP_DP);
             columns.addView(right, rightParams);
             page.addView(columns);
             left.addView(timing, new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT));
             LinearLayout archive = savedBox();
-            archive.addView(newspaperText("ARCHIVE", 21, true, true));
+            archive.addView(newspaperText(getString(R.string.history_archive_label), 21, true, true));
             TextView archiveDate = newspaperText(issueDate(saved.askedAtMs), 15, false, false);
             typography.tabular(archiveDate);
             archive.addView(archiveDate);
-            archive.addView(newspaperText("Answered by: " + issue.answeredBy,
+            archive.addView(newspaperText(getString(R.string.history_answered_by, issue.answeredBy),
                     15, false, false));
-            putWrapCard(left, archive, 200, 8);
+            putWrapCard(left, archive, 200, LaneCardLayout.CARD_GAP_DP);
             for (HistoryStore.Lane lane : issue.lanes) {
                 if ("phone".equals(lane.pane)) {
                     putWrapCard(right, savedArticle(lane), LaneCardLayout.MIN_LANE_DP, 0);
@@ -5532,12 +5549,12 @@ public final class MainActivity extends Activity {
             }
         }
         LinearLayout summary = savedBox();
-        summary.addView(newspaperText("SUMMARY", 21, true, true));
-        TextView summaryLine = newspaperText("Answered by: " + issue.answeredBy,
+        summary.addView(newspaperText(getString(R.string.summary_label), 21, true, true));
+        TextView summaryLine = newspaperText(getString(R.string.history_answered_by, issue.answeredBy),
                 13, false, false);
         typography.tabular(summaryLine);
         summary.addView(summaryLine);
-        putWrapCard(page, summary, 100, 8);
+        putWrapCard(page, summary, 100, LaneCardLayout.CARD_GAP_DP);
         scroll.addView(page);
         root.addView(scroll, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
@@ -5590,18 +5607,19 @@ public final class MainActivity extends Activity {
         typography.kicker(kicker);
         card.addView(kicker);
         card.addView(newspaperText(row.label, typography.headingSp(), true, true));
-        card.addView(thenNowBlock(getString(R.string.history_then),
+        card.addView(thenNowBlock(row.pane, getString(R.string.history_then),
                 row.presentThen ? row.thenState : getString(R.string.history_not_asked_then),
                 row.presentThen ? row.thenText : "",
                 row.thenTone));
-        card.addView(thenNowBlock(getString(R.string.history_now),
+        card.addView(thenNowBlock(row.pane, getString(R.string.history_now),
                 row.presentNow ? row.nowState : getString(R.string.history_not_asked_now),
                 row.presentNow ? row.nowText : "",
                 row.nowTone));
         return card;
     }
 
-    private LinearLayout thenNowBlock(String heading, String state, String body, UiPalette.Tone tone) {
+    private LinearLayout thenNowBlock(String pane, String heading, String state,
+                                      String body, UiPalette.Tone tone) {
         LinearLayout block = new LinearLayout(this);
         block.setOrientation(LinearLayout.VERTICAL);
         block.setPadding(0, dp(8), 0, 0);
@@ -5617,7 +5635,7 @@ public final class MainActivity extends Activity {
             TextView answer = newspaperText("", typography.bodySp(), false, true);
             typography.body(answer, typography.bodySp());
             answer.setTextIsSelectable(true);
-            setMarkdownAnswer(answer, body);
+            setMarkdownAnswer(answer, AnswerDisplay.text(pane, body));
             block.addView(answer);
         }
         return block;
@@ -5639,11 +5657,26 @@ public final class MainActivity extends Activity {
         pcLabelled(dialog.findViewById(R.id.info_pc_status_label_text), "PC status");
         typography.defaults(dialog.getWindow().getDecorView());
         applyPaletteToDialog(dialog);
-        typography.headline(dialog.findViewById(R.id.info_page_title), 26);
-        dialog.<TextView>findViewById(R.id.info_replace_pc_steps)
-                .setTypeface(typography.smTextRegular);
-        typography.body(dialog.findViewById(R.id.info_about), typography.bodySp());
-        typography.body(dialog.findViewById(R.id.info_wireless_note), typography.bodySp());
+        typography.headline(dialog.findViewById(R.id.info_page_title), typography.headingSp());
+        int[] labels = {
+                R.id.info_about_label_text, R.id.info_phone_model_label_text,
+                R.id.info_pc_label_text, R.id.info_pc_id_label_text,
+                R.id.info_pc_status_label_text, R.id.info_pairing_label_text,
+                R.id.info_app_version_label_text, R.id.info_local_service_label_text,
+                R.id.info_keep_screen_on_label_text, R.id.info_screen_timeout_label_text,
+                R.id.info_cover_layout_label_text
+        };
+        for (int id : labels) typography.kicker(dialog.findViewById(id));
+        int[] values = {
+                R.id.info_about, R.id.info_wireless_note, R.id.info_phone_model,
+                R.id.info_pc, R.id.info_pc_id, R.id.info_pc_status,
+                R.id.info_pairing, R.id.info_replace_pc_steps,
+                R.id.info_app_version, R.id.info_local_service,
+                R.id.info_keep_screen_on, R.id.info_screen_timeout,
+                R.id.info_cover_layout, R.id.info_forget_error,
+                R.id.info_close, R.id.info_forget_pc
+        };
+        for (int id : values) typography.body(dialog.findViewById(id), typography.bodySp());
         JSONObject phone = snapshot == null ? null : snapshot.optJSONObject("phone");
         JSONObject gpu = snapshot == null ? null : snapshot.optJSONObject("gpu");
         String phoneModel = textField(phone, "model");
@@ -5717,7 +5750,7 @@ public final class MainActivity extends Activity {
         showAlert(new AlertDialog.Builder(this, R.style.LinkDialogTheme)
                 .setTitle(pcWords(R.string.forget_pc_title))
                 .setMessage(pcWords(R.string.forget_pc_first_message))
-                .setNegativeButton(R.string.not_now, null)
+                .setNegativeButton(R.string.cancel, null)
                 .setPositiveButton(R.string.continue_label, (first, which) -> {
                     if (!sameTrustedPc(label, fingerprint)) {
                         setIfChanged(info.findViewById(R.id.info_forget_error),
@@ -5727,7 +5760,7 @@ public final class MainActivity extends Activity {
                     showAlert(new AlertDialog.Builder(this, R.style.LinkDialogTheme)
                             .setTitle(pcWords(R.string.forget_pc_confirm_title))
                             .setMessage(pcWords(R.string.forget_pc_second_message, label))
-                            .setNegativeButton(R.string.not_now, null)
+                            .setNegativeButton(R.string.cancel, null)
                             .setPositiveButton(pcWords(R.string.forget_pc_final), (second, confirmed) -> {
                                 if (acting) return;
                                 if (!sameTrustedPc(label, fingerprint)) {
@@ -5847,9 +5880,13 @@ public final class MainActivity extends Activity {
     private GradientDrawable panelDrawable(String strokeHex) {
         GradientDrawable drawable = new GradientDrawable();
         drawable.setColor(themeColor(R.color.newspaper_paper));
-        float width = LaneCardLayout.STROKE_DP * getResources().getDisplayMetrics().density;
-        drawable.setStroke(Math.max(1, Math.round(width)), parseHex(strokeHex));
+        drawable.setStroke(cardStrokePx(), parseHex(strokeHex));
         return drawable;
+    }
+
+    private int cardStrokePx() {
+        float width = LaneCardLayout.STROKE_DP * getResources().getDisplayMetrics().density;
+        return Math.max(1, Math.round(width));
     }
 
     private void applyCardStroke(View card, UiPalette.Tone tone) {
@@ -6080,6 +6117,7 @@ public final class MainActivity extends Activity {
             typography.headline(devicePhoneName, typography.headingSp());
             typography.headline(deviceComputerName, typography.headingSp());
             typography.state(deviceLink);
+            deviceLink.setFontFeatureSettings(null);
         }
         if (bigMasthead != null) {
             typography.display(bigMasthead, coverMode ? CoverScreenPolicy.MASTHEAD_SP : 34);
@@ -6129,7 +6167,7 @@ public final class MainActivity extends Activity {
         int pagePad = dp(coverMode ? 10 : 16);
         page.setPadding(pagePad, pagePad, pagePad, pagePad);
         page.setBackgroundColor(themeColor(R.color.newspaper_paper));
-        page.addView(pageBar(getString(R.string.settings), getString(R.string.settings_close),
+        page.addView(pageBar(getString(R.string.settings), getString(R.string.close),
                 view -> dialog.dismiss()));
         TextView section = newspaperText(getString(R.string.settings_ui), typography.labelSp(), true, false);
         typography.kicker(section);
@@ -6549,7 +6587,7 @@ public final class MainActivity extends Activity {
     private GradientDrawable folderTabDrawable(boolean highlight) {
         GradientDrawable tab = new GradientDrawable();
         tab.setColor(themeColor(R.color.newspaper_paper));
-        tab.setStroke(Math.max(1, dp(highlight ? 2 : Math.round(LaneCardLayout.STROKE_DP))),
+        tab.setStroke(highlight ? dp(2) : cardStrokePx(),
                 parseHex(highlight ? palette.ink() : palette.stroke()));
         float radius = dp(10);
         tab.setCornerRadii(new float[]{radius, radius, radius, radius, 0, 0, 0, 0});

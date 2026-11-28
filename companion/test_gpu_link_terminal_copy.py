@@ -122,6 +122,20 @@ class TerminalCopyTests(unittest.TestCase):
         self.assertEqual(output.getvalue().splitlines(),
                          ["GPU Link: Window unavailable. Continuing in the terminal."])
 
+    def test_window_cleanup_timeout_is_a_failure_exit(self):
+        window = Mock()
+        with tempfile.TemporaryDirectory() as directory, \
+                patch.dict(sys.modules, {"tkinter": SimpleNamespace(Tk=lambda: window,
+                                                              TclError=Exception)}), \
+                patch.object(link, "computer_noun", return_value="MacBook"), \
+                patch.object(link, "resolve_launch_adb", return_value="fake-adb"), \
+                patch.object(link, "Companion") as companion_type:
+            companion_type.return_value.cleanup_ok = True
+            companion_type.return_value.window_stop_timed_out = True
+            result = link.main(["--model", "local", "--serial", "PHONE", "--key-dir", directory,
+                                "--server", "http://127.0.0.1:9/v1/chat/completions"])
+        self.assertEqual(result, 3)
+
     def test_widget_creation_failure_uses_terminal_without_traceback(self):
         class WindowError(Exception):
             pass
