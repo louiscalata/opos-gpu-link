@@ -1264,7 +1264,7 @@ public final class MainActivity extends Activity {
         answerView.setOnClickListener(open);
         enableSmoothGrowth(card);
         addReveal(card);
-        addLaneRetryButton(pane, card);
+        addLaneRetryButton(pane, card, paneView.working);
         wireNotesDrag(paneView);
         return paneView;
     }
@@ -4509,7 +4509,7 @@ public final class MainActivity extends Activity {
         return true;
     }
 
-    private void addLaneRetryButton(String pane, LinearLayout card) {
+    private void addLaneRetryButton(String pane, LinearLayout card, View working) {
         Button button = outlineButton(getString(R.string.lane_retry)); // 0.5dp dark-gray frame
         typography.retry(button);
         button.setPadding(dp(14), 0, dp(14), 0);
@@ -4519,7 +4519,8 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         params.topMargin = dp(8);
-        card.addView(button, params);
+        // Keep the action next to its state on every card. A long answer must not bury Retry.
+        card.addView(button, card.indexOfChild(working) + 1, params);
         laneRetryButtons.put(pane, button);
     }
 
@@ -4535,10 +4536,8 @@ public final class MainActivity extends Activity {
             Button button = entry.getValue();
             JSONObject answer = answerOf(data, pane);
             String id = answer == null ? "" : answer.optString("id");
-            boolean tracked = answer != null && !id.isEmpty()
-                    && (latestRequestedPanes.isEmpty()
-                    || latestRequestedPanes.contains(pane)
-                    && id.equals(latestRequestIds.get(pane)));
+            // Retry follows the same answer that the card shows, including a stopped lane.
+            boolean tracked = !id.isEmpty() && answerShown(pane, answer);
             if (!tracked) {
                 laneHealth.observe(pane, "", "", null, 0, "", false, now);
                 laneRetryReady.remove(pane);
