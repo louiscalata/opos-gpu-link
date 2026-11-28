@@ -24,8 +24,11 @@ READS = {
     ("-s", SERIAL, "shell", "dumpsys", "battery"): "  USB powered: true\n  level: 72\n",
     ("-s", SERIAL, "shell", "dumpsys", "SurfaceFlinger", "--display-id"):
         "Display 4619827551948147201 (HWC display 0)\nDisplay 9 (HWC display 1)\n",
-    ("-s", SERIAL, "shell", "dumpsys", "window"):
-        "mScreenOnFully=true mShowingLockscreen=false\n",
+    ("-s", SERIAL, "shell", "dumpsys", "window", "policy"):
+        "  KeyguardServiceDelegate:\n"
+        "    showing=false\n"
+        "    screenState=SCREEN_STATE_ON\n"
+        "    interactiveState=INTERACTIVE_STATE_AWAKE\n",
 }
 
 
@@ -36,7 +39,8 @@ class FakeRunner:
 
     def __call__(self, argv, **kwargs):
         self.calls.append(tuple(argv))
-        if kwargs != {"capture_output": True, "text": True, "check": False, "timeout": 10}:
+        if kwargs != {"capture_output": True, "encoding": "utf-8",
+                      "errors": "replace", "check": False, "timeout": 10}:
             raise AssertionError(f"unexpected runner options: {kwargs}")
         response = self.responses[tuple(argv[1:])]
         if isinstance(response, Exception):
@@ -62,6 +66,9 @@ class ShowPreflightTests(unittest.TestCase):
         self.assertEqual(code, 0)
         self.assertEqual(len(calls), 5)
         self.assertTrue(all(preflight.allowed_argv(call, "/fake/adb", SERIAL) for call in calls))
+        self.assertIn(("/fake/adb", "-s", SERIAL, "shell", "dumpsys", "window", "policy"), calls)
+        self.assertFalse(preflight.allowed_argv(
+            ("/fake/adb", "-s", SERIAL, "shell", "dumpsys", "window"), "/fake/adb", SERIAL))
         self.assertEqual([line.split()[0] for line in lines], ["PASS"] * 5)
         self.assertIn("USB powered yes", lines[2])
         self.assertIn("4619827551948147201, 9", lines[3])
@@ -118,14 +125,70 @@ class ShowPreflightTests(unittest.TestCase):
                 "level: 29\nUSB powered: false\n",
             ("-s", SERIAL, "shell", "dumpsys", "SurfaceFlinger", "--display-id"):
                 "No displays\n",
-            ("-s", SERIAL, "shell", "dumpsys", "window"):
+            ("-s", SERIAL, "shell", "dumpsys", "window", "policy"):
                 "mScreenOn=true mKeyguardLocked=true\n",
         }
         code, lines, _ = self.run_check(replacements)
         self.assertEqual(code, 0)
         self.assertEqual(lines[2], "WARN battery: 29%; USB powered no")
         self.assertEqual(lines[3], "WARN display IDs: none found")
+        self.assertEqual(lines[4],
+                         "WARN screen: unknown (legacy on); keyguard unknown (legacy locked)")
+
+    def test_samsung_style_delegate_wins_over_unscoped_legacy_flag(self):
+        key = ("-s", SERIAL, "shell", "dumpsys", "window", "policy")
+        window = ("mKeyguardShowing=false\n"
+                  "  KeyguardServiceDelegate:\n"
+                  "    showing=true\n"
+                  "    screenState=SCREEN_STATE_ON\n"
+                  "    interactiveState=INTERACTIVE_STATE_AWAKE\n"
+                  "  mScreenOnFully=true\n")
+        code, lines, _ = self.run_check({key: window})
+        self.assertEqual(code, 0)
         self.assertEqual(lines[4], "WARN screen: on; keyguard locked")
+
+    def test_aod_screen_state_on_is_not_awake(self):
+        key = ("-s", SERIAL, "shell", "dumpsys", "window", "policy")
+        window = ("  KeyguardServiceDelegate:\n"
+                  "    showing=false\n"
+                  "    screenState=SCREEN_STATE_ON\n"
+                  "    interactiveState=INTERACTIVE_STATE_ASLEEP\n")
+        code, lines, _ = self.run_check({key: window})
+        self.assertEqual(code, 0)
+        self.assertEqual(lines[4], "WARN screen: off; keyguard unlocked")
+
+    def test_missing_delegate_fields_are_unknown_even_with_legacy_flags(self):
+        key = ("-s", SERIAL, "shell", "dumpsys", "window", "policy")
+        for window, expected in (
+            ("mScreenOnFully=true mKeyguardShowing=false\n",
+             "WARN screen: unknown (legacy on); keyguard unknown (legacy unlocked)"),
+            ("  KeyguardServiceDelegate:\n"
+             "    showing=false\n"
+             "    screenState=SCREEN_STATE_ON\n"
+             "  mScreenOnFully=true\n",
+             "WARN screen: unknown (legacy on); keyguard unlocked"),
+            ("  KeyguardServiceDelegate:\n"
+             "    screenState=SCREEN_STATE_ON\n"
+             "    interactiveState=INTERACTIVE_STATE_AWAKE\n"
+             "  mKeyguardShowing=false\n",
+             "WARN screen: on; keyguard unknown (legacy unlocked)"),
+            ("  KeyguardServiceDelegate:\n"
+             "    showing=false/true\n"
+             "    screenState=SCREEN_STATE_ON\n"
+             "    interactiveState=INTERACTIVE_STATE_AWAKE\n",
+             "WARN screen: on; keyguard unknown"),
+        ):
+            with self.subTest(window=window):
+                code, lines, _ = self.run_check({key: window})
+                self.assertEqual(code, 0)
+                self.assertEqual(lines[4], expected)
+
+    def test_read_adb_value_error_is_unavailable(self):
+        key = ("devices", "-l")
+        code, lines, calls = self.run_check({key: ValueError("decode failure")})
+        self.assertEqual(code, 1)
+        self.assertEqual(calls, [("adb", "devices", "-l")])
+        self.assertEqual(lines[0], "FAIL device: adb devices unavailable")
 
     def test_unavailable_device_listing_fails_without_other_commands(self):
         code, lines, calls = self.run_check({("devices", "-l"): (1, "")})
