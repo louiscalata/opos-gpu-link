@@ -24,8 +24,13 @@ public final class CoverScreenPolicyTest {
         // Flip 6 cover: 748x720 px at 320 dpi.
         eq(CoverScreenPolicy.Mode.COVER, CoverScreenPolicy.select(374, 360, 1));
         eq(CoverScreenPolicy.Mode.COVER, CoverScreenPolicy.select(374, 360, 0));
+        eq(CoverScreenPolicy.Mode.COVER, CoverScreenPolicy.select(360, 374, 1));
         // Flip 6 inner: 1080x2640 px at 480 dpi, portrait 360x880 dp.
         eq(CoverScreenPolicy.Mode.FULL, CoverScreenPolicy.select(360, 880, 0));
+        // The same inner screen rotated to 2640x1080 px stays wide, not compact or cover.
+        eq(CoverScreenPolicy.Mode.WIDE, CoverScreenPolicy.select(880, 360, 0));
+        check(!CoverScreenPolicy.cover(CoverScreenPolicy.select(880, 360, 0)));
+        eq(CoverScreenPolicy.Mode.FULL, CoverScreenPolicy.select(1200, 800, 0));
         // Inner screen in a short split window: compact, never the cover layout.
         eq(CoverScreenPolicy.Mode.COMPACT, CoverScreenPolicy.select(360, 520, 0));
         eq(CoverScreenPolicy.Mode.COMPACT, CoverScreenPolicy.select(360, 440, 0));

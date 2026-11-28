@@ -54,6 +54,8 @@ public final class NewspaperLayoutDecisionTest {
         check(NewspaperLayoutDecision.animateReveal(false, false));
         check(CoverLayoutPolicy.resultsSpaceDp(210, 98, true, true)
                 >= CoverLayoutPolicy.MIN_RESULTS_DP);
+        equal(52, CoverLayoutPolicy.composerRowHeightDp(false, false, true));
+        equal(64, CoverLayoutPolicy.composerRowHeightDp(false, false, false));
         NewspaperLayoutDecision.FollowTail follow =
                 new NewspaperLayoutDecision.FollowTail();
         check(follow.following());

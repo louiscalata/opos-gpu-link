@@ -43,6 +43,11 @@ public final class NotesSheetTest {
         equal(164, NotesSheet.contentBottomPad(200, 56, 92));
         equal(72, NotesSheet.summaryMaxDp(true));
         equal(140, NotesSheet.summaryMaxDp(false));
+        equal(40, NotesSheet.summaryMaxDp(false, true));
+        equal(40, NotesSheet.summaryMinDp(true));
+        equal(56, NotesSheet.summaryMinDp(false));
+        equal(40, NotesSheet.summaryHeight(140,
+                NotesSheet.summaryMinDp(true), NotesSheet.summaryMaxDp(false, true)));
         equal(56, NotesSheet.summaryHeight(0, 56, 72));
         equal(72, NotesSheet.summaryHeight(200, 56, 72));
         equal(56, NotesSheet.summaryHeight(40, 56, 72));

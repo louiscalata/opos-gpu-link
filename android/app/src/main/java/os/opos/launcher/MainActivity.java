@@ -269,7 +269,8 @@ public final class MainActivity extends Activity {
     private long draftRevision;
     private long clearedDraftRevision = -1;
     private String clearedDraft = "";
-    private boolean visible, polling, acting, reachable, offline, compactLayout, compactImeVisible;
+    private boolean visible, polling, acting, reachable, offline, compactLayout, compactImeVisible,
+            landscapeLayout;
     // Galaxy Z Flip cover screen (748x720 px, about 374x360 dp): see CoverScreenPolicy.
     private CoverScreenPolicy.Mode layoutMode = CoverScreenPolicy.Mode.FULL;
     private boolean coverMode;
@@ -471,10 +472,17 @@ public final class MainActivity extends Activity {
     private void applyScreenSize() {
         layoutMode = currentLayoutMode(getResources().getConfiguration());
         coverMode = CoverScreenPolicy.cover(layoutMode);
-        compactLayout = layoutMode != CoverScreenPolicy.Mode.FULL;
+        landscapeLayout = layoutMode == CoverScreenPolicy.Mode.WIDE;
+        compactLayout = layoutMode == CoverScreenPolicy.Mode.COMPACT || coverMode;
         typography.useCover(coverMode);
         typography.defaults(screen);
         applyDeviceBandMode();
+        if (landscapeLayout) {
+            arrangeLandscapeTopRow();
+            applyComposerRowHeight(false);
+            lastCollapseFraction = -1f;
+            setHeaderCollapse(0);
+        }
         if (compactLayout) {
             LinearLayout root = (LinearLayout) screen;
             ((ViewGroup) status.getParent()).removeView(status);
@@ -513,6 +521,28 @@ public final class MainActivity extends Activity {
         if (coverMode) applyCoverChrome();
         arrangeArticles();
         setupNotesDock();
+    }
+
+    /** On a short inner screen, the input and device band share a row above the answer columns. */
+    private void arrangeLandscapeTopRow() {
+        LinearLayout root = (LinearLayout) screen;
+        LinearLayout composer = findViewById(R.id.composer);
+        int index = root.indexOfChild(composer);
+        if (index < 0 || deviceBand == null) return;
+        root.removeView(composer);
+        detach(deviceBand);
+        LinearLayout topRow = new LinearLayout(this);
+        topRow.setOrientation(LinearLayout.HORIZONTAL);
+        topRow.setGravity(Gravity.CENTER_VERTICAL);
+        topRow.setPadding(dp(12), 0, dp(12), 0);
+        topRow.addView(composer, new LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        LinearLayout.LayoutParams bandParams = new LinearLayout.LayoutParams(0,
+                LinearLayout.LayoutParams.WRAP_CONTENT, 1.6f);
+        bandParams.leftMargin = dp(8);
+        topRow.addView(deviceBand, bandParams);
+        root.addView(topRow, index, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
     }
 
     private CoverScreenPolicy.Mode currentLayoutMode(Configuration config) {
@@ -555,7 +585,8 @@ public final class MainActivity extends Activity {
 
     private void applyComposerRowHeight(boolean keyboardVisible) {
         int rowHeight = dp(coverMode ? CoverScreenPolicy.composerRowDp(keyboardVisible)
-                : CoverLayoutPolicy.composerRowHeightDp(compactLayout, keyboardVisible));
+                : CoverLayoutPolicy.composerRowHeightDp(
+                        compactLayout, keyboardVisible, landscapeLayout));
         LinearLayout composer = findViewById(R.id.composer);
         LinearLayout row = findViewById(R.id.input_row);
         if (composer != null) {
@@ -1269,7 +1300,7 @@ public final class MainActivity extends Activity {
             // Phone answers stay left; computer answers stay right. The primary
             // computer answer leads its column.
             addLabView();
-            putWrapCard(answers, timingCard, 96, 0);
+            if (!landscapeLayout) putWrapCard(answers, timingCard, 96, 0);
             List<String> ordered = orderedDevicePanes();
             for (String pane : paneOrder) {
                 typography.body(paneViews.get(pane).answer, typography.bodySp());
@@ -1297,6 +1328,9 @@ public final class MainActivity extends Activity {
                             target.getChildCount() == 0 ? 0 : LaneCardLayout.CARD_GAP_DP);
                 }
             }
+            if (landscapeLayout) {
+                putWrapCard(answers, timingCard, 96, LaneCardLayout.CARD_GAP_DP);
+            }
             pinSummaryBar();
         }
         resultsScroll.post(() -> revealVisible(!initialRevealDone));
@@ -1320,7 +1354,7 @@ public final class MainActivity extends Activity {
     }
 
     private void setHeaderCollapse(int scrollY) {
-        float fraction = compactImeVisible ? 1f
+        float fraction = landscapeLayout || compactImeVisible ? 1f
                 : reduceMotionEnabled ? (scrollY > 0 ? 1f : 0f)
                 : NewspaperLayoutDecision.collapseFraction(scrollY, dp(88));
         if (fraction == lastCollapseFraction) return;
@@ -3152,7 +3186,15 @@ public final class MainActivity extends Activity {
         deviceComputerKicker = findViewById(R.id.device_computer_kicker);
         deviceComputerName = findViewById(R.id.device_computer_name);
         deviceLink = findViewById(R.id.device_link);
+        String configuredName = null;
+        try {
+            configuredName = Settings.Global.getString(getContentResolver(), "device_name");
+        } catch (RuntimeException ignored) {
+            // The model still identifies the phone when its saved device name is unavailable.
+        }
+        setIfChanged(devicePhoneName, DeviceLayoutPolicy.phoneName(configuredName, Build.MODEL));
         deviceBand.setContentDescription(DeviceLayoutPolicy.description(
+                devicePhoneName.getText().toString(),
                 ComputerWords.title(ComputerWords.current()), deviceLinkState));
         applyDeviceBandMode();
     }
@@ -3182,7 +3224,8 @@ public final class MainActivity extends Activity {
                 pausedAfterFreshSnapshot, errorState);
         setIfChanged(deviceComputerName, name);
         setIfChanged(deviceLink, DeviceLayoutPolicy.linkLabel(deviceLinkState));
-        String description = DeviceLayoutPolicy.description(name, deviceLinkState);
+        String description = DeviceLayoutPolicy.description(
+                devicePhoneName.getText().toString(), name, deviceLinkState);
         if (!TextUtils.equals(deviceBand.getContentDescription(), description)) {
             deviceBand.setContentDescription(description);
         }
@@ -3781,7 +3824,15 @@ public final class MainActivity extends Activity {
     }
 
     private int questionSizeSp() {
-        return QuestionHeadline.baseSp(coverMode);
+        return landscapeLayout ? TypeConfig.header().sizeSp : QuestionHeadline.baseSp(coverMode);
+    }
+
+    private int questionMinLines() {
+        return landscapeLayout ? 1 : QuestionHeadline.minLines(coverMode);
+    }
+
+    private int questionMaxLines() {
+        return landscapeLayout ? 2 : QuestionHeadline.maxLines(coverMode);
     }
 
     /** Bigger H5/S5-scale question type: wrap, 1.25 leading, shrink so it never clips. */
@@ -3796,11 +3847,11 @@ public final class MainActivity extends Activity {
         applyQuestionType(view, sizeSp);
         view.setIncludeFontPadding(true);
         view.setSingleLine(false);
-        view.setMinLines(QuestionHeadline.minLines(coverMode));
+        view.setMinLines(questionMinLines());
         view.setBreakStrategy(Layout.BREAK_STRATEGY_HIGH_QUALITY);
         view.setHyphenationFrequency(Layout.HYPHENATION_FREQUENCY_NONE);
         view.setEllipsize(null);
-        int maxLines = QuestionHeadline.maxLines(coverMode);
+        int maxLines = questionMaxLines();
         view.setMaxLines(maxLines);
         applyQuestionMinHeight(view, sizeSp);
         ViewGroup.LayoutParams params = view.getLayoutParams();
@@ -3821,7 +3872,7 @@ public final class MainActivity extends Activity {
         if (view == null || view.getWidth() <= 0) return;
         view.setAutoSizeTextTypeWithDefaults(TextView.AUTO_SIZE_TEXT_TYPE_NONE);
         view.setMaxHeight(Integer.MAX_VALUE);
-        int maxLines = QuestionHeadline.maxLines(coverMode);
+        int maxLines = questionMaxLines();
         int floor = QuestionHeadline.floorSp(coverMode);
         int sizeSp = questionSizeSp();
         int width = Math.max(1, view.getWidth() - view.getPaddingLeft() - view.getPaddingRight());
@@ -3838,7 +3889,7 @@ public final class MainActivity extends Activity {
         int lines = Math.max(1, questionLineCount(view, text, width));
         int fittedLines = sizeSp == floor ? Math.max(maxLines, lines) : maxLines;
         view.setEllipsize(null);
-        view.setMinLines(QuestionHeadline.minLines(coverMode));
+        view.setMinLines(questionMinLines());
         view.setMaxLines(fittedLines);
         applyQuestionMinHeight(view, sizeSp);
         view.requestLayout();
@@ -3854,7 +3905,7 @@ public final class MainActivity extends Activity {
         int line = Math.max(dp(20), Math.max(view.getLineHeight(),
                 Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP,
                         sizeSp * QuestionHeadline.LEADING, getResources().getDisplayMetrics()))));
-        int min = Math.max(dp(48), line * QuestionHeadline.minLines(coverMode));
+        int min = Math.max(dp(landscapeLayout ? 28 : 48), line * questionMinLines());
         view.setMinHeight(min);
         view.setMinimumHeight(min);
         view.setMaxHeight(Integer.MAX_VALUE);
@@ -5965,11 +6016,15 @@ public final class MainActivity extends Activity {
 
     /** Keep the Ask box and results above the collapsed Notes tab + Summary bar. */
     private int summaryCapPx() {
-        return dp(NotesSheet.summaryMaxDp(coverMode));
+        return dp(NotesSheet.summaryMaxDp(coverMode, landscapeLayout));
+    }
+
+    private int summaryMinPx() {
+        return dp(NotesSheet.summaryMinDp(landscapeLayout));
     }
 
     private int cappedSummaryHeight(int measured) {
-        return NotesSheet.summaryHeight(measured, dp(NotesSheet.SUMMARY_MIN_DP), summaryCapPx());
+        return NotesSheet.summaryHeight(measured, summaryMinPx(), summaryCapPx());
     }
 
     private int collapsedDockReserve() {
@@ -5979,7 +6034,7 @@ public final class MainActivity extends Activity {
                 && summaryCard.getParent() == bottomDock) {
             summaryH = cappedSummaryHeight(summaryCard.getHeight());
         } else {
-            summaryH = dp(NotesSheet.SUMMARY_MIN_DP);
+            summaryH = summaryMinPx();
         }
         return notesCollapsedH() + summaryH;
     }
@@ -6004,8 +6059,12 @@ public final class MainActivity extends Activity {
         summaryCard.animate().cancel();
         summaryCard.setAlpha(1f);
         summaryCard.setTranslationY(0f);
-        summaryCard.setMinimumHeight(dp(NotesSheet.SUMMARY_MIN_DP));
+        summaryCard.setMinimumHeight(summaryMinPx());
+        int summaryVerticalPad = dp(landscapeLayout ? 4 : LaneCardLayout.CARD_PADDING_DP);
+        summaryCard.setPadding(dp(LaneCardLayout.CARD_PADDING_DP), summaryVerticalPad,
+                dp(LaneCardLayout.CARD_PADDING_DP), summaryVerticalPad);
         if (summaryText != null) {
+            summaryText.setVisibility(landscapeLayout ? View.GONE : View.VISIBLE);
             summaryText.setMaxLines(coverMode ? 3 : 8);
             summaryText.setEllipsize(android.text.TextUtils.TruncateAt.END);
             summaryText.setMaxHeight(summaryCapPx());
@@ -6202,7 +6261,7 @@ public final class MainActivity extends Activity {
                 && bottomDock != null && summaryCard.getParent() == bottomDock) {
             summaryH = cappedSummaryHeight(summaryCard.getHeight());
         } else {
-            summaryH = dp(NotesSheet.SUMMARY_MIN_DP);
+            summaryH = summaryMinPx();
         }
         return Math.max(notesCollapsedH(), available - summaryH);
     }
