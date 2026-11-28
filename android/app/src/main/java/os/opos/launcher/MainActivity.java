@@ -95,6 +95,10 @@ import os.opos.launcher.SettingsPcState.Connection;
 /** Native models screen. The phone-local OPOS service owns answers, trust and link state. */
 public final class MainActivity extends Activity {
     private static final long LINK_STATUS_HOLD_MS = 3500;
+    private static final int TIMING_CARD_MIN_DP = 96;
+    private static final int BACK_ISSUE_TIMING_MIN_DP = 140;
+    private static final int BACK_ISSUE_ARCHIVE_MIN_DP = 200;
+    private static final int BACK_ISSUE_SUMMARY_MIN_DP = 100;
     private static final String PREF_UNRESOLVED_ASK = "ask_post_unresolved";
     private static volatile boolean resumed;
     /** Kept only across a layout-family recreate, so a fold does not blank the newspaper. */
@@ -257,7 +261,7 @@ public final class MainActivity extends Activity {
     private final Map<String, TextView> modelToggles = new HashMap<>();
     private final Map<String, TextView> modelLabels = new HashMap<>();
     private final Map<String, TextView> modelMetaViews = new HashMap<>();
-    private boolean displayPinned, quitting;
+    private boolean displayPinned, quitting, stopWaitingForId;
     private boolean foldRestored;
     private String archivedIssueId = "";
     private String pendingRefreshSourceId = "";
@@ -1288,14 +1292,6 @@ public final class MainActivity extends Activity {
         if (view.getParent() instanceof ViewGroup) ((ViewGroup) view.getParent()).removeView(view);
     }
 
-    private void putCard(LinearLayout parent, View card, int heightDp, int gapDp) {
-        detach(card);
-        LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, dp(heightDp));
-        params.topMargin = dp(gapDp);
-        parent.addView(card, params);
-    }
-
     /** The NOTES card shrinks to its content: one short line when empty, no reserved height. */
     private void applyNotesCompact() {
         if (notes == null || notesCard == null) return;
@@ -1338,13 +1334,13 @@ public final class MainActivity extends Activity {
                 putWrapCard(answers, pane.card, LaneCardLayout.MIN_LANE_DP,
                         LaneCardLayout.gapDp(i));
             }
-            putWrapCard(answers, timingCard, 96, LaneCardLayout.CARD_GAP_DP);
+            putWrapCard(answers, timingCard, TIMING_CARD_MIN_DP, LaneCardLayout.CARD_GAP_DP);
             pinSummaryBar();
         } else {
             // Phone answers stay left; computer answers stay right. The primary
             // computer answer leads its column.
             addLabView();
-            if (!landscapeLayout) putWrapCard(answers, timingCard, 96, 0);
+            if (!landscapeLayout) putWrapCard(answers, timingCard, TIMING_CARD_MIN_DP, 0);
             List<String> ordered = orderedDevicePanes();
             for (String pane : paneOrder) {
                 typography.body(paneViews.get(pane).answer, typography.bodySp());
@@ -1373,7 +1369,7 @@ public final class MainActivity extends Activity {
                 }
             }
             if (landscapeLayout) {
-                putWrapCard(answers, timingCard, 96, LaneCardLayout.CARD_GAP_DP);
+                putWrapCard(answers, timingCard, TIMING_CARD_MIN_DP, LaneCardLayout.CARD_GAP_DP);
             }
             pinSummaryBar();
         }
@@ -1669,6 +1665,7 @@ public final class MainActivity extends Activity {
         // after a flip, cover switch, or brief background. elapsedRealtime
         // survives process death until reboot; it is persisted in saveLatestRequest.
         snapshot = null;
+        stopWaitingForId = false;
         reachable = false;
         offline = false;
         awaitingReplugSnapshot = false;
@@ -1728,7 +1725,7 @@ public final class MainActivity extends Activity {
                 JSONObject fresh = client.getSnapshot();
                 handler.post(() -> {
                     polling = false;
-                    if (!visible) return;
+                    if (!visible || acting || quitting) return;
                     reachable = true;
                     showSnapshot(fresh);
                     schedule(pollDelay(fresh));
@@ -1736,7 +1733,7 @@ public final class MainActivity extends Activity {
             } catch (IOException | JSONException failure) {
                 handler.post(() -> {
                     polling = false;
-                    if (!visible) return;
+                    if (!visible || acting || quitting) return;
                     reachable = false;
                     showOffline(failure);
                     schedule(2000);
@@ -1890,6 +1887,7 @@ public final class MainActivity extends Activity {
 
     private void showOffline(Exception failure) {
         offline = true;
+        stopWaitingForId = false;
         boolean pcPaused = Boolean.FALSE.equals(cableConnected) && hasVisiblePcWork();
         setMainStatus(getString(R.string.phone_unreachable));
         updateModelSelectionRows();
@@ -1933,6 +1931,7 @@ public final class MainActivity extends Activity {
         awaitingReplugSnapshot = false;
         if (data.optBoolean("locked")) {
             snapshot = null;
+            stopWaitingForId = false;
             updateModelSelectionRows();
             latestQuestion = "";
             lastSubmittedQuestion = "";
@@ -1969,6 +1968,7 @@ public final class MainActivity extends Activity {
         if (phone == null || gpu == null) {
             reachable = false;
             snapshot = null;
+            stopWaitingForId = false;
             showOffline(new IOException("missing panes"));
             return;
         }
@@ -3219,6 +3219,10 @@ public final class MainActivity extends Activity {
         Connection connection = pcConnection(gpu);
         AnswerOutcome.Result outcome = AnswerOutcome.visible(
                 currentAnswerOutcome(), connection == Connection.CONNECTED);
+        if (stopWaitingForId && !StopPolicy.noIdStillOpen(
+                anyBlockingOpen(), openAnswerIdsByPane(snapshot))) {
+            stopWaitingForId = false;
+        }
         String line;
         if (Boolean.FALSE.equals(cableConnected)) {
             line = pcOpen || hasVisiblePcWork() ? getString(R.string.paused_plug_cable)
@@ -3230,6 +3234,8 @@ public final class MainActivity extends Activity {
                     ComputerWords.noun(computerLabel(pending)));
         } else if (pausedAfterFreshSnapshot) {
             line = pcWords(R.string.gpu_paused);
+        } else if (stopWaitingForId) {
+            line = getString(R.string.stop_not_ready);
         } else if (awaitingAnswerId()) {
             line = getString(R.string.thinking);
         } else if (open(gpuWork) && connection == Connection.DISCONNECTED
@@ -4340,6 +4346,7 @@ public final class MainActivity extends Activity {
             throw new AssertionError(impossible);
         }
         acting = true;
+        stopWaitingForId = false;
         laneRetryRebind.put(pane, oldId);
         handler.removeCallbacks(poll);
         setIfChanged(error, "");
@@ -4351,7 +4358,7 @@ public final class MainActivity extends Activity {
                     acting = false;
                     laneRetryRebind.remove(pane);
                     bindRetriedLane(updated, pane, question); // even if the page is hidden now
-                    if (!visible) return;
+                    if (!visible || quitting) return;
                     reachable = true;
                     showSnapshot(updated);
                     schedule(0);
@@ -4361,7 +4368,7 @@ public final class MainActivity extends Activity {
                     acting = false;
                     boolean definite = failure instanceof AiClient.ApiException;
                     if (definite) laneRetryRebind.remove(pane); // else a later snapshot may show it
-                    if (!visible) return;
+                    if (!visible || quitting) return;
                     error.setText(definite ? failure.getMessage() : getString(R.string.action_failed));
                     renderStatus();
                     updateButtons();
@@ -4383,14 +4390,10 @@ public final class MainActivity extends Activity {
     }
 
     private void stopAnswers() {
-        if (snapshot == null || !reachable || acting) return;
-        Map<String, String> openIds = new HashMap<>();
-        for (String pane : paneNames(snapshot)) {
-            JSONObject work = answerOf(snapshot, pane);
-            if (open(work)) openIds.put(pane, work.optString("id"));
-        }
-        List<String> ids = PaneKeys.uniqueOpenIds(paneNames(snapshot), openIds);
-        if (ids.isEmpty()) return;
+        if (snapshot == null || !reachable || acting || quitting) return;
+        List<String> seenIds = openAnswerIds(snapshot);
+        Map<String, String> seenStates = openAnswerStates(snapshot);
+        stopWaitingForId = false;
         acting = true;
         handler.removeCallbacks(poll);
         setMainStatus(getString(R.string.stopping));
@@ -4398,36 +4401,54 @@ public final class MainActivity extends Activity {
         network.execute(() -> {
             JSONObject updated = null;
             String problem = null;
+            List<String> ids = seenIds;
+            Map<String, String> states = seenStates;
+            if (ids.isEmpty()) {
+                try {
+                    // An answer may have gained its ID since the last screen update.
+                    updated = client.getSnapshot();
+                    ids = openAnswerIds(updated);
+                    states = openAnswerStates(updated);
+                } catch (IOException | JSONException failure) {
+                    problem = getString(R.string.action_failed);
+                }
+            }
             if (!ids.isEmpty()) {
                 try {
-                    // One request so the service can flag every lane before any gate is released.
-                    updated = client.post(cancelBody(ids));
+                    updated = cancelOpenAnswers(ids, states);
                 } catch (IOException | JSONException failure) {
                     problem = getString(R.string.stop_failed);
                 }
-            }
-            try {
-                updated = client.getSnapshot();
-                // A cancel refused because the answer just finished is not a failed Stop.
-                if (problem != null && !updated.optBoolean("locked")
-                        && !StopPolicy.stillRunning(ids, openAnswerIds(updated))) {
-                    problem = null;
+                try {
+                    updated = client.getSnapshot();
+                    // A cancel refused because the answer just finished is not a failed Stop.
+                    if (problem != null && !updated.optBoolean("locked")
+                            && !StopPolicy.stillRunning(ids, openAnswerIds(updated))) {
+                        problem = null;
+                    }
+                } catch (IOException | JSONException failure) {
+                    if (updated == null && problem == null) {
+                        problem = getString(R.string.action_failed);
+                    }
                 }
-            } catch (IOException | JSONException failure) {
-                if (updated == null && problem == null) problem = getString(R.string.action_failed);
             }
             JSONObject finalSnapshot = updated;
             String finalProblem = problem;
+            boolean noIdYet = problem == null && usableAnswerSnapshot(finalSnapshot)
+                    && StopPolicy.hasOpenWithoutId(openAnswerIdsByPane(finalSnapshot));
             handler.post(() -> {
                 acting = false;
-                if (!visible) return;
+                if (!visible || quitting) return;
+                stopWaitingForId = noIdYet;
                 if (finalSnapshot != null) {
                     reachable = true;
                     showSnapshot(finalSnapshot);
+                } else {
+                    setMainStatus(getString(R.string.checking_connection));
                 }
                 if (finalProblem != null) error.setText(finalProblem);
                 updateButtons();
-                schedule(0);
+                schedule(finalProblem != null ? 2000 : noIdYet ? 500 : 0);
             });
         });
     }
@@ -4449,9 +4470,69 @@ public final class MainActivity extends Activity {
         return PaneKeys.uniqueOpenIds(paneNames(data), byPane);
     }
 
+    private static List<String> openAnswerIdsByPane(JSONObject data) {
+        List<String> ids = new ArrayList<>();
+        for (String pane : paneNames(data)) {
+            JSONObject answer = answerOf(data, pane);
+            if (open(answer)) ids.add(answer.optString("id"));
+        }
+        return ids;
+    }
+
+    private static boolean usableAnswerSnapshot(JSONObject data) {
+        return data != null && !data.optBoolean("locked")
+                && data.optJSONObject("phone") != null && data.optJSONObject("gpu") != null;
+    }
+
+    private static Map<String, String> openAnswerStates(JSONObject data) {
+        Map<String, String> states = new HashMap<>();
+        for (String pane : paneNames(data)) {
+            JSONObject answer = answerOf(data, pane);
+            if (open(answer) && !answer.optString("id").isEmpty()) {
+                states.put(answer.optString("id"), answer.optString("state"));
+            }
+        }
+        return states;
+    }
+
+    private static boolean hasOpenAnswer(JSONObject data) {
+        for (String pane : paneNames(data)) {
+            if (open(answerOf(data, pane))) return true;
+        }
+        return false;
+    }
+
+    private JSONObject cancelOpenAnswers(List<String> ids, Map<String, String> states)
+            throws IOException, JSONException {
+        try {
+            // The current service flags every lane before releasing the phone decoder.
+            return client.post(cancelBody(ids));
+        } catch (AiClient.ApiException failure) {
+            if (!StopPolicy.legacyBulkUnsupported(failure.status, failure.getMessage())) {
+                throw failure;
+            }
+            // Older phone hosts accept one ID at a time. Stop waiting lanes first so
+            // ending the active answer does not immediately start the next pool lane.
+            JSONObject updated = null;
+            IOException firstFailure = null;
+            for (String id : StopPolicy.waitingFirst(ids, states)) {
+                try {
+                    updated = client.post(cancelOneBody(id));
+                } catch (IOException | JSONException singleFailure) {
+                    if (firstFailure == null) {
+                        firstFailure = new IOException("Could not stop every answer", singleFailure);
+                    }
+                }
+            }
+            if (firstFailure != null) throw firstFailure;
+            return updated;
+        }
+    }
+
     private void quitActivity() {
         if (quitting) return;
         quitting = true;
+        stopWaitingForId = false;
         handler.removeCallbacks(poll);
         updateButtons();
         quitProgressDialog = new AlertDialog.Builder(this, R.style.LinkDialogTheme)
@@ -4470,32 +4551,33 @@ public final class MainActivity extends Activity {
             } catch (IOException | JSONException ignored) {
                 // A disconnected service leaves only the IDs visible before Quit.
             }
-            List<String> ids = openAnswerIds(latest != null ? latest : lastSeen);
-            boolean cancelFailed = false;
+            // An old screen snapshot can supply IDs, but cannot prove that a new Send ended.
+            boolean beforeFresh = usableAnswerSnapshot(latest);
+            JSONObject targets = beforeFresh ? latest : lastSeen;
+            boolean beforeUsable = usableAnswerSnapshot(targets);
+            boolean openBefore = beforeUsable && hasOpenAnswer(targets);
+            List<String> ids = beforeUsable ? openAnswerIds(targets) : new ArrayList<>();
+            Map<String, String> states = beforeUsable
+                    ? openAnswerStates(targets) : new HashMap<>();
             JSONObject updated = null;
             if (!ids.isEmpty()) {
                 try {
-                    // The same non-destructive call as Stop, with every id in one request.
-                    updated = client.post(cancelBody(ids));
+                    updated = cancelOpenAnswers(ids, states);
                 } catch (IOException | JSONException ignored) {
-                    cancelFailed = true;
+                    // The final snapshot decides whether any answer is still open.
                 }
             }
             JSONObject afterCancel = updated;
-            if (!ids.isEmpty()) {
+            if (openBefore || !beforeFresh) {
                 try {
                     afterCancel = client.getSnapshot();
-                    // A cancel refused because the answer just finished is not a failed Quit.
-                    if (cancelFailed && afterCancel != null && !afterCancel.optBoolean("locked")
-                            && !StopPolicy.stillRunning(ids, openAnswerIds(afterCancel))) {
-                        cancelFailed = false;
-                    }
                 } catch (IOException | JSONException ignored) {
-                    // A cancelled issue may have no final local snapshot to archive.
+                    // A cancel response may still show that every answer stopped.
                 }
             }
             JSONObject finalSnapshot = afterCancel;
-            boolean finalCancelFailed = cancelFailed;
+            boolean finalCancelFailed = !StopPolicy.quitConfirmedStopped(beforeFresh,
+                    openBefore, usableAnswerSnapshot(afterCancel), hasOpenAnswer(afterCancel));
             handler.post(() -> {
                 if (isDestroyed()) {
                     if (!finalCancelFailed) finishAndRemoveTask();
@@ -4588,9 +4670,20 @@ public final class MainActivity extends Activity {
         return body;
     }
 
+    private static JSONObject cancelOneBody(String id) {
+        JSONObject body = action("cancel");
+        try {
+            body.put("id", id);
+        } catch (JSONException impossible) {
+            throw new AssertionError(impossible);
+        }
+        return body;
+    }
+
     private void sendAction(JSONObject body, String sentQuestion, long startedAtMs,
                             boolean retrying) {
-        if (!visible || !reachable || acting) return;
+        if (!visible || !reachable || acting || quitting) return;
+        stopWaitingForId = false;
         String draftAtSubmission = sentQuestion != null && !retrying
                 ? prompt.getText().toString() : null;
         long submittedRevision = draftRevision;
@@ -4624,7 +4717,7 @@ public final class MainActivity extends Activity {
                     JSONObject checked = client.getSnapshot();
                     handler.post(() -> {
                         acting = false;
-                        if (!visible) return;
+                        if (!visible || quitting) return;
                         reachable = true;
                         showSnapshot(checked);
                         if (askRecovery.unresolved()) {
@@ -4635,7 +4728,7 @@ public final class MainActivity extends Activity {
                 } catch (IOException | JSONException failure) {
                     handler.post(() -> {
                         acting = false;
-                        if (!visible) return;
+                        if (!visible || quitting) return;
                         reachable = false;
                         showOffline(failure);
                         schedule(2000);
@@ -4651,7 +4744,7 @@ public final class MainActivity extends Activity {
                             retryIds, retryStates)) {
                         handler.post(() -> {
                             acting = false;
-                            if (!visible) return;
+                            if (!visible || quitting) return;
                             reachable = true;
                             showSnapshot(checked);
                             schedule(0);
@@ -4662,7 +4755,7 @@ public final class MainActivity extends Activity {
                 } catch (IOException | JSONException failure) {
                     handler.post(() -> {
                         acting = false;
-                        if (!visible) return;
+                        if (!visible || quitting) return;
                         reachable = false;
                         showOffline(failure);
                         schedule(2000);
@@ -4697,7 +4790,7 @@ public final class MainActivity extends Activity {
                                 null);
                         if (!isDestroyed()) clearDraftIfUntouched(draftAtSubmission, submittedRevision);
                     }
-                    if (!visible) return;
+                    if (!visible || quitting) return;
                     reachable = true;
                     showSnapshot(updated);
                     schedule(0);
@@ -4723,7 +4816,7 @@ public final class MainActivity extends Activity {
                         getPreferences(MODE_PRIVATE).edit()
                                 .putBoolean(PREF_UNRESOLVED_ASK, false).apply();
                     }
-                    if (!visible) return;
+                    if (!visible || quitting) return;
                     if (uncertain) {
                         if (reconciled != null) {
                             reachable = true;
@@ -5252,10 +5345,11 @@ public final class MainActivity extends Activity {
                 LaneCardLayout.LABEL_SP, true, false);
         typography.kicker(kicker);
         card.addView(kicker);
-        card.addView(newspaperText(lane.label, LaneCardLayout.headingSp(PaneKeys.extra(lane.pane),
+        card.addView(newspaperText(HistoryDisplay.label(lane), LaneCardLayout.headingSp(PaneKeys.extra(lane.pane),
                 "gpu".equals(lane.pane)), true, true));
-        String byline = lane.maker.isEmpty() ? laneWhere
-                : laneWhere.isEmpty() ? lane.maker : lane.maker + " · " + laneWhere;
+        String savedMaker = HistoryDisplay.maker(lane);
+        String byline = savedMaker.isEmpty() ? laneWhere
+                : laneWhere.isEmpty() ? savedMaker : savedMaker + " · " + laneWhere;
         TextView bylineView = newspaperText(byline, LaneCardLayout.LABEL_SP, false, false);
         typography.byline(bylineView);
         card.addView(bylineView);
@@ -5342,7 +5436,7 @@ public final class MainActivity extends Activity {
         timingRows.setPadding(0, dp(6), 0, 0);
         fillTonightRows(timingRows, issue.timing, null);
         timing.addView(timingRows);
-        timing.setMinimumHeight(dp(140));
+        timing.setMinimumHeight(dp(BACK_ISSUE_TIMING_MIN_DP));
         if (compactLayout) {
             page.addView(timing, new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
@@ -5374,7 +5468,7 @@ public final class MainActivity extends Activity {
             archive.addView(archiveDate);
             archive.addView(newspaperText(getString(R.string.history_answered_by, issue.answeredBy),
                     15, false, false));
-            putWrapCard(left, archive, 200, LaneCardLayout.CARD_GAP_DP);
+            putWrapCard(left, archive, BACK_ISSUE_ARCHIVE_MIN_DP, LaneCardLayout.CARD_GAP_DP);
             for (HistoryStore.Lane lane : issue.lanes) {
                 if ("phone".equals(lane.pane)) {
                     putWrapCard(right, savedArticle(lane), LaneCardLayout.MIN_LANE_DP, 0);
@@ -5401,7 +5495,7 @@ public final class MainActivity extends Activity {
                 13, false, false);
         typography.tabular(summaryLine);
         summary.addView(summaryLine);
-        putWrapCard(page, summary, 100, LaneCardLayout.CARD_GAP_DP);
+        putWrapCard(page, summary, BACK_ISSUE_SUMMARY_MIN_DP, LaneCardLayout.CARD_GAP_DP);
         scroll.addView(page);
         root.addView(scroll, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
@@ -5436,6 +5530,7 @@ public final class MainActivity extends Activity {
                 ? HistoryRefresh.latestRefresh(issues, saved) : saved;
         if (thenIssue == null || nowIssue == null || thenIssue.id.equals(nowIssue.id)) return;
         TextView heading = newspaperText(getString(R.string.history_then_vs_now), 21, true, true);
+        heading.setAccessibilityHeading(true);
         heading.setPadding(0, dp(8), 0, dp(8));
         typography.headline(heading, typography.headingSp());
         page.addView(heading);
@@ -5450,29 +5545,36 @@ public final class MainActivity extends Activity {
 
     private LinearLayout thenNowCard(HistoryRefresh.LaneCompare row) {
         LinearLayout card = savedBox();
-        TextView kicker = newspaperText(PaneKeys.kicker(row.pane), typography.labelSp(), true, false);
+        // The two saved runs may have used different computers.
+        TextView kicker = newspaperText(PaneKeys.kicker(row.pane, ComputerWords.COMPUTER),
+                typography.labelSp(), true, false);
         typography.kicker(kicker);
         card.addView(kicker);
-        card.addView(newspaperText(row.label, typography.headingSp(), true, true));
         card.addView(thenNowBlock(row.pane, getString(R.string.history_then),
+                row.thenLabel,
                 row.presentThen ? row.thenState : getString(R.string.history_not_asked_then),
                 row.presentThen ? row.thenText : "",
                 row.thenTone));
         card.addView(thenNowBlock(row.pane, getString(R.string.history_now),
+                row.nowLabel,
                 row.presentNow ? row.nowState : getString(R.string.history_not_asked_now),
                 row.presentNow ? row.nowText : "",
                 row.nowTone));
         return card;
     }
 
-    private LinearLayout thenNowBlock(String pane, String heading, String state,
+    private LinearLayout thenNowBlock(String pane, String heading, String modelLabel, String state,
                                       String body, UiPalette.Tone tone) {
         LinearLayout block = new LinearLayout(this);
         block.setOrientation(LinearLayout.VERTICAL);
         block.setPadding(0, dp(8), 0, 0);
         TextView label = newspaperText(heading, typography.labelSp(), true, false);
         typography.kicker(label);
+        label.setAccessibilityHeading(true);
         block.addView(label);
+        if (modelLabel != null && !modelLabel.isEmpty()) {
+            block.addView(newspaperText(modelLabel, typography.headingSp(), true, true));
+        }
         TextView stateView = newspaperText(state, typography.labelSp(), true, false);
         typography.state(stateView);
         typography.tabular(stateView);

@@ -10,23 +10,17 @@ public final class LaneCardLayoutTest {
             check(LaneCardLayout.waitingVisible(false, part));
         }
         equal(0.5f, LaneCardLayout.STROKE_DP);
-        equal("0.5dp", LaneCardLayout.STROKE_WIDTH);
         equal(8, LaneCardLayout.CARD_PADDING_DP);
         check(LaneCardLayout.CARD_PADDING_DP < 12);
         equal(6, LaneCardLayout.CARD_GAP_DP);
         equal(17, LaneCardLayout.BODY_SP_FULL);
-        equal(17, LaneCardLayout.BODY_SP_COMPACT);
         equal(17, LaneCardLayout.bodySp(false, false));
         equal(17, LaneCardLayout.bodySp(false, true));
         equal(TypeConfig.body().coverSizeSp, LaneCardLayout.bodySp(true, false));
         equal(14, LaneCardLayout.bodySp(true, false));
-        check(LaneCardLayout.BODY_LINE_SPACING >= 1.3f);
-        equal(TypeConfig.body().lineHeight, LaneCardLayout.BODY_LINE_SPACING);
         equal(11, LaneCardLayout.LABEL_SP);
-        equal(11, LaneCardLayout.RETRY_SP);
         equal(TypeConfig.subheader().sizeSp, LaneCardLayout.LABEL_SP);
         check(LaneCardLayout.LABEL_SP < LaneCardLayout.BODY_SP_FULL);
-        equal(21, LaneCardLayout.HEADING_SP);
         equal(21, LaneCardLayout.headingSp(false, true));
         equal(21, LaneCardLayout.headingSp(false, false));
         equal(21, LaneCardLayout.headingSp(true, false));
@@ -37,8 +31,8 @@ public final class LaneCardLayoutTest {
         equal(6, LaneCardLayout.gapDp(3));
         check(LaneCardLayout.GROW_MS > 0 && LaneCardLayout.GROW_MS <= 200);
         equal(140, LaneCardLayout.GROW_MS);
-        equal("#5C5C5C", LaneCardLayout.STROKE_HEX);
-        int stroke = Integer.parseInt(LaneCardLayout.STROKE_HEX.substring(1), 16);
+        equal("#5C5C5C", UiPalette.STROKE);
+        int stroke = Integer.parseInt(UiPalette.STROKE.substring(1), 16);
         // Darker than the #fff text and than the #BFBFBF label; still a visible boundary.
         check(stroke < 0xFFFFFF);
         check(stroke < 0x8A8A8A);

@@ -77,17 +77,18 @@ final class HistoryRefresh {
     }
 
     static final class LaneCompare {
-        final String pane, label;
+        final String pane, thenLabel, nowLabel;
         final String thenState, nowState, thenText, nowText;
         final long thenElapsedMs, nowElapsedMs;
         final UiPalette.Tone thenTone, nowTone;
         final boolean presentThen, presentNow;
 
-        LaneCompare(String pane, String label,
+        LaneCompare(String pane, String thenLabel, String nowLabel,
                     String thenState, String thenText, long thenElapsedMs, boolean presentThen,
                     String nowState, String nowText, long nowElapsedMs, boolean presentNow) {
             this.pane = pane;
-            this.label = label;
+            this.thenLabel = thenLabel;
+            this.nowLabel = nowLabel;
             this.thenState = thenState;
             this.thenText = thenText;
             this.thenElapsedMs = thenElapsedMs;
@@ -109,9 +110,7 @@ final class HistoryRefresh {
         for (String pane : panes) {
             HistoryStore.Lane thenLane = lane(thenIssue, pane);
             HistoryStore.Lane nowLane = lane(nowIssue, pane);
-            String label = nowLane != null && !nowLane.label.isEmpty() ? nowLane.label
-                    : thenLane != null ? thenLane.label : pane;
-            rows.add(new LaneCompare(pane, label,
+            rows.add(new LaneCompare(pane, HistoryDisplay.label(thenLane), HistoryDisplay.label(nowLane),
                     thenLane == null ? "" : thenLane.state,
                     thenLane == null ? "" : thenLane.text,
                     thenLane == null ? 0 : thenLane.elapsedMs,
