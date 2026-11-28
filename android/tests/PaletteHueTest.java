@@ -26,14 +26,12 @@ public final class PaletteHueTest {
         equal(UiPalette.BLACK, named(definitions, "newspaper_paper"));
         equal(UiPalette.WHITE, named(definitions, "newspaper_ink"));
         equal(UiPalette.LABEL_DARK, named(definitions, "you_asked_label"));
-        equal(UiPalette.NOTES_RULE_DARK, named(definitions, "notes_rule"));
         equal(UiPalette.STROKE, named(definitions, "newspaper_stroke"));
         equal(UiPalette.ERROR_DARK, named(definitions, "newspaper_error"));
         equal(UiPalette.OK_DARK, named(definitions, "newspaper_ok"));
         equal(UiPalette.WHITE, named(definitions, "newspaper_paper_light"));
         equal(UiPalette.BLACK, named(definitions, "newspaper_ink_light"));
         equal(UiPalette.LABEL_LIGHT, named(definitions, "you_asked_label_light"));
-        equal(UiPalette.NOTES_RULE_LIGHT, named(definitions, "notes_rule_light"));
         equal(UiPalette.STROKE, named(definitions, "newspaper_stroke_light"));
         equal(UiPalette.ERROR_LIGHT, named(definitions, "newspaper_error_light"));
         equal(UiPalette.OK_LIGHT, named(definitions, "newspaper_ok_light"));

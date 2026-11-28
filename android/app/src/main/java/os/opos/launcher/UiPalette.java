@@ -27,8 +27,6 @@ final class UiPalette {
     static final String STROKE = "#5C5C5C";
     static final String LABEL_DARK = "#BFBFBF";
     static final String LABEL_LIGHT = "#5C5C5C";
-    static final String NOTES_RULE_DARK = "#2EFFFFFF";
-    static final String NOTES_RULE_LIGHT = "#2E000000";
     /** ~#FF5A52, 6.84:1 on black. */
     static final String ERROR_DARK = "#FF5A52";
     /** Same red family, 6.54:1 on white. */
@@ -67,7 +65,6 @@ final class UiPalette {
     String selectionText(boolean on) { return on ? paper() : ink(); }
     String stroke() { return STROKE; }
     String label() { return light() ? LABEL_LIGHT : LABEL_DARK; }
-    String notesRule() { return light() ? NOTES_RULE_LIGHT : NOTES_RULE_DARK; }
     String error() { return light() ? ERROR_LIGHT : ERROR_DARK; }
     String ok() { return light() ? OK_LIGHT : OK_DARK; }
 
@@ -218,7 +215,6 @@ final class UiPalette {
     static Set<String> allowedLiterals() {
         return Collections.unmodifiableSet(new LinkedHashSet<>(Arrays.asList(
                 BLACK, WHITE, STROKE, LABEL_DARK, LABEL_LIGHT,
-                NOTES_RULE_DARK, NOTES_RULE_LIGHT,
                 ERROR_DARK, ERROR_LIGHT, OK_DARK, OK_LIGHT)));
     }
 
