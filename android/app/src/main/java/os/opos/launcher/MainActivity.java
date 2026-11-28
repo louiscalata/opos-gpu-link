@@ -35,6 +35,7 @@ import android.os.PowerManager;
 import android.os.SystemClock;
 import android.text.Editable;
 import android.text.Layout;
+import android.text.StaticLayout;
 import android.text.SpannableString;
 import android.text.SpannableStringBuilder;
 import android.text.Spanned;
@@ -627,6 +628,64 @@ public final class MainActivity extends Activity {
     private void applyCoverChrome() {
         typography.display(bigMasthead, CoverScreenPolicy.MASTHEAD_SP);
         if (mastheadBlock.getChildCount() > 1) mastheadBlock.getChildAt(1).setVisibility(View.GONE);
+        status.setMinLines(1);
+        status.setMaxLines(2);
+        status.setEllipsize(TextUtils.TruncateAt.END);
+        applyComposerRowHeight(false);
+        screen.getViewTreeObserver().addOnGlobalLayoutListener(this::applyCoverSpacePolicy);
+    }
+
+    /** The pinned Notes and Summary dock must not squeeze Ask or Reconnect on the cover. */
+    private void applyCoverSpacePolicy() {
+        if (!coverMode || screen.getHeight() <= 0) return;
+        LinearLayout root = (LinearLayout) screen;
+        View composer = findViewById(R.id.composer);
+        View results = findViewById(R.id.results_stage);
+        int essential = Math.max(composer.getMinimumHeight(), composer.getMeasuredHeight());
+        for (int i = 0; i < root.getChildCount(); i++) {
+            View child = root.getChildAt(i);
+            if (child == composer || child == results || child == status || child == heatMeter
+                    || child.getVisibility() == View.GONE) continue;
+            essential += Math.max(child.getHeight(), child.getMeasuredHeight());
+        }
+        int available = screen.getHeight() - screen.getPaddingTop() - screen.getPaddingBottom();
+        int oneLineStatus = coverTextHeight(status, 1);
+        int statusExtra = Math.max(0, coverTextHeight(status, 2) - oneLineStatus);
+        int heatHeight = HeatMeter.known(heatStatus) ? coverTextHeight(heatMeter, 1) : 0;
+        CoverScreenPolicy.Chrome chrome = CoverScreenPolicy.chromeForSpace(
+                available, essential + oneLineStatus, statusExtra, heatHeight);
+        status.setVisibility(View.VISIBLE);
+        if (status.getMaxLines() != chrome.statusLines) status.setMaxLines(chrome.statusLines);
+        heatMeter.setVisibility(chrome.heat ? View.VISIBLE : View.GONE);
+    }
+
+    private int coverTextHeight(TextView view, int maxLines) {
+        CharSequence text = view.getText();
+        if (TextUtils.isEmpty(text)) {
+            return view.getLineHeight() + view.getPaddingTop() + view.getPaddingBottom();
+        }
+        int width = view.getWidth() > 0 ? view.getWidth()
+                : screen.getWidth() - screen.getPaddingLeft() - screen.getPaddingRight();
+        int textWidth = Math.max(1, width - view.getPaddingLeft() - view.getPaddingRight());
+        StaticLayout lines = StaticLayout.Builder.obtain(text, 0, text.length(),
+                view.getPaint(), textWidth)
+                .setAlignment(Layout.Alignment.ALIGN_NORMAL)
+                .setIncludePad(view.getIncludeFontPadding())
+                .setLineSpacing(view.getLineSpacingExtra(), view.getLineSpacingMultiplier())
+                .setMaxLines(maxLines)
+                .build();
+        return lines.getHeight() + view.getPaddingTop() + view.getPaddingBottom();
+    }
+
+    private void reserveCoverActionRow(int rowHeight) {
+        if (!coverMode) return;
+        LinearLayout composer = findViewById(R.id.composer);
+        LinearLayout row = findViewById(R.id.input_row);
+        int rowMinimum = Math.max(rowHeight, dp(CoverScreenPolicy.MIN_ACTION_ROW_DP))
+                + row.getPaddingTop() + row.getPaddingBottom();
+        row.setMinimumHeight(rowMinimum);
+        composer.setMinimumHeight(rowMinimum
+                + composer.getPaddingTop() + composer.getPaddingBottom());
     }
 
     private void applyComposerRowHeight(boolean keyboardVisible) {
@@ -693,6 +752,7 @@ public final class MainActivity extends Activity {
             button.setGravity(Gravity.CENTER);
             button.setLayoutParams(action);
         }
+        reserveCoverActionRow(rowHeight);
     }
 
     /** Framework Button insets default to a few dp and sit the label high; zero them on API 29+. */
@@ -789,6 +849,7 @@ public final class MainActivity extends Activity {
         ((LinearLayout) findViewById(R.id.composer)).setPadding(dp(12),
                 keyboardVisible ? 0 : dp(coverMode ? 2 : 4), dp(12),
                 keyboardVisible ? 0 : dp(coverMode ? 4 : 6));
+        if (coverMode) reserveCoverActionRow(dp(CoverScreenPolicy.composerRowDp(keyboardVisible)));
         lastCollapseFraction = -1f;
         setHeaderCollapse(resultsScroll.getScrollY());
         applyComposerState();
@@ -3643,6 +3704,7 @@ public final class MainActivity extends Activity {
         if (heatMeter == null) return;
         if (!HeatMeter.known(status)) {
             heatMeter.setVisibility(View.GONE);
+            if (coverMode) applyCoverSpacePolicy();
             return;
         }
         boolean compactHeat = coverMode || compactLayout;
@@ -3651,6 +3713,7 @@ public final class MainActivity extends Activity {
         heatMeter.setTextColor(parseHex(palette.colorForTone(HeatMeter.tone(status))));
         heatMeter.setContentDescription(HeatMeter.description(status));
         heatMeter.setVisibility(View.VISIBLE);
+        if (coverMode) applyCoverSpacePolicy();
     }
 
     private void showBattery(Intent battery) {
@@ -4380,6 +4443,7 @@ public final class MainActivity extends Activity {
     private void setMainStatus(String text) {
         setIfChanged(status, text);
         applyTone(status);
+        if (coverMode) applyCoverSpacePolicy();
         if (expandedStatus != null) {
             setIfChanged(expandedStatus, text);
             applyTone(expandedStatus);

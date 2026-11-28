@@ -17,6 +17,7 @@ public final class CoverScreenPolicyTest {
         stability();
         labels();
         sizes();
+        space();
         System.out.println("CoverScreenPolicyTest: OK");
     }
 
@@ -165,6 +166,8 @@ public final class CoverScreenPolicyTest {
         eq(0, CoverScreenPolicy.mastheadDp(true));
         eq(52, CoverScreenPolicy.composerRowDp(false));
         eq(48, CoverScreenPolicy.composerRowDp(true));
+        check(CoverScreenPolicy.composerRowDp(false) >= CoverScreenPolicy.MIN_ACTION_ROW_DP);
+        check(CoverScreenPolicy.composerRowDp(true) >= CoverScreenPolicy.MIN_ACTION_ROW_DP);
         // The keyboard row matches the compact layout's touch target size.
         check(CoverScreenPolicy.MASTHEAD_DP < CoverLayoutPolicy.MASTHEAD_DP);
         check(CoverScreenPolicy.COMPOSER_ROW_DP < CoverLayoutPolicy.COMPOSER_ROW_DP);
@@ -176,6 +179,54 @@ public final class CoverScreenPolicyTest {
         eq(120, CoverScreenPolicy.keepHeadlineVisible(120, 32, false, true));
         eq(120, CoverScreenPolicy.keepHeadlineVisible(120, 32, true, false));
         eq(0, CoverScreenPolicy.keepHeadlineVisible(-4, 32, true, true));
+    }
+
+    private static void space() {
+        // Synthetic space budgets include the action row and the first status line.
+        int essential = 120;
+        int secondLine = 24;
+        int heatLine = 30;
+        CoverScreenPolicy.Chrome tight = CoverScreenPolicy.chromeForSpace(
+                130, essential, secondLine, heatLine);
+        eq(1, tight.statusLines);
+        check(!tight.heat);
+
+        // A second line appears first; heat follows only when both fit.
+        CoverScreenPolicy.Chrome second = CoverScreenPolicy.chromeForSpace(
+                144, essential, secondLine, heatLine);
+        eq(2, second.statusLines);
+        check(!second.heat);
+        CoverScreenPolicy.Chrome almost = CoverScreenPolicy.chromeForSpace(
+                173, essential, secondLine, heatLine);
+        eq(2, almost.statusLines);
+        check(!almost.heat);
+        CoverScreenPolicy.Chrome roomy = CoverScreenPolicy.chromeForSpace(
+                174, essential, secondLine, heatLine);
+        eq(2, roomy.statusLines);
+        check(roomy.heat);
+
+        // The decision has no memory of a previous compact layout: detail and heat recover.
+        CoverScreenPolicy.Chrome tightAgain = CoverScreenPolicy.chromeForSpace(
+                130, essential, secondLine, heatLine);
+        eq(1, tightAgain.statusLines);
+        check(!tightAgain.heat);
+        CoverScreenPolicy.Chrome recovered = CoverScreenPolicy.chromeForSpace(
+                174, essential, secondLine, heatLine);
+        eq(2, recovered.statusLines);
+        check(recovered.heat);
+
+        CoverScreenPolicy.Chrome noReading = CoverScreenPolicy.chromeForSpace(
+                144, essential, secondLine, 0);
+        eq(2, noReading.statusLines);
+        check(!noReading.heat);
+        CoverScreenPolicy.Chrome oneLineText = CoverScreenPolicy.chromeForSpace(
+                150, essential, 0, heatLine);
+        eq(1, oneLineText.statusLines);
+        check(oneLineText.heat);
+        CoverScreenPolicy.Chrome tallStatus = CoverScreenPolicy.chromeForSpace(
+                144, essential, 50, heatLine);
+        eq(1, tallStatus.statusLines);
+        check(!tallStatus.heat);
     }
 
     private static Map<String, String> states(String... pairs) {
