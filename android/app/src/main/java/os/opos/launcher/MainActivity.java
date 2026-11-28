@@ -6628,8 +6628,11 @@ public final class MainActivity extends Activity {
     }
 
     private View.DragShadowBuilder notesDragShadow(View card) {
-        int width = Math.max(1, card.getWidth());
-        int height = Math.max(1, card.getHeight());
+        // An answer card grows with its text. Draw only a bounded preview of its top section.
+        int width = NotesDragShadowBounds.pixels(card.getWidth(),
+                dp(NotesDragShadowBounds.MAX_WIDTH_DP));
+        int height = NotesDragShadowBounds.pixels(card.getHeight(),
+                dp(NotesDragShadowBounds.MAX_HEIGHT_DP));
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
         card.draw(canvas);
