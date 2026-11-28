@@ -10,6 +10,10 @@ public final class ErrorCopyTest {
         check(ErrorCopy.errorLine("Garbled — Retry"));
         check(ErrorCopy.errorLine("Could not read answer · Retry"));
         check(ErrorCopy.errorLine("Granite 4.0 Micro 3B · 277 words · Stopped early. Here is what it wrote."));
+        check(!ErrorCopy.errorLine("Nemotron Mini 4B · 9 words · Stopped"));
+        check(!ErrorCopy.errorLine("Nemotron Mini 4B · 9 words · Stopped · 1.2 s"));
+        check(ErrorCopy.errorLine("Nemotron Mini 4B · 9 words · Model stopped"));
+        check(!ErrorCopy.errorLine(null));
         check(!ErrorCopy.errorLine(done));
         check(!ErrorCopy.errorLine(ready));
         check(!ErrorCopy.errorLine("Longest answer so far: LFM2 1.2B (314 words)"));
@@ -19,6 +23,11 @@ public final class ErrorCopyTest {
         check(ranges.get(0).error);
         check(!ranges.get(1).error);
         check(!ranges.get(2).error);
+        String mixedStops = "Nemotron Mini 4B · 9 words · Stopped\n"
+                + "Granite 4.1 3B · 9 words · Stopped early. Here is what it wrote.";
+        java.util.List<ErrorCopy.Range> stopRanges = ErrorCopy.lineRanges(mixedStops);
+        check(!stopRanges.get(0).error);
+        check(stopRanges.get(1).error);
         if (ranges.get(0).start != 0 || ranges.get(0).end != failed.length()) {
             throw new AssertionError("first range bounds");
         }
