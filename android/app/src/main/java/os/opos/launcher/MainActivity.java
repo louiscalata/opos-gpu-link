@@ -2931,8 +2931,8 @@ public final class MainActivity extends Activity {
                 article.programmaticScroll = false;
             }
         }
-        String answerText = PcPausePolicy.textToDisplay(paneName, state, sameRenderedAnswer,
-                article.rawAnswer, answer.optString("text"));
+        String answerText = AnswerDisplay.text(paneName, PcPausePolicy.textToDisplay(
+                paneName, state, sameRenderedAnswer, article.rawAnswer, answer.optString("text")));
         String failureCode = answer.optString("error", answer.optString("code"));
         String stateWords = "answering".equals(state) && answerText.isEmpty()
                 ? getString(R.string.thinking)
