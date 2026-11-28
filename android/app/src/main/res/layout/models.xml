@@ -386,7 +386,6 @@
                     android:id="@+id/gpu_card"
                     android:layout_width="0dp"
                     android:layout_height="wrap_content"
-                    android:layout_marginStart="8dp"
                     android:layout_weight="1"
                     android:background="@drawable/newspaper_panel"
                     android:orientation="vertical"

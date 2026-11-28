@@ -5340,7 +5340,7 @@ public final class MainActivity extends Activity {
                     LinearLayout.LayoutParams.WRAP_CONTENT, 0.42f));
             LinearLayout.LayoutParams rightParams = new LinearLayout.LayoutParams(0,
                     LinearLayout.LayoutParams.WRAP_CONTENT, 0.58f);
-            rightParams.leftMargin = dp(8);
+            rightParams.leftMargin = dp(LaneCardLayout.CARD_GAP_DP);
             columns.addView(right, rightParams);
             page.addView(columns);
             left.addView(timing, new LinearLayout.LayoutParams(
@@ -5353,7 +5353,7 @@ public final class MainActivity extends Activity {
             archive.addView(archiveDate);
             archive.addView(newspaperText("Answered by: " + issue.answeredBy,
                     15, false, false));
-            putWrapCard(left, archive, 200, 8);
+            putWrapCard(left, archive, 200, LaneCardLayout.CARD_GAP_DP);
             for (HistoryStore.Lane lane : issue.lanes) {
                 if ("phone".equals(lane.pane)) {
                     putWrapCard(right, savedArticle(lane), LaneCardLayout.MIN_LANE_DP, 0);
@@ -5380,7 +5380,7 @@ public final class MainActivity extends Activity {
                 13, false, false);
         typography.tabular(summaryLine);
         summary.addView(summaryLine);
-        putWrapCard(page, summary, 100, 8);
+        putWrapCard(page, summary, 100, LaneCardLayout.CARD_GAP_DP);
         scroll.addView(page);
         root.addView(scroll, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
@@ -5690,9 +5690,13 @@ public final class MainActivity extends Activity {
     private GradientDrawable panelDrawable(String strokeHex) {
         GradientDrawable drawable = new GradientDrawable();
         drawable.setColor(themeColor(R.color.newspaper_paper));
-        float width = LaneCardLayout.STROKE_DP * getResources().getDisplayMetrics().density;
-        drawable.setStroke(Math.max(1, Math.round(width)), parseHex(strokeHex));
+        drawable.setStroke(cardStrokePx(), parseHex(strokeHex));
         return drawable;
+    }
+
+    private int cardStrokePx() {
+        float width = LaneCardLayout.STROKE_DP * getResources().getDisplayMetrics().density;
+        return Math.max(1, Math.round(width));
     }
 
     private void applyCardStroke(View card, UiPalette.Tone tone) {
@@ -6381,7 +6385,7 @@ public final class MainActivity extends Activity {
     private GradientDrawable folderTabDrawable(boolean highlight) {
         GradientDrawable tab = new GradientDrawable();
         tab.setColor(themeColor(R.color.newspaper_paper));
-        tab.setStroke(Math.max(1, dp(highlight ? 2 : Math.round(LaneCardLayout.STROKE_DP))),
+        tab.setStroke(highlight ? dp(2) : cardStrokePx(),
                 parseHex(highlight ? palette.ink() : palette.stroke()));
         float radius = dp(10);
         tab.setCornerRadii(new float[]{radius, radius, radius, radius, 0, 0, 0, 0});
