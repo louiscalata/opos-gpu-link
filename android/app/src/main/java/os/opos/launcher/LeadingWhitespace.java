@@ -24,7 +24,7 @@ final class LeadingWhitespace {
             }
             if (isCodeIndent(value, lineStart, start)
                     || (isListMarker(value, start) && start - lineStart >= 2)
-                    || value.startsWith("```", start) || value.startsWith("~~~", start)) {
+                    || (isFence(value, start) && asciiSpaces(value, lineStart, start))) {
                 return value.substring(lineStart);
             }
             return value.substring(start);
@@ -34,6 +34,16 @@ final class LeadingWhitespace {
 
     // A one-space list marker is not a list to AnswerMarkdownParser (one-space numbered
     // items are prose there), so it is trimmed to column 0 where it parses as a list.
+    private static boolean isFence(String value, int start) {
+        return value.startsWith("```", start) || value.startsWith("~~~", start);
+    }
+
+    /** The parser only recognises a fence indented with plain spaces. */
+    private static boolean asciiSpaces(String value, int from, int to) {
+        for (int i = from; i < to; i++) if (value.charAt(i) != ' ') return false;
+        return true;
+    }
+
     private static boolean isCodeIndent(String value, int lineStart, int start) {
         int spaces = 0;
         for (int i = lineStart; i < start;) {

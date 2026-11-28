@@ -33,6 +33,7 @@ public final class AnswerDisplayTest {
         equal("  - first\n    - second", AnswerDisplay.text("gpu", "\n  - first\n    - second"));
         equal("  1. first", AnswerDisplay.text("m1", " \n  1. first"));
         equal("1. first", AnswerDisplay.text("m2", "\n 1. first"));
+        equal("~~~\n**literal**\n~~~", AnswerDisplay.text("m1", "\u2003~~~\n**literal**\n~~~"));
         equal("- first", AnswerDisplay.text("m3", "\n\u2003- first"));
         System.out.println("AnswerDisplayTest: OK");
     }
