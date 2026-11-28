@@ -150,7 +150,7 @@ rmdir "$COPY_DIR"
 "$ADB" pull /sdcard/Download/opos-backup-2.mp4 .
 ```
 
-For a cover clip, fold closed and use the cover ID from section 8. Replace `<cover_id>` before running these commands. List display IDs as in section 8 if needed.
+For a cover clip, fold closed and use the cover ID from section 8. If `screenrecord` refuses `--display-id` or the clip shows the inner screen, film the fold externally instead. Replace `<cover_id>` before running these commands. List display IDs as in section 8 if needed.
 
 ```sh
 "$ADB" shell screenrecord --display-id <cover_id> --time-limit 180 /sdcard/Download/opos-backup-cover.mp4
@@ -180,7 +180,7 @@ After playback, delete only the named phone files you made. If you made a cover 
 
 **Steps:**
 
-1. Run `"$ADB" shell dumpsys SurfaceFlinger --display-id` to list display IDs without changing the phone. Identify the inner and cover IDs. The Flip6 cover is a separate display. Replace `<inner_id>` and `<cover_id>` below with those IDs. If the cover ID is absent while unfolded, list IDs again after folding.
+1. Run `"$ADB" shell dumpsys SurfaceFlinger --display-id` to list display IDs without changing the phone. Identify the inner and cover IDs. The Flip6 cover is a separate display. Replace `<inner_id>` and `<cover_id>` below with those IDs. If the cover ID is absent while unfolded, list IDs again after folding. `screencap -d` takes these SurfaceFlinger IDs, not the small logical IDs from `dumpsys display`. If the command lists nothing, mark the cover shot NOT_RUN rather than guessing an ID.
 2. With the pairing dialog open on the inner screen, run `"$ADB" exec-out screencap -d <inner_id> -p > pairing-inner.png` in this computer's ADB terminal.
 3. Fold closed while the prompt is live. Check the cover fit. Run `"$ADB" exec-out screencap -d <cover_id> -p > pairing-cover.png`.
 4. Open both PNGs. Check that each shows the intended display, computer name, code, **Allow**, and **Not now** without clipping. Record filenames and times. If a prompt is unavailable, mark the missing shot NOT_RUN.
