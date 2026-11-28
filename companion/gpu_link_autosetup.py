@@ -62,6 +62,8 @@ LAUNCH_FORBIDDEN = frozenset(gpu_link_discover.PROTECTED_PORTS) | {1235, 1237, 4
 CANDIDATE_PORTS = (1235, 8000, 8001, 5001, 1337, 18090, 18091, 18092, 18093)
 LMSTUDIO_DEFAULT_PORT = 1234
 DEFAULT_LAUNCH_PORT = 18090
+LAUNCH_PORT_SPAN = 10
+MAX_LAUNCH_START_PORT = 65536 - LAUNCH_PORT_SPAN
 LLAMA_TAG = pins.LLAMA_TAG
 GITHUB_RELEASE = "https://github.com/ggml-org/llama.cpp/releases/download/{tag}/{name}"
 KEY_ENV = "OPOS_GPU_LINK_SERVER_KEY"
@@ -1689,7 +1691,9 @@ def port_free(port: int) -> bool:
         return s.connect_ex(("127.0.0.1", port)) != 0
 
 
-def choose_port(start=DEFAULT_LAUNCH_PORT, span=10, free=port_free, taken=()):
+def choose_port(start=DEFAULT_LAUNCH_PORT, span=LAUNCH_PORT_SPAN, free=port_free, taken=()):
+    if start < 1 or span < 1 or start + span - 1 > 65535:
+        raise ValueError("Model port search must stay between 1 and 65535")
     for port in range(start, start + span):
         if port not in LAUNCH_FORBIDDEN and port not in taken and free(port):
             return port
@@ -2483,6 +2487,8 @@ def arguments(argv=None):
     p.add_argument("--log-dir", type=Path)
     p.add_argument("--keep-server", action="store_true", help="leave our llama-server running on exit")
     args, rest = p.parse_known_args(argv)
+    if not 1 <= args.port <= MAX_LAUNCH_START_PORT:
+        p.error(f"--port must be between 1 and {MAX_LAUNCH_START_PORT}")
     incoming = list(argv) if argv is not None else list(sys.argv[1:])
     if should_default_offline(incoming):
         args.offline = True
@@ -2830,10 +2836,9 @@ def check_lane_output(port: int, key: str, alias: str = ALIAS, timeout=60):
         if len(raw) > 65536:
             return False, "the model reply was too long"
         message = json.loads(raw)["choices"][0]["message"]
-        content, reasoning = message.get("content"), message.get("reasoning_content")
-        if not all(value is None or isinstance(value, str) for value in (content, reasoning)):
+        content = message.get("content")
+        if content is not None and not isinstance(content, str):
             return False, "the model reply was invalid"
-        text = (content or "") + " " + (reasoning or "")
     except (OSError, http.client.HTTPException):
         return False, "the model server did not answer"
     except (ValueError, KeyError, IndexError, AttributeError, TypeError):
@@ -2844,7 +2849,7 @@ def check_lane_output(port: int, key: str, alias: str = ALIAS, timeout=60):
                 conn.close()
             except OSError:
                 pass
-    return (True, "ok") if looks_like_text(text) else (False, "the reply had no readable words")
+    return (True, "ok") if looks_like_text(content) else (False, "the reply had no readable words")
 
 
 def start_runtime(args, info, runner=subprocess.run):
@@ -3139,6 +3144,7 @@ def run(args) -> int:
             f"{len(got['models'])} model file(s), {total >> 20} MB of models. Everything is SHA-256 verified.")
         return 0
     rt = None
+    code = 0
     stage = "model"
     try:
         if info["gpu"].get("note"):
@@ -3150,25 +3156,26 @@ def run(args) -> int:
             for sig in (signal.SIGINT, signal.SIGTERM):
                 signal.signal(sig, lambda *_: stop.set())
             stop.wait()
-            return 0
-        stage = "usb"
-        adb = ensure_adb(args.runtime_dir, args.adb, not args.no_download)
-        say("USB tools ready.")
-        stage = "phone"
-        serial = args.serial or wait_for_phone(adb)
-        import opos_gpu_link
-        banner(ready_lines(info["gpu"]["name"], rt.lanes, opos_gpu_link.computer_noun()))
-        stage = "link"
-        return opos_gpu_link.main(companion_args(args, rt, info, adb, serial), runtime=rt,
-                                  data_dir=args.data_dir, models_dir=args.models_dir)
+            code = 0
+        else:
+            stage = "usb"
+            adb = ensure_adb(args.runtime_dir, args.adb, not args.no_download)
+            say("USB tools ready.")
+            stage = "phone"
+            serial = args.serial or wait_for_phone(adb)
+            import opos_gpu_link
+            banner(ready_lines(info["gpu"]["name"], rt.lanes, opos_gpu_link.computer_noun()))
+            stage = "link"
+            code = opos_gpu_link.main(companion_args(args, rt, info, adb, serial), runtime=rt,
+                                      data_dir=args.data_dir, models_dir=args.models_dir)
     except Terminated:
         say("Stopping.")
-        return 0  # a requested stop is a clean exit, so launchd does not restart it
+        code = 0  # a requested stop is clean only if owned servers also stop
     except KeyboardInterrupt:
-        return 130
+        code = 130
     except (OSError, RuntimeError, ValueError) as error:
         say(setup_error_message(error, stage, getattr(args, "log_dir", None)))
-        return 2
+        code = 2
     finally:
         if rt is not None:
             if args.keep_server:
@@ -3180,7 +3187,9 @@ def run(args) -> int:
                     rt.stop()
                 except (OSError, subprocess.SubprocessError):
                     say("Error: Model server did not stop. Check the running server.")
+                    code = 2
             os.environ.pop(KEY_ENV, None)
+    return code
 
 
 if __name__ == "__main__":
