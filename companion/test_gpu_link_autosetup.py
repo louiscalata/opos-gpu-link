@@ -323,6 +323,9 @@ class PhoneDetection(unittest.TestCase):
         self.assertEqual(self.state("A\tdevice usb:1\nB\tdevice usb:2\n"), ("many", None))
         self.assertEqual(self.state("A\tunauthorized usb:1\nB\tdevice usb:2\n"), ("device", "B"))
 
+    def test_failed_usb_tools_check_is_not_reported_as_no_phone(self):
+        self.assertEqual(a.phone_state(Path("adb"), runner_for({})), ("usb unavailable", None))
+
     def test_wait_shows_allow_text_then_returns_serial(self):
         outputs = iter(["", "R5CX\tunauthorized usb:1\n", "R5CX\tunauthorized usb:1\n", "R5CX\tdevice usb:1\n"])
 
@@ -1060,7 +1063,7 @@ class DataDirAndBundle(unittest.TestCase):
 
 
 class GpuOutputCheck(unittest.TestCase):
-    def fake_reply(self, reply, status=200):
+    def fake_reply(self, reply, status=200, response_body=None):
         """Exercise the request/response contract without opening a socket."""
         seen = {}
 
@@ -1076,8 +1079,9 @@ class GpuOutputCheck(unittest.TestCase):
                 seen["content_type"] = headers.get("Content-Type")
 
             def getresponse(self):
-                body = json.dumps({"choices": [{"message": {"content": reply}}]}).encode()
-                return SimpleNamespace(status=status, read=lambda: body)
+                body = response_body if response_body is not None else json.dumps(
+                    {"choices": [{"message": {"content": reply}}]}).encode()
+                return SimpleNamespace(status=status, read=lambda limit: body[:limit])
 
             def close(self):
                 seen["closed"] = True
@@ -1116,9 +1120,23 @@ class GpuOutputCheck(unittest.TestCase):
 
     def test_error_and_dead_server_fail(self):
         port, _ = self.fake_reply("x", status=500)
-        self.assertEqual(a.check_lane_output(port, "k"), (False, "HTTP 500"))
+        self.assertEqual(a.check_lane_output(port, "k"), (False, "the model server returned an error"))
         with patch("http.client.HTTPConnection", side_effect=OSError("sensitive backend detail")):
-            self.assertEqual(a.check_lane_output(port, "k", timeout=1), (False, "OSError"))
+            self.assertEqual(a.check_lane_output(port, "k", timeout=1), (False, "the model server did not answer"))
+
+    def test_malformed_model_replies_fail_plainly_and_close_connection(self):
+        for body in (b'not JSON', b'{"choices":null}', b'{"choices":[]}',
+                     b'{"choices":[{"message":null}]}',
+                     b'{"choices":[{"message":{"content":42}}]}'):
+            with self.subTest(body=body):
+                port, seen = self.fake_reply("", response_body=body)
+                self.assertEqual(a.check_lane_output(port, "k"), (False, "the model reply was invalid"))
+                self.assertTrue(seen["closed"])
+
+    def test_oversized_model_reply_is_rejected(self):
+        port, seen = self.fake_reply("", response_body=b"x" * 65537)
+        self.assertEqual(a.check_lane_output(port, "k"), (False, "the model reply was too long"))
+        self.assertTrue(seen["closed"])
 
 
 class Rx580OldMacProfile(unittest.TestCase):

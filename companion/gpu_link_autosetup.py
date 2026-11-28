@@ -2180,6 +2180,7 @@ def ensure_adb(runtime_dir: Path, explicit=None, allow_download=True, system=Non
 
 PHONE_TEXT = {
     "none": "Waiting for the phone. Plug in the USB-C cable and unlock the phone.",
+    "usb unavailable": "Error: Cannot check the phone. Check USB tools on this computer; trying again.",
     "unauthorized": "Error: Phone not authorized. Allow USB debugging on the phone.",
     "no permissions": "Error: USB access denied. Check this computer's USB access, then replug.",
     "offline": "Error: Phone is offline. Unplug, wait, then replug.",
@@ -2188,10 +2189,10 @@ PHONE_TEXT = {
 
 
 def phone_state(adb: Path, runner=subprocess.run):
-    """Return (state, serial) where state in none/unauthorized/no permissions/offline/many/device."""
+    """Return the USB phone state, distinguishing a failed tools check from no phone."""
     out = _run([str(adb), "devices", "-l"], runner, timeout=10)
     if out is None:
-        return "none", None
+        return "usb unavailable", None
     usb = []
     for line in out.splitlines()[1:]:
         fields = line.split()
@@ -2292,12 +2293,13 @@ def safe_label(gpu, system=None, model_name=None) -> str:
 
 
 def ready_lines(gpu_name, lanes, noun):
-    """Short presenter lines, naming this computer by its actual noun."""
+    """Show what loaded and what the person must do before the link is ready."""
     names = ", ".join(lane["label"] for lane in lanes)
-    return [f"{noun} GPU: {gpu_name}.",
-            f"Models ready: {names}." if names else "No models are ready.",
-            "Ask a question on the phone.",
-            "Unplug to pause. Replug to resume.",
+    return [f"{noun} hardware: {gpu_name}.",
+            f"Computer {'models' if len(lanes) != 1 else 'model'}: {names}." if names else "No computer model selected.",
+            "If a pairing code appears, compare it on both screens and tap Allow on the phone.",
+            "Wait until GPU Link says it is ready before asking.",
+            "Unplug to pause. Replug while GPU Link is running to reconnect.",
             "Wireless: coming later.",
             "Press Ctrl-C to stop."]
 
@@ -2440,7 +2442,7 @@ def plan(args, runner=subprocess.run):
 
 def arguments(argv=None):
     base = data_dir()
-    p = argparse.ArgumentParser(description="Plug-and-play OPOS GPU Link companion")
+    p = argparse.ArgumentParser(description="Connect this computer's model to your Android phone over USB-C.")
     p.add_argument("--hide-nvidia", action="store_true",
                    help="pretend this computer has no NVIDIA GPU (tests the AMD/Intel/CPU fallback)")
     p.add_argument("--detect-only", action="store_true", help="print what would be used and exit")
@@ -2449,12 +2451,12 @@ def arguments(argv=None):
     p.add_argument("--selftest", action="store_true", help="print platform/bundle facts and exit; loads nothing")
     p.add_argument("--e2e", action="store_true", help="headless end-to-end check with a fake phone lane")
     p.add_argument("--receipt", type=Path, help="where --e2e writes its JSON receipt")
-    p.add_argument("--json", action="store_true")
+    p.add_argument("--json", action="store_true", help="print --detect-only results as JSON")
     p.add_argument("--strict-ports", action="store_true",
-                   help="never probe protected ports, even an LM Studio on 1234")
-    p.add_argument("--own-server", action="store_true", help="ignore running servers; launch llama-server")
+                   help="skip reserved ports when looking for a model server")
+    p.add_argument("--own-server", action="store_true", help="start a model server here instead of using one already running")
     p.add_argument("--port", type=int, default=DEFAULT_LAUNCH_PORT, help="first port to try for our servers")
-    p.add_argument("--model-path", help="GGUF path or name fragment to prefer (may be a coder model)")
+    p.add_argument("--model-path", help="model file to prefer; another local model may be used if it is missing")
     p.add_argument("--budget-mb", type=int, help="override detected GPU memory budget")
     p.add_argument("--gpu", choices=GPU_CHOICES, default=normalize_gpu_choice(os.environ.get(GPU_ENV)),
                    help="use only this GPU vendor and hide the others (default auto, or $" + GPU_ENV + "); "
@@ -2815,19 +2817,32 @@ def check_lane_output(port: int, key: str, alias: str = ALIAS, timeout=60):
     import http.client
     body = json.dumps({"model": alias, "max_tokens": 48, "temperature": 0, "stream": False,
                        "messages": [{"role": "user", "content": "Say hello to the audience in one short sentence."}]})
+    conn = None
     try:
         conn = http.client.HTTPConnection("127.0.0.1", port, timeout=timeout)
         conn.request("POST", "/v1/chat/completions", body,
                      {"Content-Type": "application/json", "Authorization": "Bearer " + key})
         response = conn.getresponse()
-        raw = response.read()
-        conn.close()
         if response.status != 200:
-            return False, f"HTTP {response.status}"
+            return False, "the model server returned an error"
+        raw = response.read(65537)
+        if len(raw) > 65536:
+            return False, "the model reply was too long"
         message = json.loads(raw)["choices"][0]["message"]
-        text = (message.get("content") or "") + " " + (message.get("reasoning_content") or "")
-    except (OSError, ValueError, KeyError, IndexError) as error:
-        return False, f"{type(error).__name__}"
+        content, reasoning = message.get("content"), message.get("reasoning_content")
+        if not all(value is None or isinstance(value, str) for value in (content, reasoning)):
+            return False, "the model reply was invalid"
+        text = (content or "") + " " + (reasoning or "")
+    except (OSError, http.client.HTTPException):
+        return False, "the model server did not answer"
+    except (ValueError, KeyError, IndexError, AttributeError, TypeError):
+        return False, "the model reply was invalid"
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except OSError:
+                pass
     return (True, "ok") if looks_like_text(text) else (False, "the reply had no readable words")
 
 
@@ -3070,7 +3085,7 @@ def install_term_handler() -> bool:
     return True
 
 
-def setup_error_message(error: Exception, stage: str = "plan") -> str:
+def setup_error_message(error: Exception, stage: str = "plan", log_dir: Path | None = None) -> str:
     """Give the failed step without exposing paths from unknown errors."""
     message = str(error)
     if message.startswith("No free port in "):
@@ -3083,7 +3098,10 @@ def setup_error_message(error: Exception, stage: str = "plan") -> str:
         return "Error: A download failed its safety check. Try again."
     if "downloads are disabled" in message:
         return "Error: A model or tool is missing. Add it before running offline."
-    if message.startswith("llama-server did not become ready"):
+    if message.startswith(("llama-server did not become ready",
+                           "llama-server (CPU fallback) did not become ready")):
+        if log_dir is not None:
+            return f"Error: Model server did not start. Check logs in {log_dir}, then retry."
         return "Error: Model server did not start. Check its log, then retry."
     if stage == "model":
         return "Error: Model setup stopped. Check the model server log, then retry."
@@ -3148,7 +3166,7 @@ def run(args) -> int:
     except KeyboardInterrupt:
         return 130
     except (OSError, RuntimeError, ValueError) as error:
-        say(setup_error_message(error, stage))
+        say(setup_error_message(error, stage, getattr(args, "log_dir", None)))
         return 2
     finally:
         if rt is not None:
