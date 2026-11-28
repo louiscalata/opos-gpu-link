@@ -1,8 +1,8 @@
-# Phone service
+# OPOS GPU Link phone service
 
 The phone side of OPOS GPU Link. The computer companion reaches it through the USB forward; the Android app reads its state on the phone.
 
-## Run it
+## Start the phone service
 
 Needs Python 3.11+ and nothing else (standard library only). On the phone, for example in a terminal app:
 
@@ -24,6 +24,8 @@ python3 -B run_link.py --phone-url http://127.0.0.1:8080/v1 --phone-model my-mod
 ```
 
 Without it, the phone lane shows as not ready and questions go to the computer.
+
+The Dec 10 demo plans two more phone cards: `m1` is Qwen3.5-2B by Qwen (Alibaba), and `m4` is Granite 4.1 3B by IBM. This standalone service does not load those models. They need the full OPOS phone app and its local model files; those files are not included here.
 
 ## What's inside
 

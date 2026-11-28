@@ -1,6 +1,6 @@
 # Bundled fonts (OPOS GPU Link typography)
 
-Two families only. Both are under the SIL Open Font License 1.1 (license text next to this file). Downloaded 25 Nov 2026, about 1:05 AM PST, from the official upstream GitHub releases; files copied unmodified except for renaming to Android resource names.
+The first font set had two families: Source Serif 4 and Inter. Both are under the SIL Open Font License 1.1 (license text next to this file). They were downloaded 25 Nov 2026, about 1:05 AM PST, from the official upstream GitHub releases; files were copied unmodified except for renaming to Android resource names. A later set below added Newsreader and JetBrains Mono.
 
 | Resource (app/src/main/res/font/) | Upstream file | SHA-256 |
 | --- | --- | --- |
@@ -18,7 +18,7 @@ OFL 1.1 allows bundling in an application. The fonts are not sold on their own a
 
 ## Added 25 November 2026, typography options v2
 
-Additional official OFL cuts, copied unmodified except for Android resource file names. Used so card typography can use the correct Source Serif 4 optical size for body (Text, not Small Text), a Semibold subhead, Newsreader's 16pt/72pt optical sizes, Inter Regular, and JetBrains Mono for tabular status and tok/s.
+Additional official OFL cuts, copied unmodified except for Android resource file names. These were added as typography options: Source Serif 4 Text for body, a Semibold subhead, Newsreader's 16pt/72pt optical sizes, Inter Regular, and JetBrains Mono for tabular status and tok/s.
 
 | Resource (app/src/main/res/font/) | Upstream file | SHA-256 |
 | --- | --- | --- |

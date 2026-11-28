@@ -15,7 +15,7 @@ import gpu_link_autosetup as setup  # noqa: E402
 import opos_gpu_link as link  # noqa: E402
 
 # Wire labels for Windows or Linux computers keep "PC"; "PC" alone is computer_noun's answer there.
-ALLOWED = {"OPOS GPU PC", "Stand-in PC", "PC"}
+ALLOWED = {"Stand-in PC", "PC"}
 # safe_label builds "<GPU> PC" for non-Macs; only these two literals there are exempt.
 WIRE_LABEL_FUNCTION = "safe_label"
 WIRE_LABEL_PARTS = {" PC", "GPU PC"}
@@ -84,7 +84,7 @@ class ComputerNounTest(unittest.TestCase):
                 patch.object(link.gpu_link_discover, "_probe", side_effect=AssertionError("no probe")), \
                 patch.object(link, "resolve_launch_adb", side_effect=stop_at_adb):
             self.assertEqual(link.main(["--model", "m", "--server", "http://127.0.0.1:9/v1/chat/completions"]), 2)
-        self.assertEqual(seen, ["noun", "adb"])
+        self.assertEqual(seen, ["noun", "noun", "adb"])
 
     def test_discover_only_does_not_query_the_computer(self):
         with patch.object(link, "computer_noun", side_effect=AssertionError("no query")), \
@@ -106,27 +106,34 @@ class ComputerNounTest(unittest.TestCase):
 
 class ScreenWordsTest(unittest.TestCase):
     def test_ready_banner_names_the_mac(self):
-        lanes = [{"label": "Nemotron 3.5 Bolt E4B"}, {"label": "Small"}]
+        lanes = [{"label": "Nemotron 3.5 Bolt"}, {"label": "LFM2 (comparison baseline)"}]
         lines = setup.ready_lines("Apple M5 Pro", lanes, "MacBook")
-        self.assertIn("MacBook answer lanes: 2 (Nemotron 3.5 Bolt E4B, Small)", lines)
-        self.assertIn("First time only: compare the 6-digit code and tap Allow on the phone.", lines)
+        self.assertIn("MacBook GPU: Apple M5 Pro.", lines)
+        self.assertIn("Models ready: Nemotron 3.5 Bolt, LFM2 (comparison baseline).", lines)
+        self.assertIn("Wireless: coming later.", lines)
         self.assertFalse([line for line in lines if "PC" in line.split()])
 
     def test_ready_banner_on_a_pc_still_says_pc(self):
-        self.assertIn("PC answer lanes: 0 ()", setup.ready_lines("RTX 5080", [], "PC"))
+        self.assertIn("PC GPU: RTX 5080.", setup.ready_lines("RTX 5080", [], "PC"))
 
     def test_wire_label_names_a_mac_as_a_mac(self):
         self.assertEqual(setup.safe_label({"name": "Apple M5 Pro"}, "Darwin", "MacBook Pro"), "M5 Pro MacBook Pro")
         self.assertEqual(setup.safe_label({"name": "NVIDIA GeForce RTX 5080"}, "Linux"), "RTX 5080 PC")
         self.assertEqual(setup.safe_label({}, "Windows"), "GPU PC")
 
+    def test_direct_companion_label_uses_the_computer_noun(self):
+        with patch.object(link, "computer_noun", return_value="MacBook"):
+            args = link.arguments(["--serial", "PHONE", "--model", "local",
+                                   "--server", "http://127.0.0.1:9/v1/chat/completions"])
+        self.assertEqual(args.label, "OPOS GPU MacBook")
+
     def test_grant_messages_use_the_noun(self):
         app = SimpleNamespace(granted=False, headless=True)
         with patch.object(link, "computer_noun", return_value="MacBook"):
-            with self.assertRaisesRegex(link.GrantDeclined, r"^MacBook grant expired"):
+            with self.assertRaisesRegex(link.GrantDeclined, r"^Error: MacBook access expired"):
                 link.Companion.ensure_permission(app)
             app = SimpleNamespace(granted=False, headless=False, permission=lambda: False)
-            with self.assertRaisesRegex(link.GrantDeclined, r"^MacBook permission declined"):
+            with self.assertRaisesRegex(link.GrantDeclined, r"^Error: MacBook access was declined"):
                 link.Companion.ensure_permission(app)
 
     def test_no_screen_string_calls_the_computer_a_pc(self):
