@@ -3,6 +3,12 @@ package os.opos.launcher;
 public final class LaneCardLayoutTest {
     public static void main(String[] args) {
         check(LaneCardLayout.wrapsToContent());
+        check(LaneCardLayout.waitingVisible(true, LaneCardLayout.Part.KICKER));
+        check(LaneCardLayout.waitingVisible(true, LaneCardLayout.Part.HEADING));
+        check(!LaneCardLayout.waitingVisible(true, LaneCardLayout.Part.ANSWER));
+        for (LaneCardLayout.Part part : LaneCardLayout.Part.values()) {
+            check(LaneCardLayout.waitingVisible(false, part));
+        }
         equal(0.5f, LaneCardLayout.STROKE_DP);
         equal("0.5dp", LaneCardLayout.STROKE_WIDTH);
         equal(8, LaneCardLayout.CARD_PADDING_DP);
