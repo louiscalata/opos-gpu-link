@@ -23,9 +23,7 @@
             android:layout_weight="1"
             android:accessibilityHeading="true"
             android:text="@string/info_title"
-            android:textColor="@color/newspaper_ink"
-            android:textSize="18sp"
-                    />
+            android:textColor="@color/newspaper_ink" />
 
         <Button
             android:id="@+id/info_close"
@@ -34,8 +32,7 @@
             android:background="@drawable/newspaper_outline"
             android:text="@string/close"
             android:textAllCaps="false"
-            android:textColor="@color/newspaper_ink"
-            android:textSize="18sp" />
+            android:textColor="@color/newspaper_ink" />
     </LinearLayout>
 
     <View
@@ -64,8 +61,7 @@
                 android:layout_height="wrap_content"
                 android:labelFor="@id/info_about"
                 android:text="@string/info_about_label"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp" />
+                android:textColor="@color/newspaper_ink" />
             <TextView
                 android:id="@+id/info_about"
                 android:layout_width="match_parent"
@@ -73,8 +69,7 @@
                 android:layout_marginTop="4dp"
                 android:layout_marginBottom="8dp"
                 android:text="@string/info_about"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp" />
+                android:textColor="@color/newspaper_ink" />
 
             <TextView
                 android:id="@+id/info_wireless_note"
@@ -82,24 +77,21 @@
                 android:layout_height="wrap_content"
                 android:layout_marginBottom="22dp"
                 android:text="@string/info_wireless_coming_later"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp" />
+                android:textColor="@color/newspaper_ink" />
 
             <TextView
+                android:id="@+id/info_phone_model_label_text"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:labelFor="@id/info_phone_model"
                 android:text="@string/info_phone_model_label"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp"
-                    />
+                android:textColor="@color/newspaper_ink" />
             <TextView
                 android:id="@+id/info_phone_model"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp" />
+                android:textColor="@color/newspaper_ink" />
 
             <TextView
                 android:layout_width="match_parent"
@@ -108,16 +100,13 @@
                 android:labelFor="@id/info_pc"
                 android:id="@+id/info_pc_label_text"
                 android:text="@string/info_pc_label"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp"
-                    />
+                android:textColor="@color/newspaper_ink" />
             <TextView
                 android:id="@+id/info_pc"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp" />
+                android:textColor="@color/newspaper_ink" />
 
             <TextView
                 android:layout_width="match_parent"
@@ -126,16 +115,13 @@
                 android:labelFor="@id/info_pc_id"
                 android:id="@+id/info_pc_id_label_text"
                 android:text="@string/info_pc_id_label"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp"
-                    />
+                android:textColor="@color/newspaper_ink" />
             <TextView
                 android:id="@+id/info_pc_id"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp" />
+                android:textColor="@color/newspaper_ink" />
 
             <TextView
                 android:layout_width="match_parent"
@@ -144,33 +130,28 @@
                 android:labelFor="@id/info_pc_status"
                 android:id="@+id/info_pc_status_label_text"
                 android:text="@string/info_pc_status_label"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp"
-                    />
+                android:textColor="@color/newspaper_ink" />
             <TextView
                 android:id="@+id/info_pc_status"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp" />
+                android:textColor="@color/newspaper_ink" />
 
             <TextView
+                android:id="@+id/info_pairing_label_text"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="22dp"
                 android:labelFor="@id/info_pairing"
                 android:text="@string/info_pairing_label"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp"
-                    />
+                android:textColor="@color/newspaper_ink" />
             <TextView
                 android:id="@+id/info_pairing"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp" />
+                android:textColor="@color/newspaper_ink" />
 
             <TextView
                 android:id="@+id/info_replace_pc_steps"
@@ -178,95 +159,84 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="16dp"
                 android:text="@string/info_replace_pc_steps"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp" />
+                android:textColor="@color/newspaper_ink" />
 
             <TextView
+                android:id="@+id/info_app_version_label_text"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="22dp"
                 android:labelFor="@id/info_app_version"
                 android:text="@string/info_app_version_label"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp"
-                    />
+                android:textColor="@color/newspaper_ink" />
             <TextView
                 android:id="@+id/info_app_version"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp" />
+                android:textColor="@color/newspaper_ink" />
 
             <TextView
+                android:id="@+id/info_local_service_label_text"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="22dp"
                 android:labelFor="@id/info_local_service"
                 android:text="@string/info_local_service_label"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp"
-                    />
+                android:textColor="@color/newspaper_ink" />
             <TextView
                 android:id="@+id/info_local_service"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp" />
+                android:textColor="@color/newspaper_ink" />
 
             <TextView
+                android:id="@+id/info_keep_screen_on_label_text"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="22dp"
                 android:labelFor="@id/info_keep_screen_on"
                 android:text="@string/info_keep_screen_on_label"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp"
-                    />
+                android:textColor="@color/newspaper_ink" />
             <TextView
                 android:id="@+id/info_keep_screen_on"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="@string/info_keep_screen_on"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp" />
+                android:textColor="@color/newspaper_ink" />
 
             <TextView
+                android:id="@+id/info_screen_timeout_label_text"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="22dp"
                 android:labelFor="@id/info_screen_timeout"
                 android:text="@string/info_screen_timeout_label"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp"
-                    />
+                android:textColor="@color/newspaper_ink" />
             <TextView
                 android:id="@+id/info_screen_timeout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp" />
+                android:textColor="@color/newspaper_ink" />
 
             <TextView
+                android:id="@+id/info_cover_layout_label_text"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="22dp"
                 android:labelFor="@id/info_cover_layout"
                 android:text="@string/info_cover_layout_label"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp"
-                    />
+                android:textColor="@color/newspaper_ink" />
             <TextView
                 android:id="@+id/info_cover_layout"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
                 android:layout_marginTop="4dp"
                 android:text="@string/info_cover_layout"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp" />
+                android:textColor="@color/newspaper_ink" />
 
             <TextView
                 android:id="@+id/info_forget_error"
@@ -274,8 +244,7 @@
                 android:layout_height="wrap_content"
                 android:layout_marginTop="12dp"
                 android:accessibilityLiveRegion="polite"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="18sp" />
+                android:textColor="@color/newspaper_ink" />
 
             <Button
                 android:id="@+id/info_forget_pc"
@@ -286,7 +255,6 @@
                 android:text="@string/forget_pc"
                 android:textAllCaps="false"
                 android:textColor="@color/newspaper_ink"
-                android:textSize="18sp"
                 android:visibility="gone" />
         </LinearLayout>
     </ScrollView>
