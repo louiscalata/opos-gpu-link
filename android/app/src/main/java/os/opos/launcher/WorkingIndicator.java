@@ -1,7 +1,7 @@
 package os.opos.launcher;
 
 /**
- * The green "working" line under a lane that is streaming or thinking. Host-testable; no
+ * The green live state line for a lane that is streaming or thinking. Host-testable; no
  * Android types. It shows only for the exact live lane labels, so it disappears the moment a
  * lane is done, paused, stopped or failed.
  */
@@ -23,18 +23,21 @@ final class WorkingIndicator {
         return STREAMING.equals(s) || THINKING.equals(s);
     }
 
-    /**
-     * "● ▃ Working… · 312 words"; with reduced motion "● Working… · 312 words". Compact (cover
-     * screen, narrow columns) drops "Working…" once words arrive: "● ▃ 312 words".
-     */
-    static String line(long tick, int words, boolean reducedMotion, boolean compact) {
+    /** Keep the card's one visible line in step with its plain state and word count. */
+    static String line(long tick, CharSequence stateWords, int words, boolean reducedMotion) {
         int w = Math.max(0, words);
         StringBuilder sb = new StringBuilder("● ");
         if (!reducedMotion) sb.append(SPINNER.charAt(index(tick, SPINNER.length()))).append(' ');
-        if (w > 0 && compact) return sb.append(w).append(w == 1 ? " word" : " words").toString();
-        sb.append("Working…");
+        sb.append(stateWords.toString().trim());
         if (w > 0) sb.append(" · ").append(w).append(w == 1 ? " word" : " words");
         return sb.toString();
+    }
+
+    /** A spoken label without the moving dot or bar. */
+    static String spoken(CharSequence stateWords, int words) {
+        String state = stateWords.toString().trim().replace("…", "");
+        int w = Math.max(0, words);
+        return w == 0 ? state : state + ", " + w + (w == 1 ? " word" : " words");
     }
 
     /** The dot pulses about once a second (bright 4 ticks, dim 4); steady with reduced motion. */

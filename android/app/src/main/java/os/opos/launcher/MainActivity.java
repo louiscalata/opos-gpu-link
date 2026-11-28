@@ -3794,8 +3794,8 @@ public final class MainActivity extends Activity {
         view.setSingleLine(true);
         view.setEllipsize(TextUtils.TruncateAt.END);
         view.setPadding(0, dp(2), 0, dp(2));
-        // The state line above already says "Streaming…" or "Thinking…" to TalkBack.
-        view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        // This replaces the plain state line while a lane works.
+        view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
         view.setVisibility(View.GONE);
         return view;
     }
@@ -3806,12 +3806,14 @@ public final class MainActivity extends Activity {
         TextView view = article.working;
         if (!WorkingIndicator.working(article.state.getText())) {
             if (view.getVisibility() != View.GONE) view.setVisibility(View.GONE);
+            if (article.state.getVisibility() != View.VISIBLE) article.state.setVisibility(View.VISIBLE);
             return;
         }
         boolean bright = WorkingIndicator.dotBright(workingTick, reduceMotionEnabled);
-        boolean compact = coverMode || compactLayout;
-        String line = WorkingIndicator.line(workingTick, article.words, reduceMotionEnabled,
-                compact);
+        String line = WorkingIndicator.line(workingTick, article.state.getText(), article.words,
+                reduceMotionEnabled);
+        String spoken = WorkingIndicator.spoken(article.state.getText(), article.words);
+        if (!TextUtils.equals(view.getContentDescription(), spoken)) view.setContentDescription(spoken);
         int green = parseHex(palette.ok());
         String key = line + (bright ? "" : "~") + green;
         if (!key.equals(view.getTag())) {
@@ -3829,6 +3831,7 @@ public final class MainActivity extends Activity {
             view.setText(styled);
             view.setTag(key);
         }
+        if (article.state.getVisibility() != View.GONE) article.state.setVisibility(View.GONE);
         if (view.getVisibility() != View.VISIBLE) view.setVisibility(View.VISIBLE);
     }
 
