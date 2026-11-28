@@ -102,6 +102,11 @@ final class Typography {
         tabular(text);
     }
 
+    void dateline(TextView text) {
+        state(text);
+        text.setLetterSpacing(TypeConfig.S5_CAPS_TRACKING);
+    }
+
     void byline(TextView text) {
         TypeConfig.Role role = choice.subheader();
         String bylineFace = role.face;

@@ -48,7 +48,9 @@ public final class TypeConfigTest {
         equal(TypeConfig.FACE_INTER_MEDIUM, sub.face);
         equal(11, sub.sizeSp);
         equal(10, sub.coverSizeSp);
-        equal(0.02f, sub.letterSpacing);
+        equal(0.08f, TypeConfig.S5_CAPS_TRACKING);
+        equal(TypeConfig.S5_CAPS_TRACKING, sub.letterSpacing);
+        equal(TypeConfig.S5_CAPS_TRACKING, TypeConfig.subheader("S1").letterSpacing);
         check(sub.tabular);
         equal(TypeConfig.FACE_JETBRAINS_MONO_MEDIUM, sub.numerals());
         check(sub.allCaps);
