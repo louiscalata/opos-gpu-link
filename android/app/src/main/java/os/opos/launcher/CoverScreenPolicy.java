@@ -18,13 +18,6 @@ final class CoverScreenPolicy {
     static final int MASTHEAD_DP = 40;
     static final int COMPOSER_ROW_DP = 52;
     static final int KEYBOARD_COMPOSER_ROW_DP = 48;
-    static final int MIN_PANE_DP = 150;
-    static final int MAX_PANE_DP = 230;
-    static final int SUMMARY_DP = 180;
-    /** Status bar, connection line and lane-status line above the results (estimate, not measured). */
-    static final int STICKY_CHROME_DP = 80;
-    static final int QUESTION_SP = 21;
-    static final int BODY_SP = 15;
     static final int MASTHEAD_SP = 24;
 
     private CoverScreenPolicy() {}
@@ -190,12 +183,5 @@ final class CoverScreenPolicy {
         int y = Math.max(0, scrollY);
         if (!cover || !headlineShown) return y;
         return Math.min(y, Math.max(0, headlineTop));
-    }
-
-    /** Pane card height: share the room left above the composer, within the min and max limits. */
-    static int paneHeightDp(int viewportDp, int stickyChromeDp, int shownPanes) {
-        int room = viewportDp - stickyChromeDp - mastheadDp(false) - composerRowDp(false);
-        int each = shownPanes <= 1 ? room : room - 8;
-        return Math.max(MIN_PANE_DP, Math.min(MAX_PANE_DP, each));
     }
 }
