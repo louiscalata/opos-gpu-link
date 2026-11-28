@@ -44,10 +44,6 @@ final class HeatMeter {
         return compact ? "● " + word(status) : "● Phone " + word(status);
     }
 
-    /** Masthead size in sp: larger than the 13 sp status line so the room can read it. */
-    static final int TEXT_SP = 16;
-    static final int TEXT_SP_COMPACT = 14;
-
     /** For TalkBack: "Phone is warm". Unknown: "". */
     static String description(int status) {
         return known(status) ? "Phone is " + word(status) : "";
