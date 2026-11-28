@@ -75,7 +75,7 @@
                 android:id="@+id/info_wireless_note"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginBottom="22dp"
+                android:layout_marginBottom="@dimen/space_xl"
                 android:text="@string/info_wireless_coming_later"
                 android:textColor="@color/newspaper_ink" />
 
@@ -96,7 +96,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="22dp"
+                android:layout_marginTop="@dimen/space_xl"
                 android:labelFor="@id/info_pc"
                 android:id="@+id/info_pc_label_text"
                 android:text="@string/info_pc_label"
@@ -126,7 +126,7 @@
             <TextView
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="22dp"
+                android:layout_marginTop="@dimen/space_xl"
                 android:labelFor="@id/info_pc_status"
                 android:id="@+id/info_pc_status_label_text"
                 android:text="@string/info_pc_status_label"
@@ -142,7 +142,7 @@
                 android:id="@+id/info_pairing_label_text"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="22dp"
+                android:layout_marginTop="@dimen/space_xl"
                 android:labelFor="@id/info_pairing"
                 android:text="@string/info_pairing_label"
                 android:textColor="@color/newspaper_ink" />
@@ -165,7 +165,7 @@
                 android:id="@+id/info_app_version_label_text"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="22dp"
+                android:layout_marginTop="@dimen/space_xl"
                 android:labelFor="@id/info_app_version"
                 android:text="@string/info_app_version_label"
                 android:textColor="@color/newspaper_ink" />
@@ -180,7 +180,7 @@
                 android:id="@+id/info_local_service_label_text"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="22dp"
+                android:layout_marginTop="@dimen/space_xl"
                 android:labelFor="@id/info_local_service"
                 android:text="@string/info_local_service_label"
                 android:textColor="@color/newspaper_ink" />
@@ -195,7 +195,7 @@
                 android:id="@+id/info_keep_screen_on_label_text"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="22dp"
+                android:layout_marginTop="@dimen/space_xl"
                 android:labelFor="@id/info_keep_screen_on"
                 android:text="@string/info_keep_screen_on_label"
                 android:textColor="@color/newspaper_ink" />
@@ -211,7 +211,7 @@
                 android:id="@+id/info_screen_timeout_label_text"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="22dp"
+                android:layout_marginTop="@dimen/space_xl"
                 android:labelFor="@id/info_screen_timeout"
                 android:text="@string/info_screen_timeout_label"
                 android:textColor="@color/newspaper_ink" />
@@ -226,7 +226,7 @@
                 android:id="@+id/info_cover_layout_label_text"
                 android:layout_width="match_parent"
                 android:layout_height="wrap_content"
-                android:layout_marginTop="22dp"
+                android:layout_marginTop="@dimen/space_xl"
                 android:labelFor="@id/info_cover_layout"
                 android:text="@string/info_cover_layout_label"
                 android:textColor="@color/newspaper_ink" />
