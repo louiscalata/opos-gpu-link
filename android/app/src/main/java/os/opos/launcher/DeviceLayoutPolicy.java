@@ -26,7 +26,7 @@ final class DeviceLayoutPolicy {
         return PaneKeys.pc(pane) ? Side.COMPUTER : Side.PHONE;
     }
 
-    /** Primary computer answer first in portrait; the phone comparison baseline follows the other phone answers. */
+    /** Show the computer and lead phone answers before the phone pool in portrait and Summary. */
     static List<String> orderedPanes(List<String> panes, Map<String, String> kinds) {
         List<String> ordered = new ArrayList<>(panes);
         ordered.sort(Comparator.comparingInt(pane -> orderRank(pane, kinds.get(pane))));
@@ -35,10 +35,10 @@ final class DeviceLayoutPolicy {
 
     private static int orderRank(String pane, String kind) {
         if ("gpu".equals(pane)) return 0;
-        if ("phone".equals(pane)) return 3;
+        if ("phone".equals(pane)) return 1;
         Side side = side(pane, kind);
-        if (side == Side.PHONE) return 1;
-        if (side == Side.COMPUTER) return 2;
+        if (side == Side.PHONE) return 2;
+        if (side == Side.COMPUTER) return 3;
         return 4;
     }
 

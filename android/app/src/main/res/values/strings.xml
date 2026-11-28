@@ -162,6 +162,7 @@
     <string name="done_elapsed">Done · %.1f s</string>
     <string name="pc_getting_ready">Getting the PC GPU ready…</string>
     <string name="connect_to_send">Wait for a model, then tap Send.</string>
+    <string name="turn_on_model_to_send">Turn on a model in Model Selection.</string>
     <string name="reconnect">Reconnect</string>
     <string name="stopping">Stopping…</string>
     <string name="lane_retry">Retry</string>

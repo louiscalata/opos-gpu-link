@@ -1,6 +1,8 @@
 package os.opos.launcher;
 
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
@@ -8,15 +10,16 @@ import java.util.Set;
 
 /** Stable pane names and preference keys; legacy phone/GPU keys remain intact. */
 final class PaneKeys {
+    private static final List<String> KNOWN_PANES = Collections.unmodifiableList(Arrays.asList(
+            "phone", "gpu", "m1", "m2", "m3", "m4", "g1", "g2", "g3"));
+
     private PaneKeys() {}
 
     static boolean valid(String pane) {
-        return "phone".equals(pane) || "gpu".equals(pane)
-                || "m1".equals(pane) || "m2".equals(pane)
-                || "m3".equals(pane) || "m4".equals(pane)
-                || "g1".equals(pane) || "g2".equals(pane)
-                || "g3".equals(pane);
+        return KNOWN_PANES.contains(pane);
     }
+
+    static List<String> knownPanes() { return KNOWN_PANES; }
 
     static boolean extra(String pane) {
         return "m1".equals(pane) || "m2".equals(pane)

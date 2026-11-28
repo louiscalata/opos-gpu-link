@@ -181,7 +181,10 @@ public final class MainActivity extends Activity {
 
     private View screen, pairing, pairingClosed;
     private ScrollView resultsScroll, summaryScroll;
-    private LinearLayout header, answers, leftColumn, rightColumn, summaryCard, summaryRow;
+    private LinearLayout header, answers, leftColumn, rightColumn, summaryCard, summaryRow,
+            noSelectionCard;
+    private TextView noSelectionMessage;
+    private Button noSelectionButton;
     private TextView bigMasthead;
     private LinearLayout mastheadBlock;
     private int expandedMastheadHeightPx;
@@ -1137,6 +1140,17 @@ public final class MainActivity extends Activity {
         leftColumn.setOrientation(LinearLayout.VERTICAL);
         rightColumn = new LinearLayout(this);
         rightColumn.setOrientation(LinearLayout.VERTICAL);
+        noSelectionCard = box();
+        noSelectionMessage = bodyText(getString(R.string.turn_on_model_to_send));
+        noSelectionMessage.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        noSelectionCard.addView(noSelectionMessage);
+        noSelectionButton = outlineButton(MenuState.MODEL_SELECTION);
+        typography.body(noSelectionButton, typography.bodySp());
+        noSelectionButton.setOnClickListener(view -> showModelSelection());
+        LinearLayout.LayoutParams chooseModelParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        chooseModelParams.topMargin = dp(8);
+        noSelectionCard.addView(noSelectionButton, chooseModelParams);
         timingCard = box();
         tonightKicker = labelText(getString(R.string.tonight_label));
         timingCard.addView(tonightKicker);
@@ -1263,7 +1277,7 @@ public final class MainActivity extends Activity {
                 if (menuPopup != null) menuPopup.dismiss();
                 if (choice == null) return;
                 switch (choice) {
-                    case "Model Selection": showModelSelection(); break;
+                    case MenuState.MODEL_SELECTION: showModelSelection(); break;
                     case "History": showHistory(); break;
                     case "Settings": showSettings(); break;
                     case "Quit": confirmQuit(); break;
@@ -1507,7 +1521,7 @@ public final class MainActivity extends Activity {
     }
 
     private void arrangeArticles() {
-        if (answers == null || timingCard == null || paneOrder.isEmpty()) return;
+        if (answers == null || timingCard == null) return;
         answers.removeAllViews();
         leftColumn.removeAllViews();
         rightColumn.removeAllViews();
@@ -1564,10 +1578,26 @@ public final class MainActivity extends Activity {
             }
             pinSummaryBar();
         }
+        updateNoSelectionCard();
         resultsScroll.post(() -> {
             revealVisible(!initialRevealDone);
             syncWorkingAnimation();
         });
+    }
+
+    private void updateNoSelectionCard() {
+        if (answers == null || noSelectionCard == null) return;
+        boolean noModelSelected = snapshot != null && laneSelection.selected(
+                paneNames(snapshot), readyPanes(snapshot)).isEmpty();
+        if (!noModelSelected) {
+            detach(noSelectionCard);
+        } else if (noSelectionCard.getParent() != answers) {
+            detach(noSelectionCard);
+            answers.addView(noSelectionCard, 0, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT));
+            resultsScroll.post(() -> revealVisible(false));
+        }
     }
 
     private List<String> orderedDevicePanes() {
@@ -1902,6 +1932,7 @@ public final class MainActivity extends Activity {
         // after a flip, cover switch, or brief background. elapsedRealtime
         // survives process death until reboot; it is persisted in saveLatestRequest.
         snapshot = null;
+        updateNoSelectionCard();
         stopWaitingForId = false;
         reachable = false;
         offline = false;
@@ -2124,6 +2155,7 @@ public final class MainActivity extends Activity {
 
     private void showOffline(Exception failure) {
         offline = true;
+        updateNoSelectionCard();
         stopWaitingForId = false;
         boolean pcPaused = Boolean.FALSE.equals(cableConnected) && hasVisiblePcWork();
         setMainStatus(getString(R.string.phone_unreachable));
@@ -2167,6 +2199,7 @@ public final class MainActivity extends Activity {
         awaitingReplugSnapshot = false;
         if (data.optBoolean("locked")) {
             snapshot = null;
+            updateNoSelectionCard();
             stopWaitingForId = false;
             updateModelSelectionRows();
             latestQuestion = "";
@@ -2387,6 +2420,7 @@ public final class MainActivity extends Activity {
             nameExtraLane(view, pane, model);
         }
         updateCompactLaneStatus();
+        updateNoSelectionCard();
     }
 
     private String leadReportedModel(JSONObject gpu) {
@@ -4623,7 +4657,8 @@ public final class MainActivity extends Activity {
         JSONArray panes = new JSONArray();
         for (String pane : PaneKeys.readyPanes(ordered, eligible)) panes.put(pane);
         if (panes.length() == 0) {
-            error.setText(R.string.connect_to_send);
+            error.setText(selected.isEmpty()
+                    ? R.string.turn_on_model_to_send : R.string.connect_to_send);
             return false;
         }
         JSONObject body = action("ask");
@@ -6312,6 +6347,10 @@ public final class MainActivity extends Activity {
         styleNotesDock();
         syncErrorVisibility();
         if (timingCard != null) timingCard.setBackground(panelDrawable(palette.stroke()));
+        if (noSelectionCard != null) {
+            noSelectionCard.setBackground(panelDrawable(palette.stroke()));
+            recolorChrome(noSelectionCard, paper, ink, label);
+        }
         if (summaryCard != null) summaryCard.setBackground(panelDrawable(palette.stroke()));
         if (bottomDock != null) {
             recolorChrome(bottomDock,
@@ -6520,6 +6559,8 @@ public final class MainActivity extends Activity {
             fillTonightRows(tonightRows, tonightTiming.getText().toString(), tonightLanes);
         }
         if (notes != null) typography.body(notes, typography.bodySp());
+        if (noSelectionMessage != null) typography.body(noSelectionMessage, typography.bodySp());
+        if (noSelectionButton != null) typography.body(noSelectionButton, typography.bodySp());
         if (settingsDialog != null && settingsDialog.isShowing()) {
             typography.defaults(settingsDialog.getWindow().getDecorView());
         }

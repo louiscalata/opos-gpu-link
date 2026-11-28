@@ -20,8 +20,12 @@ public final class LaneSelectionTest {
         ready.put("gpu", true);
         ready.put("m1", false);
         ready.put("g1", false);
+        // A fresh install offers ready models alongside both lead lanes.
         equal(Arrays.asList("phone", "gpu"), selection.selected(panes, ready));
         equal(Arrays.asList("phone", "gpu"), selection.eligible(panes, ready));
+        ready.put("m1", true);
+        equal(Arrays.asList("phone", "gpu", "m1"), selection.selected(panes, ready));
+        ready.put("m1", false);
         check(selection.set(panes, ready, "gpu", false));
         equal(Arrays.asList("phone"), new LaneSelection(memory).selected(panes, ready));
         check(!selection.set(panes, ready, "phone", false));
@@ -29,9 +33,45 @@ public final class LaneSelectionTest {
         equal(Arrays.asList("phone", "g1"), selection.selected(panes, ready));
         ready.put("g1", true);
         equal(Arrays.asList("phone", "g1"), selection.eligible(panes, ready));
+        check(selection.set(panes, ready, "phone", false));
+        equal(Arrays.asList("g1"), selection.eligible(panes, ready));
         ready.put("m1", true);
-        equal(Arrays.asList("phone", "m1", "g1"), selection.selected(panes, ready));
+        // The first saved toggle preserved the other visible defaults, including OFF m1.
+        equal(Arrays.asList("g1"), selection.selected(panes, ready));
+        check(selection.set(panes, ready, "m1", true));
+        equal(Arrays.asList("m1", "g1"), selection.selected(panes, ready));
+        check(selection.set(panes, ready, "g1", false));
+        // If the only chosen model disappears, the saved OFF lead must stay off.
+        List<String> remaining = Arrays.asList("phone", "gpu");
+        equal(List.of(), selection.selected(remaining, ready));
+        equal(List.of(), selection.eligible(remaining, ready));
+        check(selection.set(remaining, ready, "phone", true));
+        equal(Arrays.asList("phone"), selection.eligible(remaining, ready));
         check(!selection.set(panes, ready, "m5", true));
+
+        // An older install may have only one saved model choice. Unsaved lead
+        // lanes keep their defaults; a model newly appearing later stays off.
+        values.clear();
+        values.put("lane_on_m1", false);
+        List<String> replacement = Arrays.asList("phone", "gpu", "g1");
+        Map<String, Boolean> replacementReady = new HashMap<>();
+        replacementReady.put("phone", true);
+        replacementReady.put("gpu", true);
+        replacementReady.put("g1", true);
+        equal(Arrays.asList("phone", "gpu"), new LaneSelection(memory).selected(panes, ready));
+        equal(Arrays.asList("phone", "gpu"), new LaneSelection(memory).selected(
+                replacement, replacementReady));
+
+        // Explicit OFF choices stay off when the saved model disappears.
+        // A newly ready g1 must not replace m1.
+        values.clear();
+        values.put("lane_on_phone", false);
+        values.put("lane_on_gpu", false);
+        values.put("lane_on_m1", true);
+        equal(List.of(), new LaneSelection(memory).selected(replacement, replacementReady));
+        equal(List.of(), selection.eligible(replacement, replacementReady));
+        equal(Arrays.asList("m1"), selection.selected(panes, ready));
+
         Map<String, Boolean> noneReady = new HashMap<>();
         equal(Arrays.asList("phone", "gpu"), new LaneSelection(new LaneSelection.Store() {
             public boolean contains(String key) { return false; }
