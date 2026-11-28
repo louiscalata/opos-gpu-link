@@ -775,6 +775,9 @@ class ExtraLanes(unittest.TestCase):
             argv = a.companion_args(a.arguments([]), rt, {"gpu": {"name": "NVIDIA GeForce RTX 5080"}}, Path("adb"), "R5CX")
         parsed = link.arguments(argv)
         self.assertEqual([m["id"] for m in parsed.extra_models], ["opos-gpu-link-2", "opos-gpu-link-3"])
+        self.assertEqual([(m["label"], m["maker"]) for m in parsed.extra_models],
+                         [("Qwen3 4B", "Qwen (Alibaba)"),
+                          ("LFM2 (comparison baseline)", "Liquid AI")])
         self.assertEqual(parsed.model_servers["opos-gpu-link-3"], "http://127.0.0.1:18092/v1/chat/completions")
         self.assertEqual(parsed.model, "opos-gpu-link")
         with self.assertRaises(SystemExit), patch("sys.stderr", io.StringIO()):
@@ -1030,7 +1033,22 @@ class DataDirAndBundle(unittest.TestCase):
         self.assertEqual(a.maker_of("NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf"), "NVIDIA")
         self.assertEqual(a.maker_of("nvidia_Llama-3.1-Nemotron-Nano-4B-v1.1-Q4_K_M.gguf"), "NVIDIA")
         self.assertEqual(a.maker_of("nvidia_AceInstruct-1.5B-Q4_K_M.gguf"), "NVIDIA")
-        self.assertEqual(a.label_of("Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf"), "Nemotron-3.5-Bolt-E4B")
+        self.assertEqual(a.label_of("Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf"), "Nemotron 3.5 Bolt")
+        self.assertEqual(a.label_of("LFM2-1.2B-Q4_K_M.gguf"), "LFM2 (comparison baseline)")
+        self.assertEqual(a.served_model_label("LFM2 2.6B"), "LFM2 (comparison baseline)")
+        self.assertEqual(a.display_maker("Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf", "Local"), "NVIDIA")
+        self.assertEqual(a.display_maker("LFM2-1.2B-Q4_K_M.gguf", "Local"), "Liquid AI")
+        self.assertEqual(a.display_maker("Qwen3-4B-Q4_K_M.gguf", "Qwen"), "Qwen (Alibaba)")
+        self.assertEqual(a.display_model_label("Qwen3.5-2B_Q4_K_M.gguf"), "Qwen3.5-2B")
+        self.assertEqual(a.display_model_label("Granite-4.1-3B_Q4_K_M.gguf"), "Granite 4.1 3B")
+        self.assertEqual(a.display_model_label("Nemotron-3.5-Bolt_Q4_K_M.gguf"), "Nemotron 3.5 Bolt")
+        self.assertEqual(a.display_model_label("LFM2_1.2B.gguf"), "LFM2 (comparison baseline)")
+        fallback = "Qwen3-4B-Q4_K_M.gguf (fallback for Nemotron-3.5-Bolt-E4B)"
+        self.assertEqual(a.display_model_label(fallback),
+                         "Qwen3-4B-Q4_K_M.gguf (fallback for Nemotron 3.5 Bolt)")
+        self.assertEqual(a.display_maker(fallback, "Qwen"), "Qwen (Alibaba)")
+        self.assertEqual(a.display_maker("Other.gguf (fallback for Granite-4.1-3B)", "Local"), "Local")
+        self.assertEqual(a.display_model_label("unrelated.gguf"), "unrelated.gguf")
         self.assertEqual(a.label_of("Qwen3.8-27B-UD-Q6_K.gguf"), "Qwen3.8-27B")
 
 
@@ -1371,11 +1389,26 @@ class ServedLeadLabelTests(unittest.TestCase):
         self.assertEqual(rt.lanes[0]["lead_label"], "Gemma 4 26B")
         self.assertTrue(proto.valid_model_label(rt.lanes[0]["lead_label"]))
 
+    def test_existing_bolt_file_has_a_display_name_and_maker_only(self):
+        source = {"id": "opos-gpu-link", "label": "Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf"}
+        with patch.object(a, "say"):
+            rt = a.start_runtime(SimpleNamespace(), self._existing(source))
+        self.assertEqual((rt.lanes[0]["id"], rt.lanes[0]["label"], rt.lanes[0]["maker"]),
+                         ("opos-gpu-link", "Nemotron 3.5 Bolt", "NVIDIA"))
+        self.assertEqual(source["label"], "Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf")
+
     def test_existing_server_falls_back_to_the_model_id(self):
         with patch.object(a, "say"):
             rt = a.start_runtime(SimpleNamespace(), self._existing({"id": "opos-gpu-link"}))
         self.assertEqual(rt.lanes[0]["label"], "opos-gpu-link")
         self.assertEqual(rt.lanes[0]["lead_label"], "opos-gpu-link")
+
+    def test_existing_server_uses_served_name_for_maker_after_blank_label(self):
+        with patch.object(a, "say"):
+            rt = a.start_runtime(SimpleNamespace(), self._existing(
+                {"id": "LFM2-1.2B-Q4_K_M.gguf", "label": "  "}))
+        self.assertEqual((rt.lanes[0]["label"], rt.lanes[0]["maker"]),
+                         ("LFM2 (comparison baseline)", "Liquid AI"))
 
     def test_existing_server_sanitizes_non_ascii_and_long_labels(self):
         long_label = "Gemma 4 26B " + ("x" * 80)
@@ -1442,6 +1475,40 @@ class ServedLeadLabelTests(unittest.TestCase):
             self.assertEqual(argv[argv.index("--label") + 1], a.safe_label(info["gpu"]))
         self.assertEqual(a.safe_label(info["gpu"], "Darwin", "MacBook Pro"), "M5 Pro MacBook Pro")
         self.assertEqual(a.safe_label(info["gpu"], "Linux"), "M5 Pro PC")
+
+    def test_managed_runtime_uses_file_name_when_selected_label_is_blank(self):
+        args = a.arguments(["--own-server", "--no-download", "--port", "18090"])
+        args.log_dir = Path("/unused/logs")
+        args.models_dir = Path("/unused/models")
+        args.runtime_dir = Path("/unused/runtime")
+        info = {
+            "gpu": {"name": "Apple M5 Pro", "vendor": "Apple", "backend": "cpu", "budget_mb": 8000},
+            "runtime": {"type": "llama-server"},
+            "model": {"choice": "local", "size_mb": 1000, "maker": "Local",
+                      "name": "Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf"},
+            "extras": [],
+        }
+        server = SimpleNamespace(base_url="http://127.0.0.1:18090",
+                                 log_path=Path("/unused/server.log"))
+        for selected_label in (None, ""):
+            with self.subTest(selected_label=selected_label), contextlib.ExitStack() as stack:
+                stack.enter_context(patch.object(a, "ensure_llama_server", return_value=Path("/unused/server")))
+                stack.enter_context(patch.object(a, "runtime_env", return_value={}))
+                stack.enter_context(patch.object(a, "probe_binary", return_value=(True, "fake")))
+                stack.enter_context(patch.object(a, "ensure_model",
+                                                 return_value=(Path("/unused/model"), selected_label)))
+                stack.enter_context(patch.object(a, "launch_llama_server", return_value=server))
+                stack.enter_context(patch.object(a, "wait_healthy", return_value=True))
+                stack.enter_context(patch.object(a, "verify_gpu", return_value=(False, ["cpu"])))
+                stack.enter_context(patch.object(a, "choose_port", return_value=18090))
+                stack.enter_context(patch.object(a, "new_key", return_value="fixture"))
+                stack.enter_context(patch.object(a, "write_key_file", return_value=Path("/unused/key")))
+                stack.enter_context(patch.object(a.Runtime, "start_guards"))
+                stack.enter_context(patch.object(a.Runtime, "drop_key_file"))
+                stack.enter_context(patch.object(a, "say"))
+                rt = a.start_runtime(args, info)
+            self.assertEqual((rt.lanes[0]["label"], rt.lanes[0]["maker"]),
+                             ("Nemotron 3.5 Bolt", "NVIDIA"))
 
 
 if __name__ == "__main__":
