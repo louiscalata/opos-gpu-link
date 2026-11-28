@@ -27,7 +27,7 @@ public final class SummaryTypographyTest {
 
         String pageBar = section(source, "private LinearLayout pageBar(",
                 "private void showFullPage(");
-        require(pageBar, "newspaperText(title, typography.headingSp(), true, true)");
+        require(pageBar, "headingText(title)");
         System.out.println("SummaryTypographyTest: OK");
     }
 
