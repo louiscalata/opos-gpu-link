@@ -28,8 +28,7 @@ FONTS = ROOT / "android/app/src/main/res/font"
 
 BLACK = "#000000"
 WHITE = "#FFFFFF"
-GRAY = "#BFBFBF"
-STROKE = "#5C5C5C"
+STROKE = WHITE
 GREEN = "#3DDC84"  # UiPalette.OK_DARK; only a working link or live answer uses it.
 
 
@@ -63,14 +62,9 @@ def band_weights() -> tuple[float, float, float]:
 
 
 def place_demo_lanes() -> dict[str, str]:
-    """Mirror DeviceLayoutPolicy.column for the four source-named mock lanes."""
-    placed = {}
-    for name, side in (("Nemotron 3.5 Bolt", "computer"),
-                       ("Qwen3.5-2B", "phone"),
-                       ("Granite 4.1 3B", "phone"),
-                       ("LFM2", "phone")):
-        placed[name] = "left" if side == "phone" else "right"
-    return placed
+    """Mirror DeviceLayoutPolicy.column for the five current demo cards."""
+    return {name: "left" if side == "phone" else "right"
+            for name, _, _, _, _, _, side in DEMO_CARDS}
 
 
 def cool_heat_label(*, compact: bool) -> str:
@@ -167,9 +161,15 @@ class Scene:
         return "\n".join(chunks)
 
 
-ANSWER = ("Each model's reply appears in its own card as the words arrive. "
-          "The card grows with the full answer, so there is room to read and compare. ")
-SHORT_ANSWER = "This answer appears here as its words arrive. The card grows with the reply."
+SHORT_ANSWER = "Words appear here as they arrive."
+
+DEMO_CARDS = (
+    ("Nemotron 3.5 Bolt", "NVIDIA", "MACBOOK GPU", False, True, SHORT_ANSWER, "computer"),
+    ("Nemotron Mini 4B", "NVIDIA", "PHONE · m1", False, True, SHORT_ANSWER, "phone"),
+    ("Qwen3.5-2B", "Qwen (Alibaba)", "PHONE · m2", False, True, SHORT_ANSWER, "phone"),
+    ("LFM2 1.2B (baseline)", "Liquid AI", "PHONE · m3", True, False, SHORT_ANSWER, "phone"),
+    ("Granite 4.1 3B", "IBM", "PHONE · m4", False, False, SHORT_ANSWER, "phone"),
+)
 
 
 def device_band(scene: Scene, y: float, *, margin: float, scale: float,
@@ -189,9 +189,9 @@ def device_band(scene: Scene, y: float, *, margin: float, scale: float,
     head = (17 if compact else 21) * scale
     if not compact:
         scene.text(left_x + 8 * scale, y + 6 * scale, "PHONE", size=small,
-                   color=GRAY, face="small")
+                   color=WHITE, face="small")
         scene.text(right_x + 8 * scale, y + 6 * scale, "COMPUTER", size=small,
-                   color=GRAY, face="small")
+                   color=WHITE, face="small")
     name_y = y + (24 if not compact else 10) * scale
     scene.text(left_x + 8 * scale, name_y, "Phone", size=head, face="head")
     # The actual UI resolves the connected label. MacBook is source-derived from
@@ -214,19 +214,19 @@ def article(scene: Scene, x: float, y: float, width: float, *, scale: float,
     head = (17 if cover else 21) * scale
     small = (10 if cover else 11) * scale
     body = (14 if cover else 17) * scale
-    paragraph = body_text if body_text is not None else ANSWER * paragraphs
+    paragraph = body_text if body_text is not None else " ".join([SHORT_ANSWER] * paragraphs)
     lines = wrap_words(paragraph, width - 2 * pad, body)
     body_top = y + (55 if cover else 82) * scale
     bottom = body_top + len(lines) * body * 1.35 + (8 if cover else 17) * scale
     height = bottom - y
     scene.rect(x, y, width, height, stroke=STROKE)
-    label = (where + " · COMPARISON BASELINE") if baseline else where
+    label = (where + " · BASELINE") if baseline else where
     scene.text(x + pad, y + 8 * scale, label,
-               size=small, color=GRAY, face="small")
+               size=small, color=WHITE, face="small")
     scene.text(x + pad, y + (17 if cover else 26) * scale,
                name, size=head, face="head")
     scene.text(x + pad, y + (37 if cover else 51) * scale,
-               maker, size=small, color=GRAY, face="small")
+               maker, size=small, color=WHITE, face="small")
     if live:
         scene.text(x + width - pad, y + 8 * scale, "LIVE", size=small,
                    color=GREEN, face="small", anchor="end")
@@ -244,7 +244,7 @@ def scroll_cue(scene: Scene, scale: float, margin: float) -> None:
     scene.rect(0, top, scene.width, 23 * scale, fill=BLACK)
     scene.line(margin, top, scene.width - margin, top, color=STROKE)
     scene.text(scene.width / 2, top + 4 * scale, "Scroll for more answers",
-               size=11 * scale, color=GRAY, face="small", anchor="middle")
+               size=11 * scale, color=WHITE, face="small", anchor="middle")
 
 
 def inner_scene(width: int, height: int, *, landscape: bool) -> Scene:
@@ -255,7 +255,7 @@ def inner_scene(width: int, height: int, *, landscape: bool) -> Scene:
     small = 11 * scale
     head = 21 * scale
     scene.text(margin, 4 * scale, "MOCK PREVIEW · INNER LANDSCAPE" if landscape
-               else "MOCK PREVIEW · INNER PORTRAIT", size=small, color=GRAY, face="small")
+               else "MOCK PREVIEW · INNER PORTRAIT", size=small, color=WHITE, face="small")
     scene.text(margin, 20 * scale, "GPU LINK",
                size=(28 if landscape else 34) * scale, face="head")
     heat_bottom = heat_row(scene, (52 if landscape else 65) * scale,
@@ -263,12 +263,12 @@ def inner_scene(width: int, height: int, *, landscape: bool) -> Scene:
     band_y = heat_bottom + 8 * scale
     bottom_band = device_band(scene, band_y, margin=margin, scale=scale)
     question_y = bottom_band + 10 * scale
-    scene.text(margin, question_y, "YOUR QUESTION", size=small, color=GRAY,
+    scene.text(margin, question_y, "YOUR QUESTION", size=small, color=WHITE,
                face="small")
     scene.text(margin, question_y + 18 * scale, "What can this setup do?",
                size=head, face="head")
     top = question_y + 52 * scale
-    count = column_count(width_dp, cover=False, lane_count=4)
+    count = column_count(width_dp, cover=False, lane_count=len(DEMO_CARDS))
     gap = 6 * scale
     if count == 2:
         col_width = (width - margin * 2 - gap) / 2
@@ -276,32 +276,22 @@ def inner_scene(width: int, height: int, *, landscape: bool) -> Scene:
         next_y = {"left": top, "right": top}
         x_for = {"left": left_x, "right": right_x}
         placements = place_demo_lanes()
-        for name, maker, where, baseline, live, sample in (
-            ("Nemotron 3.5 Bolt", "NVIDIA", "MACBOOK GPU", False, True, SHORT_ANSWER),
-            ("Qwen3.5-2B", "Qwen (Alibaba)", "PHONE", False, True, SHORT_ANSWER),
-            ("Granite 4.1 3B", "IBM", "PHONE", False, False, ANSWER),
-            ("LFM2", "Liquid AI", "PHONE", True, False, ANSWER),
-        ):
+        for name, maker, where, baseline, live, sample, _side in DEMO_CARDS:
             column = placements[name]
             next_y[column] = article(scene, x_for[column], next_y[column], col_width,
                                      scale=scale, name=name, maker=maker, where=where,
                                      paragraphs=1, baseline=baseline, live=live,
                                      body_text=sample) + gap
+        final_bottom = max(next_y.values()) - gap
     else:
         card_width = width - 2 * margin
-        top = article(scene, margin, top, card_width, scale=scale,
-                name="Nemotron 3.5 Bolt", maker="NVIDIA", where="MACBOOK GPU",
-                paragraphs=1, live=True) + gap
-        top = article(scene, margin, top, card_width, scale=scale,
-                      name="Qwen3.5-2B", maker="Qwen (Alibaba)", where="PHONE",
-                      paragraphs=1, live=True) + gap
-        top = article(scene, margin, top, card_width, scale=scale,
-                      name="Granite 4.1 3B", maker="IBM", where="PHONE",
-                      paragraphs=1) + gap
-        article(scene, margin, top, card_width, scale=scale,
-                name="LFM2", maker="Liquid AI", where="PHONE",
-                paragraphs=1, baseline=True)
-    scroll_cue(scene, scale, margin)
+        for name, maker, where, baseline, live, sample, _side in DEMO_CARDS:
+            top = article(scene, margin, top, card_width, scale=scale,
+                          name=name, maker=maker, where=where, paragraphs=1,
+                          baseline=baseline, live=live, body_text=sample) + gap
+        final_bottom = top - gap
+    if final_bottom > scene.height - 23 * scale:
+        scroll_cue(scene, scale, margin)
     return scene
 
 
@@ -309,7 +299,7 @@ def cover_scene() -> Scene:
     width, height = 720, 748
     scene = Scene(width, height)
     margin = 24
-    scene.text(margin, 5, "MOCK PREVIEW · COVER", size=22, color=GRAY, face="small")
+    scene.text(margin, 5, "MOCK PREVIEW · COVER", size=22, color=WHITE, face="small")
     scene.text(margin, 27, "GPU LINK", size=48, face="head")
     heat_bottom = heat_row(scene, 80, margin=margin, scale=2, compact=True)
     # CoverScreenPolicy: a 52 dp composer row above the results at 2 px per dp.
@@ -318,7 +308,7 @@ def cover_scene() -> Scene:
     prompt_w = width - 2 * margin - button_w - button_gap
     scene.rect(prompt_x, composer_y, prompt_w, composer_h, stroke=STROKE)
     scene.text(prompt_x + 20, composer_y + 33, "Ask the models…",
-               size=28, color=GRAY, face="body")
+               size=28, color=WHITE, face="body")
     button_x = prompt_x + prompt_w + button_gap
     scene.rect(button_x, composer_y, button_w, composer_h, fill=WHITE)
     scene.text(button_x + button_w / 2, composer_y + 34, "Send", size=34,
@@ -351,7 +341,7 @@ def tk_scene() -> Scene:
     scene = Scene(width, height, background=WHITE)
     margin = 18
     scene.text(margin, 10, "MOCK PREVIEW · MAC COMPANION", size=11,
-               color=STROKE, face="small")
+               color=BLACK, face="small")
     scene.text(margin, 35, "OPOS GPU Link", size=21, color=BLACK, face="head")
     band_y, band_height = 77, 72
     band_gap = 106
@@ -374,9 +364,9 @@ def tk_scene() -> Scene:
     scene.text(margin + 12, status_y + 10, "STATUS", size=11,
                color=BLACK, face="small")
     scene.text(margin + 12, status_y + 34,
-               "Phone connected; waiting for requests", size=17,
+               "Ready for questions on the phone.", size=17,
                color=BLACK, face="body")
-    controls = ("Retry connection", "Remove model copies", "Stop GPU Link")
+    controls = ("Try again", "Remove model copies", "Stop GPU Link")
     button_gap = 8
     button_width = (width - 2 * margin - button_gap * 2) / 3
     for index, label in enumerate(controls):

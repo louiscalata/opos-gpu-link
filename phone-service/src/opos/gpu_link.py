@@ -54,6 +54,7 @@ def display_label(label: object) -> object:
 GENERIC_MODEL_NAMES = frozenset({"computer gpu", "macbook gpu", "mac gpu", "pc gpu"})
 _MACBOOK = re.compile(r"\b(?:MacBook|MBP(?![A-Za-z]))", re.I)
 _MAC = re.compile(r"\b(?:iMac|Mac(?:intosh|mini|Studio|Pro)?)(?![A-Za-z])", re.I)
+_LFM2_DISPLAY = re.compile(r"(?<![a-z0-9])lfm2(?:[-_ ](\d+(?:[._]\d+)?[bm]))?(?![a-z0-9]|\.\d)", re.I)
 
 
 def computer_noun(pc_label: object) -> str:
@@ -106,8 +107,10 @@ def display_model_name(name: object) -> object:
     candidate, separator, failed = name.partition(" (fallback for ")
     if re.search(r"(?i)(?<![a-z0-9])nemotron[-_. ]*3[._ ]5[-_. ]*bolt(?![a-z0-9])", candidate):
         return "Nemotron 3.5 Bolt"
-    if re.search(r"(?i)(?<![a-z0-9])lfm2(?![a-z0-9])", candidate):
-        return "LFM2 (comparison baseline)"
+    lfm = _LFM2_DISPLAY.search(candidate)
+    if lfm:
+        size = lfm.group(1)
+        return f"LFM2 {size.replace('_', '.').upper()} (baseline)" if size else "LFM2 (baseline)"
     if re.search(r"(?i)(?<![a-z0-9])qwen[-_. ]*3[._ ]5[-_. ]*2b(?![a-z0-9])", candidate):
         return "Qwen3.5-2B"
     if re.search(r"(?i)(?<![a-z0-9])granite[-_. ]*4[._ ]1[-_. ]*3b(?![a-z0-9])", candidate):
@@ -124,7 +127,7 @@ def display_model_maker(name: object, maker: object) -> object:
     shown = display_model_name(name)
     if shown == "Nemotron 3.5 Bolt":
         return "NVIDIA"
-    if shown == "LFM2 (comparison baseline)":
+    if isinstance(name, str) and _LFM2_DISPLAY.search(name.split(" (fallback for ", 1)[0]):
         return "Liquid AI"
     if shown == "Qwen3.5-2B":
         return "Qwen (Alibaba)"
@@ -147,9 +150,8 @@ def display_pool_model(label: str, maker: str, filename: str) -> tuple[str, str]
     """Prefer a known file identity; leave an unknown pool entry's label alone."""
     from_file = display_model_name(filename)
     source = filename if from_file in {
-        "Nemotron 3.5 Bolt", "LFM2 (comparison baseline)",
-        "Qwen3.5-2B", "Granite 4.1 3B",
-    } else label
+        "Nemotron 3.5 Bolt", "Qwen3.5-2B", "Granite 4.1 3B",
+    } or _LFM2_DISPLAY.search(filename.split(" (fallback for ", 1)[0]) else label
     return display_model_name(source), display_model_maker(source, maker)
 
 
