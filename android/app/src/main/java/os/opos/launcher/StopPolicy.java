@@ -27,9 +27,25 @@ final class StopPolicy {
         return status == 400 && "That answer was not found.".equals(message);
     }
 
-    /** Keep the Stop notice while work is open but no answer can be named yet. */
-    static boolean noIdStillOpen(boolean blocking, Collection<String> ids) {
-        return blocking && (ids == null || ids.isEmpty());
+    /** An open pane without an ID cannot be included in a cancel request. */
+    static boolean hasOpenWithoutId(Collection<String> idsByOpenPane) {
+        if (idsByOpenPane == null) return false;
+        for (String id : idsByOpenPane) {
+            if (id == null || id.isEmpty()) return true;
+        }
+        return false;
+    }
+
+    /** Keep the Stop notice while an unnamed answer can still block a new Send. */
+    static boolean noIdStillOpen(boolean blocking, Collection<String> idsByOpenPane) {
+        return blocking && hasOpenWithoutId(idsByOpenPane);
+    }
+
+    /** A fresh snapshot, or a usable response after cancel, must show no open answers. */
+    static boolean quitConfirmedStopped(boolean beforeFresh, boolean openBefore,
+                                        boolean afterUsable, boolean openAfter) {
+        if (afterUsable) return !openAfter;
+        return beforeFresh && !openBefore;
     }
 
     /** Stop queued phone lanes before ending the lead answer on a one-ID host. */

@@ -1669,6 +1669,7 @@ public final class MainActivity extends Activity {
         // after a flip, cover switch, or brief background. elapsedRealtime
         // survives process death until reboot; it is persisted in saveLatestRequest.
         snapshot = null;
+        stopWaitingForId = false;
         reachable = false;
         offline = false;
         awaitingReplugSnapshot = false;
@@ -1890,6 +1891,7 @@ public final class MainActivity extends Activity {
 
     private void showOffline(Exception failure) {
         offline = true;
+        stopWaitingForId = false;
         boolean pcPaused = Boolean.FALSE.equals(cableConnected) && hasVisiblePcWork();
         setMainStatus(getString(R.string.phone_unreachable));
         updateModelSelectionRows();
@@ -1933,6 +1935,7 @@ public final class MainActivity extends Activity {
         awaitingReplugSnapshot = false;
         if (data.optBoolean("locked")) {
             snapshot = null;
+            stopWaitingForId = false;
             updateModelSelectionRows();
             latestQuestion = "";
             lastSubmittedQuestion = "";
@@ -1969,6 +1972,7 @@ public final class MainActivity extends Activity {
         if (phone == null || gpu == null) {
             reachable = false;
             snapshot = null;
+            stopWaitingForId = false;
             showOffline(new IOException("missing panes"));
             return;
         }
@@ -3219,6 +3223,10 @@ public final class MainActivity extends Activity {
         Connection connection = pcConnection(gpu);
         AnswerOutcome.Result outcome = AnswerOutcome.visible(
                 currentAnswerOutcome(), connection == Connection.CONNECTED);
+        if (stopWaitingForId && !StopPolicy.noIdStillOpen(
+                anyBlockingOpen(), openAnswerIdsByPane(snapshot))) {
+            stopWaitingForId = false;
+        }
         String line;
         if (Boolean.FALSE.equals(cableConnected)) {
             line = pcOpen || hasVisiblePcWork() ? getString(R.string.paused_plug_cable)
@@ -3230,6 +3238,8 @@ public final class MainActivity extends Activity {
                     ComputerWords.noun(computerLabel(pending)));
         } else if (pausedAfterFreshSnapshot) {
             line = pcWords(R.string.gpu_paused);
+        } else if (stopWaitingForId) {
+            line = getString(R.string.stop_not_ready);
         } else if (awaitingAnswerId()) {
             line = getString(R.string.thinking);
         } else if (open(gpuWork) && connection == Connection.DISCONNECTED
@@ -3259,13 +3269,6 @@ public final class MainActivity extends Activity {
             line = pcWords(R.string.connect_pc);
         } else {
             line = pcWords(R.string.gpu_unavailable);
-        }
-        if (stopWaitingForId) {
-            if (StopPolicy.noIdStillOpen(anyBlockingOpen(), openAnswerIds(snapshot))) {
-                line = getString(R.string.stop_not_ready);
-            } else {
-                stopWaitingForId = false;
-            }
         }
         setMainStatus(line);
         renderLinkBanner(connection == Connection.CONNECTED, pcOpen || hasVisiblePcWork());
@@ -4348,6 +4351,7 @@ public final class MainActivity extends Activity {
             throw new AssertionError(impossible);
         }
         acting = true;
+        stopWaitingForId = false;
         laneRetryRebind.put(pane, oldId);
         handler.removeCallbacks(poll);
         setIfChanged(error, "");
@@ -4359,7 +4363,7 @@ public final class MainActivity extends Activity {
                     acting = false;
                     laneRetryRebind.remove(pane);
                     bindRetriedLane(updated, pane, question); // even if the page is hidden now
-                    if (!visible) return;
+                    if (!visible || quitting) return;
                     reachable = true;
                     showSnapshot(updated);
                     schedule(0);
@@ -4369,7 +4373,7 @@ public final class MainActivity extends Activity {
                     acting = false;
                     boolean definite = failure instanceof AiClient.ApiException;
                     if (definite) laneRetryRebind.remove(pane); // else a later snapshot may show it
-                    if (!visible) return;
+                    if (!visible || quitting) return;
                     error.setText(definite ? failure.getMessage() : getString(R.string.action_failed));
                     renderStatus();
                     updateButtons();
@@ -4435,23 +4439,21 @@ public final class MainActivity extends Activity {
             }
             JSONObject finalSnapshot = updated;
             String finalProblem = problem;
-            boolean noIdYet = ids.isEmpty() && problem == null;
+            boolean noIdYet = problem == null && usableAnswerSnapshot(finalSnapshot)
+                    && StopPolicy.hasOpenWithoutId(openAnswerIdsByPane(finalSnapshot));
             handler.post(() -> {
                 acting = false;
-                if (!visible) return;
+                if (!visible || quitting) return;
+                stopWaitingForId = noIdYet;
                 if (finalSnapshot != null) {
                     reachable = true;
                     showSnapshot(finalSnapshot);
                 } else {
                     setMainStatus(getString(R.string.checking_connection));
                 }
-                if (noIdYet) {
-                    stopWaitingForId = true;
-                    renderStatus();
-                }
                 if (finalProblem != null) error.setText(finalProblem);
                 updateButtons();
-                schedule(noIdYet || finalProblem != null ? 2000 : 0);
+                schedule(finalProblem != null ? 2000 : noIdYet ? 500 : 0);
             });
         });
     }
@@ -4471,6 +4473,20 @@ public final class MainActivity extends Activity {
             if (open(answer)) byPane.put(pane, answer.optString("id"));
         }
         return PaneKeys.uniqueOpenIds(paneNames(data), byPane);
+    }
+
+    private static List<String> openAnswerIdsByPane(JSONObject data) {
+        List<String> ids = new ArrayList<>();
+        for (String pane : paneNames(data)) {
+            JSONObject answer = answerOf(data, pane);
+            if (open(answer)) ids.add(answer.optString("id"));
+        }
+        return ids;
+    }
+
+    private static boolean usableAnswerSnapshot(JSONObject data) {
+        return data != null && !data.optBoolean("locked")
+                && data.optJSONObject("phone") != null && data.optJSONObject("gpu") != null;
     }
 
     private static Map<String, String> openAnswerStates(JSONObject data) {
@@ -4521,6 +4537,7 @@ public final class MainActivity extends Activity {
     private void quitActivity() {
         if (quitting) return;
         quitting = true;
+        stopWaitingForId = false;
         handler.removeCallbacks(poll);
         updateButtons();
         quitProgressDialog = new AlertDialog.Builder(this, R.style.LinkDialogTheme)
@@ -4539,34 +4556,33 @@ public final class MainActivity extends Activity {
             } catch (IOException | JSONException ignored) {
                 // A disconnected service leaves only the IDs visible before Quit.
             }
-            JSONObject targets = latest != null ? latest : lastSeen;
-            List<String> ids = openAnswerIds(targets);
-            Map<String, String> states = openAnswerStates(targets);
-            // An open answer without an ID cannot be cancelled yet or confirmed stopped.
-            boolean cancelFailed = StopPolicy.noIdStillOpen(hasOpenAnswer(targets), ids);
+            // An old screen snapshot can supply IDs, but cannot prove that a new Send ended.
+            boolean beforeFresh = usableAnswerSnapshot(latest);
+            JSONObject targets = beforeFresh ? latest : lastSeen;
+            boolean beforeUsable = usableAnswerSnapshot(targets);
+            boolean openBefore = beforeUsable && hasOpenAnswer(targets);
+            List<String> ids = beforeUsable ? openAnswerIds(targets) : new ArrayList<>();
+            Map<String, String> states = beforeUsable
+                    ? openAnswerStates(targets) : new HashMap<>();
             JSONObject updated = null;
             if (!ids.isEmpty()) {
                 try {
                     updated = cancelOpenAnswers(ids, states);
                 } catch (IOException | JSONException ignored) {
-                    cancelFailed = true;
+                    // The final snapshot decides whether any answer is still open.
                 }
             }
             JSONObject afterCancel = updated;
-            if (!ids.isEmpty()) {
+            if (openBefore || !beforeFresh) {
                 try {
                     afterCancel = client.getSnapshot();
-                    // A cancel refused because the answer just finished is not a failed Quit.
-                    if (cancelFailed && afterCancel != null && !afterCancel.optBoolean("locked")
-                            && !StopPolicy.stillRunning(ids, openAnswerIds(afterCancel))) {
-                        cancelFailed = false;
-                    }
                 } catch (IOException | JSONException ignored) {
-                    // A cancelled issue may have no final local snapshot to archive.
+                    // A cancel response may still show that every answer stopped.
                 }
             }
             JSONObject finalSnapshot = afterCancel;
-            boolean finalCancelFailed = cancelFailed;
+            boolean finalCancelFailed = !StopPolicy.quitConfirmedStopped(beforeFresh,
+                    openBefore, usableAnswerSnapshot(afterCancel), hasOpenAnswer(afterCancel));
             handler.post(() -> {
                 if (isDestroyed()) {
                     if (!finalCancelFailed) finishAndRemoveTask();
@@ -4671,7 +4687,8 @@ public final class MainActivity extends Activity {
 
     private void sendAction(JSONObject body, String sentQuestion, long startedAtMs,
                             boolean retrying) {
-        if (!visible || !reachable || acting) return;
+        if (!visible || !reachable || acting || quitting) return;
+        stopWaitingForId = false;
         String draftAtSubmission = sentQuestion != null && !retrying
                 ? prompt.getText().toString() : null;
         long submittedRevision = draftRevision;
@@ -4705,7 +4722,7 @@ public final class MainActivity extends Activity {
                     JSONObject checked = client.getSnapshot();
                     handler.post(() -> {
                         acting = false;
-                        if (!visible) return;
+                        if (!visible || quitting) return;
                         reachable = true;
                         showSnapshot(checked);
                         if (askRecovery.unresolved()) {
@@ -4716,7 +4733,7 @@ public final class MainActivity extends Activity {
                 } catch (IOException | JSONException failure) {
                     handler.post(() -> {
                         acting = false;
-                        if (!visible) return;
+                        if (!visible || quitting) return;
                         reachable = false;
                         showOffline(failure);
                         schedule(2000);
@@ -4732,7 +4749,7 @@ public final class MainActivity extends Activity {
                             retryIds, retryStates)) {
                         handler.post(() -> {
                             acting = false;
-                            if (!visible) return;
+                            if (!visible || quitting) return;
                             reachable = true;
                             showSnapshot(checked);
                             schedule(0);
@@ -4743,7 +4760,7 @@ public final class MainActivity extends Activity {
                 } catch (IOException | JSONException failure) {
                     handler.post(() -> {
                         acting = false;
-                        if (!visible) return;
+                        if (!visible || quitting) return;
                         reachable = false;
                         showOffline(failure);
                         schedule(2000);
@@ -4778,7 +4795,7 @@ public final class MainActivity extends Activity {
                                 null);
                         if (!isDestroyed()) clearDraftIfUntouched(draftAtSubmission, submittedRevision);
                     }
-                    if (!visible) return;
+                    if (!visible || quitting) return;
                     reachable = true;
                     showSnapshot(updated);
                     schedule(0);
@@ -4804,7 +4821,7 @@ public final class MainActivity extends Activity {
                         getPreferences(MODE_PRIVATE).edit()
                                 .putBoolean(PREF_UNRESOLVED_ASK, false).apply();
                     }
-                    if (!visible) return;
+                    if (!visible || quitting) return;
                     if (uncertain) {
                         if (reconciled != null) {
                             reachable = true;
