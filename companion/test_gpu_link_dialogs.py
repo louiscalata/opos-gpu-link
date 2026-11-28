@@ -122,14 +122,30 @@ class DialogTests(unittest.TestCase):
             "S5": {"size": 11, "weight": "normal", "leading": 1.25, "tracking": 0.02, "tnum": True},
             "B5": {"size": 17, "weight": "normal", "leading": 1.35, "tracking": 0.0},
         })
-        self.assertEqual((link.DIALOG_INK, link.DIALOG_PAPER, link.DIALOG_ERROR),
-                         ("#000000", "#FFFFFF", "#B00000"))
+        self.assertEqual((link.DIALOG_INK, link.DIALOG_PAPER, link.DIALOG_ERROR,
+                          link.DIALOG_SUCCESS),
+                         ("#000000", "#FFFFFF", "#B00000", "#008000"))
         specs = link._dialog_font_specs(
+            {"Source Serif 4 Subhead SemiBold", "Source Serif 4 Text", "Inter Medium"},
+            "Tk heading", "Tk text")
+        self.assertEqual(specs, {"title": ("Source Serif 4 Subhead SemiBold", 21, "normal"),
+                                 "small": ("Inter Medium", 11, "normal"),
+                                 "body": ("Source Serif 4 Text", 17, "normal")})
+        standard_family = link._dialog_font_specs(
+            {"Source Serif 4", "Inter"}, "Tk heading", "Tk text")
+        self.assertEqual(standard_family["title"], ("Source Serif 4", 21, "bold"))
+        self.assertEqual(standard_family["body"], ("Source Serif 4", 17, "normal"))
+        semibold_family = link._dialog_font_specs(
+            {"Source Serif 4 SemiBold"}, "Tk heading", "Tk text")
+        self.assertEqual(semibold_family["title"],
+                         ("Source Serif 4 SemiBold", 21, "normal"))
+        installed_family = link._dialog_font_specs(
             {"Source Serif 4 Subhead Semibold", "Source Serif 4", "Inter Medium"},
             "Tk heading", "Tk text")
-        self.assertEqual(specs, {"title": ("Source Serif 4 Subhead Semibold", 21, "normal"),
-                                 "small": ("Inter Medium", 11, "normal"),
-                                 "body": ("Source Serif 4", 17, "normal")})
+        self.assertEqual(installed_family,
+                         {"title": ("Source Serif 4 Subhead Semibold", 21, "normal"),
+                          "small": ("Inter Medium", 11, "normal"),
+                          "body": ("Source Serif 4", 17, "normal")})
         public = link._dialog_font_specs({"Newsreader", "Inter"}, "Tk heading", "Tk text")
         self.assertEqual(public, {"title": ("Newsreader", 21, "bold"),
                                   "small": ("Inter", 11, "normal"),
