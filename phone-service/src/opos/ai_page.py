@@ -40,17 +40,34 @@ except ImportError:
     def answer_noun(where: Any, pc_label: Any) -> str:
         return "computer"
 
+try:
+    from opos.gpu_link import display_model_name, display_pool_model
+except ImportError:
+    def display_model_name(name: Any) -> Any:
+        return name
+
+    def display_pool_model(label: str, maker: str, filename: str) -> tuple[str, str]:
+        return label, maker
+
 # The placeholder place for a computer lane. The snapshot keeps it exactly, because the Android app
 # matches it (PaneKeys.shownWhere); the page script words it for the paired computer.
 PC_WHERE = "on the PC's GPU"
 
 
 def _shown_answer(answer: dict | None) -> dict | None:
-    """Map a stored computer answer's saved pairing label to its screen name, without storing it."""
-    if not answer or not answer.get("where"):
+    """Show current wording without changing a saved answer."""
+    if not answer:
         return answer
-    shown = _pc_display(answer["where"])
-    return answer if shown == answer["where"] else {**answer, "where": shown}
+    shown_where = _pc_display(answer.get("where")) if answer.get("where") else answer.get("where")
+    shown_model = display_model_name(answer["model"]) if "model" in answer else None
+    if shown_where == answer.get("where") and ("model" not in answer or shown_model == answer["model"]):
+        return answer
+    shown = dict(answer)
+    if shown_where != answer.get("where"):
+        shown["where"] = shown_where
+    if "model" in answer and shown_model != answer["model"]:
+        shown["model"] = shown_model
+    return shown
 
 QUESTIONS = (
     "Explain why the sky looks blue in words a ten-year-old would understand.",
@@ -420,6 +437,8 @@ class PageState:
                     job.problem = None
             self.workers = {key: job for key, job in self.workers.items() if job.thread.is_alive()}
             models = ai_model_pool.models()
+            shown_models = [(item, *display_pool_model(item.label, item.maker,
+                            getattr(getattr(item, "path", None), "name", ""))) for item in models]
             phone, gpu, pool, extra, link, revision = self._views(ai_answers.shared(), _service())
             route = _route()
             gpu_model = link["model"] if link is not None else None
@@ -433,15 +452,15 @@ class PageState:
                            (not gpu["where"] or _pc_display(gpu["where"]) == pc["label"])))
             pc_models = list((pc or {}).get("models") or [])
             visible = {item.get("pane") for item in pc_models}
-            pc_models.extend({"pane": pane, "id": "", "label": (answer["model"] or f"{computer_title(answer_noun(answer.get('where'), (pc or {}).get('label')))} {pane}"),
+            pc_models.extend({"pane": pane, "id": "", "label": (display_model_name(answer["model"]) or f"{computer_title(answer_noun(answer.get('where'), (pc or {}).get('label')))} {pane}"),
                               "maker": "", "live": False, "live_speed": None}
                              for pane, answer in extra.items() if answer is not None and pane not in visible)
             body = {
                 "phone": {
-                    "model": (phone["model"] if phone else "") or (route.name if route else ""),
+                    "model": display_model_name((phone["model"] if phone else "") or (route.name if route else "")),
                     "where": (phone["where"] if phone else "") or (route.where if route else "on this phone"),
                     "ready": route is not None and not (phone and phone["error"] == "no_model"),
-                    "answer": phone,
+                    "answer": _shown_answer(phone),
                     "live_speed": (
                         self.workers[phone["id"]].live_speed
                         if phone and phone["state"] == "answering" and phone["id"] in self.workers
@@ -450,7 +469,7 @@ class PageState:
                 },
                 "gpu": {
                     **({"lead_label": lead_label} if lead_label is not None else {}),
-                    "model": (lead_label if same_pc else None) or (gpu["model"] if gpu else "") or (gpu_model["name"] if gpu_model else ""),
+                    "model": display_model_name((lead_label if same_pc else None) or (gpu["model"] if gpu else "") or (gpu_model["name"] if gpu_model else "")),
                     "where": _pc_display((gpu["where"] if gpu else "") or PC_WHERE),
                     "ready": bool(
                         gpu_model
@@ -468,12 +487,12 @@ class PageState:
                     {
                         "pane": item.pane,
                         "kind": "phone",
-                        "label": item.label,
-                        "maker": item.maker,
-                        "model": item.label,
+                        "label": shown_label,
+                        "maker": shown_maker,
+                        "model": shown_label,
                         "where": "on this phone",
                         "ready": True,
-                        "answer": pool[item.pane],
+                        "answer": _shown_answer(pool[item.pane]),
                         "live_speed": (
                             self.workers[pool[item.pane]["id"]].live_speed
                             if pool[item.pane]
@@ -483,14 +502,14 @@ class PageState:
                         ),
                         "file_mb": item.file_mb,
                     }
-                    for item in models
+                    for item, shown_label, shown_maker in shown_models
                 ] + [
                     {
                         "pane": item["pane"],
                         "kind": "pc",
                         "label": item["label"],
                         "maker": item["maker"],
-                        "model": (extra[item["pane"]]["model"] if extra[item["pane"]] else "") or item["label"],
+                        "model": display_model_name((extra[item["pane"]]["model"] if extra[item["pane"]] else "") or item["label"]),
                         "where": PC_WHERE,
                         "ready": bool(pc and pc["live"] and item["live"] and not link.get("storage_notice")),
                         "answer": _shown_answer(extra[item["pane"]]),

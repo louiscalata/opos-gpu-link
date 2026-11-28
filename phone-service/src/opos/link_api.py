@@ -29,7 +29,7 @@ from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from typing import Any
 
 from opos import ai_answers, gpu_link_server, secure
-from opos.gpu_link import answer_noun, computer_title
+from opos.gpu_link import answer_noun, computer_title, display_label, display_model_name
 
 APPEND_INTERVAL = 0.25
 BODY_LIMIT = 6 * ai_answers.MAX_QUESTION_BYTES + 256
@@ -51,6 +51,14 @@ PRESETS = tuple(
 )
 POOL_PANES = tuple(pane for pane in ai_answers.PANES if pane != "phone" and pane not in ai_answers.PC_PANES)
 LINK_ACTIONS = ("allow", "deny", "reopen", "forget")
+
+
+def _shown_answer(answer: dict | None) -> dict | None:
+    """Map a saved model name for display, without writing to the answer store."""
+    if not answer:
+        return answer
+    name = display_model_name(answer.get("model"))
+    return answer if name == answer.get("model") else {**answer, "model": name}
 
 
 def _link() -> Any:
@@ -294,10 +302,10 @@ class LinkApi:
             gpu_model = link["model"] if link is not None else None
             lead_label = (pc or {}).get("lead_label")
             same_pc = bool(pc and (not gpu or (gpu["state"] not in ai_answers.FINAL
-                                               and (not gpu["where"] or gpu["where"] == pc["label"]))))
+                                               and (not gpu["where"] or display_label(gpu["where"]) == pc["label"]))))
             pc_models = list((pc or {}).get("models") or [])
             shown = {item.get("pane") for item in pc_models}
-            pc_models.extend({"pane": pane, "id": "", "label": answer["model"] or f"{computer_title(answer_noun(answer.get('where'), (pc or {}).get('label')))} {pane}",
+            pc_models.extend({"pane": pane, "id": "", "label": display_model_name(answer["model"]) or f"{computer_title(answer_noun(answer.get('where'), (pc or {}).get('label')))} {pane}",
                               "maker": "",
                               "live": False, "live_speed": None}
                              for pane, answer in extra.items() if answer is not None and pane not in shown)
@@ -305,29 +313,29 @@ class LinkApi:
             phone_job = self.workers.get(phone["id"]) if phone else None
             body = {
                 "phone": {
-                    "model": (phone["model"] if phone else "") or (self.phone.label if self.phone else ""),
+                    "model": display_model_name((phone["model"] if phone else "") or (self.phone.label if self.phone else "")),
                     "where": (phone["where"] if phone else "") or "on this phone",
                     "ready": self.phone is not None and not (phone and phone["error"] == "no_model"),
-                    "answer": phone,
+                    "answer": _shown_answer(phone),
                     "live_speed": phone_job.live_speed if phone_job and phone["state"] == "answering" else None,
                 },
                 "gpu": {
                     **({"lead_label": lead_label} if lead_label is not None else {}),
-                    "model": (lead_label if same_pc else None) or (gpu["model"] if gpu else "")
-                    or (gpu_model["name"] if gpu_model else ""),
+                    "model": display_model_name((lead_label if same_pc else None) or (gpu["model"] if gpu else "")
+                    or (gpu_model["name"] if gpu_model else "")),
                     "where": (gpu["where"] if gpu else "") or "on the PC's GPU",
                     "ready": bool(gpu_model and gpu_model["state"] == "ready" and pc and pc["live"]
                                   and pc.get("main_live", pc["live"]) and pc["state"] == "ready" and not storage),
-                    "answer": gpu,
+                    "answer": _shown_answer(gpu),
                     "link": link,
                 },
                 "models": [
                     {
                         "pane": item["pane"], "kind": "pc", "label": item["label"], "maker": item["maker"],
-                        "model": (extra[item["pane"]]["model"] if extra[item["pane"]] else "") or item["label"],
+                        "model": display_model_name((extra[item["pane"]]["model"] if extra[item["pane"]] else "") or item["label"]),
                         "where": "on the PC's GPU",
                         "ready": bool(pc and pc["live"] and item["live"] and not storage),
-                        "answer": extra[item["pane"]],
+                        "answer": _shown_answer(extra[item["pane"]]),
                         "live_speed": item.get("live_speed")
                         if extra[item["pane"]] and extra[item["pane"]]["state"] == "answering" else None,
                     }

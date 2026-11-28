@@ -786,6 +786,29 @@ def maker_of(name: str) -> str:
     return "Local"
 
 
+def display_model_label(name: str) -> str:
+    """Use the show names for known files; leave every other model alone."""
+    if re.search(r"(?i)(?<![a-z0-9])nemotron[-_. ]*3[._ ]5[-_. ]*bolt\b", name):
+        return "Nemotron 3.5 Bolt"
+    if re.search(r"(?i)(?<![a-z0-9])lfm2\b", name):
+        return "LFM2 (comparison baseline)"
+    return name
+
+
+def display_maker(name: str, maker: str) -> str:
+    """Show the agreed maker without changing model selection metadata."""
+    shown = display_model_label(name)
+    if shown == "Nemotron 3.5 Bolt":
+        return "NVIDIA"
+    if shown == "LFM2 (comparison baseline)":
+        return "Liquid AI"
+    if maker == "Qwen" or maker == "Qwen (Alibaba)":
+        return "Qwen (Alibaba)"
+    if maker == "IBM" or "granite" in name.lower():
+        return "IBM"
+    return maker
+
+
 def served_model_label(*parts) -> str | None:
     """Return a lead_label that satisfies proto.valid_model_label, or None.
 
@@ -799,7 +822,7 @@ def served_model_label(*parts) -> str | None:
         cleaned = "".join(ch if " " <= ch <= "~" else " " for ch in part)
         cleaned = re.sub(r"\s+", " ", cleaned).strip()[:64]
         if cleaned:
-            return cleaned
+            return display_model_label(cleaned)
     return None
 
 
@@ -807,7 +830,7 @@ def label_of(name: str) -> str:
     stem = re.sub(r"(?i)\.gguf$", "", name)
     stem = re.sub(r"(?i)[-_.](q\d\w*|f16|bf16|ud|gguf)\b", "", stem)
     stem = re.sub(r"[^A-Za-z0-9. -]", " ", stem.replace("_", " "))
-    return re.sub(r"\s+", " ", stem).strip()[:40] or "Local model"
+    return display_model_label(re.sub(r"\s+", " ", stem).strip()[:40] or "Local model")
 
 
 def scan_local_ggufs(dirs, max_depth=5):
@@ -2685,8 +2708,12 @@ class Runtime:
             with self.state_lock:
                 self.models[lane_id] = candidate
                 lane = next(lane for lane in self.lanes if lane["id"] == lane_id)
-                lane.update(label=f"{candidate.name[:23]} (fallback for {original.name[:23]})",
-                            maker=maker_of(candidate.name), size_mb=candidate.size >> 20, on_gpu=None)
+                shown = display_model_label(candidate.name)
+                fallback_label = (shown if shown != candidate.name else
+                                  f"{candidate.name[:23]} (fallback for {original.name[:23]})")
+                lane.update(label=fallback_label,
+                            maker=display_maker(candidate.name, maker_of(candidate.name)),
+                            size_mb=candidate.size >> 20, on_gpu=None)
                 if self.lanes[0]["id"] == lane_id:
                     lane["lead_label"] = lane["label"]
                     self.on_gpu, self.evidence = None, ["fallback GPU use not measured"]
@@ -2804,7 +2831,8 @@ def start_runtime(args, info, runner=subprocess.run):
         if not served:
             raise RuntimeError("Existing server has no usable model label")
         rt.lanes = [{"id": model.get("id") or "opos-gpu-link", "url": url, "label": served,
-                     "maker": "Local", "lead_label": served}]
+                     "maker": display_maker(model.get("label") or model.get("id") or "", "Local"),
+                     "lead_label": served}]
         rt.evidence = ["existing server; GPU use not measured"]
         return rt
     rt.memory_runner = runner
@@ -2912,7 +2940,7 @@ def start_runtime(args, info, runner=subprocess.run):
                         f"Log: {server.log_path}"])
             served = served_model_label(label, entry.get("name")) or alias
             lane = {"id": alias, "url": f"{server.base_url}/v1/chat/completions", "label": served,
-                    "maker": (entry.get("maker") or maker_of(entry.get("name", "")))[:32],
+                    "maker": display_maker(label, entry.get("maker") or maker_of(entry.get("name", "")))[:32],
                     "on_gpu": on_gpu, "gpu_output_bad": gpu_output_bad, "port": port, "size_mb": entry["size_mb"]}
             if index == 0:
                 lane["lead_label"] = served
@@ -2937,7 +2965,9 @@ def companion_args(args, rt, info, adb, serial):
             "--server", lead["url"], "--model", lead["id"], "--label", safe_label(info["gpu"]),
             *protected_flags(lead["url"])]
     for lane in rt.lanes[1:]:
-        argv += ["--extra-model", f"{lane['id']}:{lane['label'].replace(':', ' ')}:{lane['maker'].replace(':', ' ')}",
+        label = display_model_label(lane["label"])
+        maker = display_maker(label, lane["maker"])
+        argv += ["--extra-model", f"{lane['id']}:{label.replace(':', ' ')}:{maker.replace(':', ' ')}",
                  "--model-server", f"{lane['id']}={lane['url']}"]
     return argv + list(args.companion_args)
 

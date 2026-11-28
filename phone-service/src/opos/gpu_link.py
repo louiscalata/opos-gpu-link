@@ -99,6 +99,52 @@ def fallback_model_name(name: str, pc_label: object) -> str:
     return "Computer GPU"
 
 
+def display_model_name(name: object) -> object:
+    """Screen-only names for models identified by their existing label or file name."""
+    if not isinstance(name, str):
+        return name
+    if re.search(r"(?i)(?<![a-z0-9])nemotron[-_. ]*3[._ ]5[-_. ]*bolt\b", name):
+        return "Nemotron 3.5 Bolt"
+    if re.search(r"(?i)(?<![a-z0-9])lfm2\b", name):
+        return "LFM2 (comparison baseline)"
+    if re.search(r"(?i)(?<![a-z0-9])qwen[-_. ]*3[._ ]5[-_. ]*2b\b", name):
+        return "Qwen3.5-2B"
+    if re.search(r"(?i)(?<![a-z0-9])granite[-_. ]*4[._ ]1[-_. ]*3b\b", name):
+        return "Granite 4.1 3B"
+    return name
+
+
+def display_model_maker(name: object, maker: object) -> object:
+    shown = display_model_name(name)
+    if shown == "Nemotron 3.5 Bolt":
+        return "NVIDIA"
+    if shown == "LFM2 (comparison baseline)":
+        return "Liquid AI"
+    if shown == "Qwen3.5-2B":
+        return "Qwen (Alibaba)"
+    if shown == "Granite 4.1 3B":
+        return "IBM"
+    if maker == "Qwen":
+        return "Qwen (Alibaba)"
+    return maker
+
+
+def display_pool_model(label: str, maker: str, filename: str) -> tuple[str, str]:
+    """Prefer a known file identity; leave an unknown pool entry's label alone."""
+    from_file = display_model_name(filename)
+    source = filename if from_file in {
+        "Nemotron 3.5 Bolt", "LFM2 (comparison baseline)",
+        "Qwen3.5-2B", "Granite 4.1 3B",
+    } else label
+    return display_model_name(source), display_model_maker(source, maker)
+
+
+def display_model_row(row: dict) -> dict:
+    """Copy advertised metadata for the screen; keep the signed model ID untouched."""
+    label = display_model_name(row.get("label", ""))
+    return {**row, "label": label, "maker": display_model_maker(row.get("label", ""), row.get("maker", ""))}
+
+
 HISTORY_LIMIT = 64
 LINK_SECONDS = 2.5
 HASH_RETRY_SECONDS = 5.0
@@ -917,7 +963,7 @@ class LinkService:
                             continue
                         model = {"id": "", "label": answer["model"], "maker": "", "gpu": None}
                     lane_status = self._extra_status.get(pane, {})
-                    models.append({"pane": pane, **deepcopy(model),
+                    models.append({"pane": pane, **display_model_row(deepcopy(model)),
                                    "live": pane in self._advertised and
                                    now - self._extra_last_status.get(pane, -float("inf")) < LINK_SECONDS and
                                    lane_status.get("state") != "error"})
@@ -931,12 +977,12 @@ class LinkService:
                     models=models,
                 )
                 if self._lead_label is not None:
-                    pc["lead_label"] = self._lead_label
+                    pc["lead_label"] = display_model_name(self._lead_label)
             return {
                 "storage": "error" if self._storage_fault is not None or self._answers.startup_notice else None,
                 "storage_notice": self._answers.startup_notice,
                 "storage_fault": self._storage_fault is not None,
-                "model": {**self._model, "name": self._fallback_name()},
+                "model": {**self._model, "name": display_model_name(self._fallback_name())},
                 "pc": pc,
                 "pending": pending,
                 "enrol": "closed" if self._denials >= 3 else "open",

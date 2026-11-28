@@ -165,6 +165,17 @@ class SnapshotTests(Base):
         self.assertEqual([(item["pane"], item["kind"], item["label"], item["ready"]) for item in lanes],
                          [("g1", "pc", "Big model", True)])
 
+    def test_lfm2_is_a_visible_baseline_without_changing_advertisement(self):
+        api = self.api()
+        self.enrolled()
+        source = {"id": "lfm2-1.2b", "label": "LFM2 1.2B", "maker": "Liquid AI", "gpu": None}
+        self.assertEqual(self.pc.advertise([source]).status, 200)
+        lane = api.snapshot()["models"][0]
+        self.assertEqual((lane["label"], lane["maker"], lane["model"]),
+                         ("LFM2 (comparison baseline)", "Liquid AI", "LFM2 (comparison baseline)"))
+        self.assertEqual(self.link._advertised["g1"]["label"], "LFM2 1.2B")
+        self.assertEqual(source["label"], "LFM2 1.2B")
+
 
 class ActionTests(Base):
     def test_ask_gpu_runs_through_the_pc_and_finishes(self):

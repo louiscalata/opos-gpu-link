@@ -774,6 +774,9 @@ class ExtraLanes(unittest.TestCase):
             argv = a.companion_args(a.arguments([]), rt, {"gpu": {"name": "NVIDIA GeForce RTX 5080"}}, Path("adb"), "R5CX")
         parsed = link.arguments(argv)
         self.assertEqual([m["id"] for m in parsed.extra_models], ["opos-gpu-link-2", "opos-gpu-link-3"])
+        self.assertEqual([(m["label"], m["maker"]) for m in parsed.extra_models],
+                         [("Qwen3 4B", "Qwen (Alibaba)"),
+                          ("LFM2 (comparison baseline)", "Liquid AI")])
         self.assertEqual(parsed.model_servers["opos-gpu-link-3"], "http://127.0.0.1:18092/v1/chat/completions")
         self.assertEqual(parsed.model, "opos-gpu-link")
         with self.assertRaises(SystemExit), patch("sys.stderr", io.StringIO()):
@@ -1029,7 +1032,13 @@ class DataDirAndBundle(unittest.TestCase):
         self.assertEqual(a.maker_of("NVIDIA-Nemotron3-Nano-4B-Q4_K_M.gguf"), "NVIDIA")
         self.assertEqual(a.maker_of("nvidia_Llama-3.1-Nemotron-Nano-4B-v1.1-Q4_K_M.gguf"), "NVIDIA")
         self.assertEqual(a.maker_of("nvidia_AceInstruct-1.5B-Q4_K_M.gguf"), "NVIDIA")
-        self.assertEqual(a.label_of("Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf"), "Nemotron-3.5-Bolt-E4B")
+        self.assertEqual(a.label_of("Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf"), "Nemotron 3.5 Bolt")
+        self.assertEqual(a.label_of("LFM2-1.2B-Q4_K_M.gguf"), "LFM2 (comparison baseline)")
+        self.assertEqual(a.served_model_label("LFM2 2.6B"), "LFM2 (comparison baseline)")
+        self.assertEqual(a.display_maker("Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf", "Local"), "NVIDIA")
+        self.assertEqual(a.display_maker("LFM2-1.2B-Q4_K_M.gguf", "Local"), "Liquid AI")
+        self.assertEqual(a.display_maker("Qwen3-4B-Q4_K_M.gguf", "Qwen"), "Qwen (Alibaba)")
+        self.assertEqual(a.display_model_label("unrelated.gguf"), "unrelated.gguf")
         self.assertEqual(a.label_of("Qwen3.8-27B-UD-Q6_K.gguf"), "Qwen3.8-27B")
 
 
@@ -1369,6 +1378,14 @@ class ServedLeadLabelTests(unittest.TestCase):
         self.assertEqual(rt.lanes[0]["label"], "Gemma 4 26B")
         self.assertEqual(rt.lanes[0]["lead_label"], "Gemma 4 26B")
         self.assertTrue(proto.valid_model_label(rt.lanes[0]["lead_label"]))
+
+    def test_existing_bolt_file_has_a_display_name_and_maker_only(self):
+        source = {"id": "opos-gpu-link", "label": "Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf"}
+        with patch.object(a, "say"):
+            rt = a.start_runtime(SimpleNamespace(), self._existing(source))
+        self.assertEqual((rt.lanes[0]["id"], rt.lanes[0]["label"], rt.lanes[0]["maker"]),
+                         ("opos-gpu-link", "Nemotron 3.5 Bolt", "NVIDIA"))
+        self.assertEqual(source["label"], "Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf")
 
     def test_existing_server_falls_back_to_the_model_id(self):
         with patch.object(a, "say"):
