@@ -1050,6 +1050,14 @@ class DataDirAndBundle(unittest.TestCase):
         self.assertEqual(a.display_model_label("LFM2 2.6B"), "LFM2 2.6B (baseline)")
         self.assertEqual(a.display_model_label("LFM2 (comparison baseline)"), "LFM2 (baseline)")
         self.assertEqual(a.display_model_label("LFM2.5"), "LFM2.5")
+        for source, label, maker in (
+            ("LFM2.5B", "LFM2.5B", "Local"),
+            ("LFM2.gguf", "LFM2 (baseline)", "Liquid AI"),
+            ("LFM2-1.2B", "LFM2 1.2B (baseline)", "Liquid AI"),
+        ):
+            with self.subTest(source=source):
+                self.assertEqual(a.display_model_label(source), label)
+                self.assertEqual(a.display_maker(source, "Local"), maker)
         self.assertEqual(a.display_maker("LiquidAI/LFM2-VL", "Local"), "Liquid AI")
         self.assertEqual(a.display_maker("Liquid AI LFM2", "Local"), "Liquid AI")
         self.assertEqual(a.display_maker("LFM2.5", "Local"), "Local")

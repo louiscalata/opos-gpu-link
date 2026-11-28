@@ -28,7 +28,7 @@ class DisplayLabelTest(unittest.TestCase):
     def test_known_model_file_names_map_only_on_screen(self):
         cases = (
             ("Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf", "Nemotron 3.5 Bolt", "NVIDIA"),
-            ("LFM2-1.2B-Q4_K_M.gguf", "LFM2 (comparison baseline)", "Liquid AI"),
+            ("LFM2-1.2B-Q4_K_M.gguf", "LFM2 1.2B (baseline)", "Liquid AI"),
             ("Qwen3.5-2B-Q4_K_M.gguf", "Qwen3.5-2B", "Qwen (Alibaba)"),
             ("Granite-4.1-3B-Q4_K_M.gguf", "Granite 4.1 3B", "IBM"),
         )
@@ -38,7 +38,7 @@ class DisplayLabelTest(unittest.TestCase):
                 self.assertEqual(gpu_link.display_model_maker(source, "Local"), maker)
         for source, shown in (
             ("Nemotron-3.5-Bolt_Q4_K_M.gguf", "Nemotron 3.5 Bolt"),
-            ("LFM2_1.2B.gguf", "LFM2 (comparison baseline)"),
+            ("LFM2_1.2B.gguf", "LFM2 1.2B (baseline)"),
             ("Qwen3.5-2B_Q4_K_M.gguf", "Qwen3.5-2B"),
             ("Granite-4.1-3B_Q4_K_M.gguf", "Granite 4.1 3B"),
         ):
@@ -46,6 +46,19 @@ class DisplayLabelTest(unittest.TestCase):
                 self.assertEqual(gpu_link.display_model_name(source), shown)
         self.assertEqual(gpu_link.display_model_name("Unknown.gguf"), "Unknown.gguf")
         self.assertEqual(gpu_link.display_model_maker("Unknown.gguf", "Local"), "Local")
+
+    def test_lfm2_size_and_unknown_size_do_not_confuse_a_dot_version(self):
+        cases = (
+            ("LFM2-1.2B", "LFM2 1.2B (baseline)", "Liquid AI"),
+            ("LFM2", "LFM2 (baseline)", "Liquid AI"),
+            ("LFM2.gguf", "LFM2 (baseline)", "Liquid AI"),
+            ("LFM2.5B", "LFM2.5B", "Local"),
+            ("LFM2.1.2B.gguf", "LFM2.1.2B.gguf", "Local"),
+        )
+        for source, shown, maker in cases:
+            with self.subTest(source=source):
+                self.assertEqual(gpu_link.display_model_name(source), shown)
+                self.assertEqual(gpu_link.display_model_maker(source, "Local"), maker)
 
     def test_fallback_names_use_the_replacement_model(self):
         source = "Qwen3-4B-Q4_K_M.gguf (fallback for Nemotron-3.5-Bolt-E4B)"
@@ -61,7 +74,7 @@ class DisplayLabelTest(unittest.TestCase):
     def test_model_row_keeps_engine_id_and_source_metadata(self):
         source = {"id": "lfm2-1.2b", "label": "LFM2 1.2B", "maker": "Liquid AI", "gpu": None}
         shown = gpu_link.display_model_row(source)
-        self.assertEqual(shown, {"id": "lfm2-1.2b", "label": "LFM2 (comparison baseline)",
+        self.assertEqual(shown, {"id": "lfm2-1.2b", "label": "LFM2 1.2B (baseline)",
                                  "maker": "Liquid AI", "gpu": None})
         self.assertEqual(source["label"], "LFM2 1.2B")
 
@@ -72,6 +85,12 @@ class DisplayLabelTest(unittest.TestCase):
         self.assertEqual(gpu_link.display_pool_model(
             "Old Granite label", "IBM", "Granite-4.1-3B-Q4_K_M.gguf"),
             ("Granite 4.1 3B", "IBM"))
+        self.assertEqual(gpu_link.display_pool_model(
+            "Old LFM2 label", "Local", "LFM2-1.2B-Q4_K_M.gguf"),
+            ("LFM2 1.2B (baseline)", "Liquid AI"))
+        self.assertEqual(gpu_link.display_pool_model(
+            "Old LFM2 label", "Local", "LFM2.gguf"),
+            ("LFM2 (baseline)", "Liquid AI"))
         self.assertEqual(gpu_link.display_pool_model(
             "Original label", "Local", "unknown.gguf"), ("Original label", "Local"))
 

@@ -783,20 +783,21 @@ def maker_of(name: str) -> str:
     return "Local"
 
 
+_LFM2_DISPLAY = re.compile(
+    r"(?<![a-z0-9])lfm2(?:[-_ ](\d+(?:[._]\d+)?[bm]))?(?![a-z0-9]|\.\d)", re.I)
+
+
 def display_model_label(name: str) -> str:
     """Use the show names for known files; leave every other model alone."""
     candidate, separator, failed = name.partition(" (fallback for ")
     if re.search(r"(?i)(?<![a-z0-9])nemotron[-_. ]*3[._ ]5[-_. ]*bolt(?![a-z0-9])", candidate):
         return "Nemotron 3.5 Bolt"
-    lfm = re.search(r"(?i)(?<![a-z0-9])lfm2(?:[-_. ](\d+(?:[._]\d+)?[bm]))?(?![a-z0-9]|\.\d)", candidate)
+    lfm = _LFM2_DISPLAY.search(candidate)
     if lfm:
         size = lfm.group(1)
         if size:
             return f"LFM2 {size.replace('_', '.').upper()} (baseline)"
-        candidate = re.sub(r"(?i) \(comparison baseline\)$", "", candidate)
-        if candidate.lower() in {"lfm2", "lfm2 (baseline)"}:
-            return "LFM2 (baseline)"
-        return candidate if "baseline" in candidate.lower() else f"{candidate[:53].rstrip()} (baseline)"
+        return "LFM2 (baseline)"
     if re.search(r"(?i)(?<![a-z0-9])qwen[-_. ]*3[._ ]5[-_. ]*2b(?![a-z0-9])", candidate):
         return "Qwen3.5-2B"
     if re.search(r"(?i)(?<![a-z0-9])granite[-_. ]*4[._ ]1[-_. ]*3b(?![a-z0-9])", candidate):
@@ -815,7 +816,7 @@ def display_maker(name: str, maker: str) -> str:
     if shown == "Nemotron 3.5 Bolt":
         return "NVIDIA"
     primary = name.split(" (fallback for ", 1)[0]
-    if re.search(r"(?i)(?<![a-z0-9])lfm2(?![a-z0-9.])", primary):
+    if _LFM2_DISPLAY.search(primary):
         return "Liquid AI"
     if shown == "Qwen3.5-2B":
         return "Qwen (Alibaba)"
