@@ -1,10 +1,10 @@
 # Hands-on demo runsheet
 
-Galaxy Z Flip6, USB-C data cable, Apple-silicon MacBook, desktop companion. Complete these checks in one sitting. Start the phone service and companion using the [quick start](README.md#quick-start). Keep the companion running through cable pulls.
+Galaxy Z Flip 6, USB-C data cable, Apple-silicon MacBook, desktop companion. Complete these checks in one sitting. Start the phone service and companion using the [quick start](README.md#quick-start). Keep the companion running through cable pulls.
 
 In a second Mac terminal, set `ADB` to the exact adb executable the companion uses, for example `ADB=/absolute/path/to/adb`. Use `ADB=$(command -v adb)` only if it finds that same executable. Check with `"$ADB" version`. Run `"$ADB" devices -l` and confirm one authorized phone. A mismatched adb can restart the server. Repeat this setup on a second computer. Leave the ADB server and app data alone.
 
-Write local clock times. Mark each row **PASS**, **FAIL**, or **NOT_RUN** only after observing it. Add a short reason for a failure or an unavailable lane. The stand-alone phone service does not provide the planned `m1` and `m4` pool. Those checks need the full OPOS phone host with ready local models.
+Write local clock times. Mark each row **PASS**, **FAIL**, or **NOT_RUN** only after observing it. Add a short reason for a failure or an unavailable lane. The stand-alone phone service does not provide the `m1`–`m4` pool. Those checks need the full OPOS phone app with ready local models.
 
 ## 1. Flip screens and new-computer prompt
 
@@ -74,8 +74,8 @@ Write local clock times. Mark each row **PASS**, **FAIL**, or **NOT_RUN** only a
 **Steps:**
 
 1. Open **Info** and note the displayed computer name and connection state.
-2. Tap **Forget this PC** (or the button with that computer's name). On the first dialog, tap **Continue**.
-3. Inspect the second dialog. Tap **Not now**. Do not tap **Forget PC**. Recheck the name and connection state in Info.
+2. Tap **Forget this MacBook** (or the matching Forget button). On the first dialog, tap **Continue**.
+3. Inspect the second dialog. Tap **Not now**. Do not tap **Forget MacBook**. Recheck the name and connection state in Info.
 
 **PASS:** The second confirmation appears, **Not now** exits it, and the same saved MacBook remains connected.
 
@@ -180,7 +180,7 @@ After playback, delete only the named phone files you made. If you made a cover 
 
 **Steps:**
 
-1. Run `"$ADB" shell dumpsys SurfaceFlinger --display-id` to list display IDs without changing the phone. Identify the inner and cover IDs. The Flip6 cover is a separate display. Replace `<inner_id>` and `<cover_id>` below with those IDs. If the cover ID is absent while unfolded, list IDs again after folding. `screencap -d` takes these SurfaceFlinger IDs, not the small logical IDs from `dumpsys display`. If the command lists nothing, mark the cover shot NOT_RUN rather than guessing an ID.
+1. Run `"$ADB" shell dumpsys SurfaceFlinger --display-id` to list display IDs without changing the phone. Identify the inner and cover IDs. The Galaxy Z Flip 6 cover is a separate display. Replace `<inner_id>` and `<cover_id>` below with those IDs. If the cover ID is absent while unfolded, list IDs again after folding. `screencap -d` takes these SurfaceFlinger IDs, not the small logical IDs from `dumpsys display`. If the command lists nothing, mark the cover shot NOT_RUN rather than guessing an ID.
 2. With the pairing dialog open on the inner screen, run `"$ADB" exec-out screencap -d <inner_id> -p > pairing-inner.png` in this computer's ADB terminal.
 3. Fold closed while the prompt is live. Check the cover fit. Run `"$ADB" exec-out screencap -d <cover_id> -p > pairing-cover.png`.
 4. Open both PNGs. Check that each shows the intended display, computer name, code, **Allow**, and **Not now** without clipping. Record filenames and times. If a prompt is unavailable, mark the missing shot NOT_RUN.

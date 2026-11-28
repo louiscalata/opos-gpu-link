@@ -6,7 +6,7 @@ This is an early demo. It has not been independently audited, and nothing here i
 
 ## Scope
 
-OPOS GPU Link is a local, offline-first setup: an Android app, a loopback phone service, and a computer companion that talks to a local model server. The phone reaches the computer only through a USB-C `adb` forward. Pairing uses a six-digit compare-and-allow step, and later requests are signed.
+OPOS GPU Link is a local, offline-first setup: an Android app, a loopback phone service, and a computer companion that talks to a local model server. The companion reaches the phone service through a USB-C `adb` forward. Pairing uses a six-digit compare-and-allow step, and later requests are signed.
 
 In scope: the code in this repository, the pairing and signed-request path, the loopback services, and the published debug APK and companion builds.
 

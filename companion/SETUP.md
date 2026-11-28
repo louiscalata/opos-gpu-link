@@ -3,7 +3,7 @@
 ## Before you connect
 
 - Use Python 3.10 or later and Android SDK Platform-Tools. The headless companion uses the Python standard library. Install Tk only if you want the optional desktop window. On macOS and Linux, the companion uses `lsof` to verify that adb owns the loopback forward. Windows uses PowerShell's TCP connection and process commands for that check.
-- Run an OpenAI-compatible model server on loopback. Choose an available port such as 1235 or 8000 and note the model ID reported by the server.
+- For the direct launchers below, start a local model server first. Choose an available port such as 1235 or 8000 and note the model ID it reports. The [quick start](../README.md#quick-start) starts its own server instead.
 - On the phone, enable Developer options and USB debugging. Use a data-capable USB cable, unlock the phone, and approve the computer's USB debugging prompt. Run `adb devices -l` to check for an authorized USB device. When using an explicit adb path, use that same executable for the check and for the companion. On Linux, your account needs permission to access the USB device. If access is denied, consult your distribution's Android USB or udev setup.
 - Start the launcher as your regular user. Pairing defaults to `~/.config/opos-gpu-link` on macOS/Linux and `%LOCALAPPDATA%\OPOS\GPU Link` on Windows. New POSIX pairing directories use mode 0700 and saved key files use mode 0600. If you supply an existing POSIX directory, ensure that it is yours and has mode 0700. On Windows the saved pairing is encrypted with current-user DPAPI. For a custom Windows directory, make a best-effort check in **Properties → Security** that its ACL limits access to your user, subject to system or administrator policies.
 
@@ -31,7 +31,7 @@ To have the companion running whenever you sign in to your Mac, install the per-
 python3 gpu_link_login_agent.py install --model-path /path/to/model.gguf --serial SERIAL --adb /path/to/adb
 ```
 
-It writes `~/Library/LaunchAgents/os.opos.gpulink.companion.plist`, which runs `gpu_link_autosetup.py --offline --strict-ports --own-server --port 38400` from this checkout at login, restarts it after a crash (not after a clean exit), and logs to `~/Library/Logs/OPOS GPU Link/`. No admin rights are needed. `status` shows whether it is loaded, `print` shows the plist without installing it, and `uninstall` stops and removes it. The phone still asks once before it uses a new computer.
+It writes `~/Library/LaunchAgents/os.opos.gpulink.companion.plist` and starts the companion now and at later logins. It runs `gpu_link_autosetup.py --offline --strict-ports --own-server --no-extras --no-pause --port 38400` from this checkout, restarts after a crash (not after a clean exit), and logs to `~/Library/Logs/OPOS GPU Link/`. Add `--no-start` to install it for the next login only. No admin rights are needed. `status` shows whether it is loaded, `print` shows the plist without installing it, and `uninstall` stops and removes it. The phone still asks once before it uses a new computer.
 
 ## Find local model servers
 
@@ -62,7 +62,7 @@ On macOS use `./run-mac.sh` with the same arguments. On Windows PowerShell use `
 
 The optional `gpu` field on each JSON model can describe its computer GPU with `name` (up to 64 printable characters), `memory_mb` (nonnegative integer), and `driver` (up to 32 printable characters). The list is limited to three unique IDs, distinct from the lead model ID, and a 2,048-byte JSON file. The phone shows these models as `g1`–`g3` next to the lead `gpu` lane. A single question can start the lead, all ready extra computer lanes, and the phone lanes together. Each computer lane owns its stream and saved byte offset; the companion sends at most one text post per second per lane when fan-out is enabled, keeping the phone's existing four-posts-per-second limit.
 
-The lead model still passes its existing model-file check. Extra model IDs are served by the existing `--lm-url` or `--server` endpoint; the companion never calls a load or unload API. Each extra model runs its one-token SSE check only on first use. While an extra model loads for the first time, its phone card says **Waiting for its turn…**. If an extra model fails that check or its stream, only that lane fails with the safe `server` code. `OPOS_GPU_LINK_REASONING_EFFORT` applies to every stream and preflight request; its default is `none`. Set it to `default` to omit the field.
+The lead model still gets a one-token streamed check at its server. Extra model IDs use the existing `--lm-url` or `--server` address; the companion never calls a load or unload API. Each extra model gets that check only on first use. While an extra model loads for the first time, its phone card says **Waiting for its turn…**. If an extra model fails that check or its stream, only that lane fails with the safe `server` code. `OPOS_GPU_LINK_REASONING_EFFORT` applies to every stream and preflight request; its default is `none`. Set it to `default` to omit the field.
 
 LM Studio can load an available model on the first inference request when just-in-time (JIT) loading is enabled. That first request can take longer than later requests, so check that the companion's warmup completes. A standard single-model `llama-server` process loads the model it was configured with at startup. Use separately configured instances for separate models in that mode. If your llama.cpp build offers router mode, loading behavior depends on its router configuration.
 
@@ -75,7 +75,7 @@ Approximate starting points for one model with roughly 4-bit weights and modest 
 | 24 GB VRAM | 14–24B | Larger models can fit depending on quantization, context and runtime overhead. |
 | 64 GB unified memory | 30–32B | Leave room for the OS and other applications. Check the accelerator's working-set limit. |
 
-Include weights, KV cache, and runtime buffers for every model that may be resident together. Reduce context, concurrency, or quantization size if warmup hits memory pressure. These ranges are estimates, with no hardware measurements in this delivery.
+Include weights, KV cache, and runtime buffers for every model that may be resident together. Reduce context, concurrency, or quantization size if warmup hits memory pressure. These ranges are estimates, not measured results.
 
 ## Unplugging and troubleshooting
 
@@ -87,7 +87,7 @@ When USB disconnects, every open computer lane changes to **paused** after the l
 - **Checking the model.** — compare the reported ID with `--model`. Check whether the model server can stream answers and has memory to load the model.
 - **Replug doesn't continue the answer** — confirm that the companion is still running and that the phone retained the paused turn. See [companion pairing and recovery](README.md#start-the-companion) for pairing rejection.
 
-## Verification for this delivery
+## Checks
 
 Host tests and the public unit suites are documented in this repository ([companion tests](README.md#tests) and `android/scripts/run-host-tests.sh`). The fake LM Studio HTTP test binds an ephemeral loopback port when the host permits it. The Windows test run, USB unplug/replug, real LM Studio loading, and device rendering remain operator checks.
 
