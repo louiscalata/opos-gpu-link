@@ -4023,14 +4023,11 @@ public final class MainActivity extends Activity {
             }
         }
         // Hide the raw live label before changing it; TalkBack should hear only "Working".
-        if (matchingArticle != null) {
-            if (WorkingIndicator.working(text)) {
-                if (stateView.getVisibility() != View.GONE) stateView.setVisibility(View.GONE);
-            } else if (stateView.getVisibility() != View.VISIBLE) {
-                matchingArticle.workingRow.setVisibility(View.GONE);
-                stateView.setVisibility(View.VISIBLE);
-            }
+        if (matchingArticle != null && WorkingIndicator.working(text)
+                && stateView.getVisibility() != View.GONE) {
+            stateView.setVisibility(View.GONE);
         }
+        // For a stopped lane, set the new words while hidden; updateWorking reveals them.
         setIfChanged(stateView, text);
         applyTone(stateView);
         if (card != null) applyCardStroke(card, UiPalette.tone(text));
