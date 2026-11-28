@@ -1,6 +1,7 @@
 package os.opos.launcher;
 
 import java.util.Arrays;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -12,7 +13,8 @@ final class DesignLab {
     static final String OFF = "off";
     static final String SCHEMATIC = "schematic";
     static final String BELTS = "belts";
-    static final List<String> MODES = List.of(OFF, SCHEMATIC, BELTS);
+    static final List<String> MODES = Collections.unmodifiableList(Arrays.asList(
+            OFF, SCHEMATIC, BELTS));
     static final int MIN_WIDTH = 24;
     static final int MAX_WIDTH = 64;
     /** One animation step. Slow enough to read from a stage, cheap enough for a hot phone. */

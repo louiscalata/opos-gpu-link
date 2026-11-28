@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/** A per-lane choice stored locally; defaults apply until the first saved choice. */
+/** A per-lane choice stored locally; the lead lanes stay on until explicitly changed. */
 final class LaneSelection {
     interface Store {
         boolean contains(String key);
@@ -40,9 +40,9 @@ final class LaneSelection {
             if (!PaneKeys.valid(pane) || result.contains(pane)) continue;
             String key = key(pane);
             boolean enabled = store.contains(key)
-                    ? store.get(key, false) : firstChoicePending
-                    && ("phone".equals(pane) || "gpu".equals(pane)
-                    || Boolean.TRUE.equals(ready.get(pane)));
+                    ? store.get(key, false)
+                    : "phone".equals(pane) || "gpu".equals(pane)
+                    || (firstChoicePending && Boolean.TRUE.equals(ready.get(pane)));
             if (enabled) result.add(pane);
         }
         return result;

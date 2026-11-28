@@ -20,8 +20,12 @@ public final class LaneSelectionTest {
         ready.put("gpu", true);
         ready.put("m1", false);
         ready.put("g1", false);
+        // A fresh install offers ready models alongside both lead lanes.
         equal(Arrays.asList("phone", "gpu"), selection.selected(panes, ready));
         equal(Arrays.asList("phone", "gpu"), selection.eligible(panes, ready));
+        ready.put("m1", true);
+        equal(Arrays.asList("phone", "gpu", "m1"), selection.selected(panes, ready));
+        ready.put("m1", false);
         check(selection.set(panes, ready, "gpu", false));
         equal(Arrays.asList("phone"), new LaneSelection(memory).selected(panes, ready));
         check(!selection.set(panes, ready, "phone", false));
@@ -45,16 +49,25 @@ public final class LaneSelectionTest {
         equal(Arrays.asList("phone"), selection.eligible(remaining, ready));
         check(!selection.set(panes, ready, "m5", true));
 
-        // Saved choices can outlive a snapshot. A newly ready g1 must not replace m1.
+        // An older install may have only one saved model choice. Unsaved lead
+        // lanes keep their defaults; a model newly appearing later stays off.
         values.clear();
-        values.put("lane_on_phone", false);
-        values.put("lane_on_gpu", false);
-        values.put("lane_on_m1", true);
+        values.put("lane_on_m1", false);
         List<String> replacement = Arrays.asList("phone", "gpu", "g1");
         Map<String, Boolean> replacementReady = new HashMap<>();
         replacementReady.put("phone", true);
         replacementReady.put("gpu", true);
         replacementReady.put("g1", true);
+        equal(Arrays.asList("phone", "gpu"), new LaneSelection(memory).selected(panes, ready));
+        equal(Arrays.asList("phone", "gpu"), new LaneSelection(memory).selected(
+                replacement, replacementReady));
+
+        // Explicit OFF choices stay off when the saved model disappears.
+        // A newly ready g1 must not replace m1.
+        values.clear();
+        values.put("lane_on_phone", false);
+        values.put("lane_on_gpu", false);
+        values.put("lane_on_m1", true);
         equal(List.of(), new LaneSelection(memory).selected(replacement, replacementReady));
         equal(List.of(), selection.eligible(replacement, replacementReady));
         equal(Arrays.asList("m1"), selection.selected(panes, ready));
