@@ -3,7 +3,7 @@ package os.opos.launcher;
 /**
  * The phone heat meter in the masthead, from Android's thermal status (PowerManager 0..6:
  * none, light, moderate, severe, critical, emergency, shutdown). Host-testable; no Android
- * types. Cool (0–1) uses success green, warm (2) uses ink, and hot (3–6) uses error red.
+ * types. Cool (0–1) and warm (2) use ink; hot (3–6) uses error red.
  */
 final class HeatMeter {
     private HeatMeter() {}
@@ -19,7 +19,6 @@ final class HeatMeter {
 
     /** The same heat state uses the same palette tone in every layout and theme. */
     static UiPalette.Tone tone(int status) {
-        if (cool(status)) return UiPalette.Tone.OK;
         if (hot(status)) return UiPalette.Tone.ERROR;
         return UiPalette.Tone.NEUTRAL;
     }

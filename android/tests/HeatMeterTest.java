@@ -15,8 +15,8 @@ public final class HeatMeterTest {
         for (UiPalette.Theme theme : UiPalette.Theme.values()) {
             UiPalette palette = new UiPalette(theme);
             for (int status = 0; status <= 1; status++) {
-                equal(UiPalette.Tone.OK, HeatMeter.tone(status));
-                equal(palette.ok(), palette.colorForTone(HeatMeter.tone(status)));
+                equal(UiPalette.Tone.NEUTRAL, HeatMeter.tone(status));
+                equal(palette.ink(), palette.colorForTone(HeatMeter.tone(status)));
             }
             equal(UiPalette.Tone.NEUTRAL, HeatMeter.tone(2));
             equal(palette.ink(), palette.colorForTone(HeatMeter.tone(2)));

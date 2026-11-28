@@ -3728,7 +3728,7 @@ public final class MainActivity extends Activity {
         }
     }
 
-    /** Green while cool, ink while warm, red while hot; hidden for an unknown status. */
+    /** Ink while cool or warm, red while hot; hidden for an unknown status. */
     private void showHeat(int status) {
         heatStatus = status;
         if (heatMeter == null) return;
@@ -3943,7 +3943,7 @@ public final class MainActivity extends Activity {
             setIfChanged(tonightLeader, leader.isEmpty() ? " " : leader);
             tonightLeader.setVisibility(!leader.isEmpty() ? View.VISIBLE
                     : lanes == null ? View.GONE : View.INVISIBLE);
-            tonightLeader.setTextColor(parseHex(palette.ok()));
+            tonightLeader.setTextColor(parseHex(palette.ink()));
         }
         List<TonightRows.Row> rows = TonightRows.parse(timing);
         List<NewspaperSummary.Lane> rowLanes = TonightRows.matchingLanes(rows, lanes);
