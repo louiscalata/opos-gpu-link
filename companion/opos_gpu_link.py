@@ -857,13 +857,17 @@ class ConsoleStatus:
 
 def presenter_error(error: Exception) -> str:
     """Keep expected setup failures to one actionable status line."""
+    if isinstance(error, OSError):
+        return "Error: Pairing folder is unavailable. Check file access on this computer, then retry."
     message = str(error).strip()
+    if not message:
+        return "Error: GPU Link stopped. Restart it, then retry."
     if message.startswith("Error:"):
         return message
     if "already running for this phone" in message:
         return "Error: GPU Link is already running for this phone. Stop the other copy, then retry."
     if "More than one authorized USB phone" in message:
-        return "Error: More than one USB phone is ready. Unplug the extra phone or choose --serial."
+        return "Error: More than one USB phone is ready. Unplug the extra phone, then retry."
     if "adb is unavailable" in message or "adb not found" in message:
         return "Error: USB tools are missing. Install Android platform tools, then retry."
     if "adb" in message or "forward" in message:
@@ -872,7 +876,7 @@ def presenter_error(error: Exception) -> str:
         return "Error: Pairing folder is unavailable. Check its permissions, then retry."
     if "pairing" in message.lower() or "key" in message.lower():
         return "Error: Pairing could not continue. Check the phone, then retry."
-    if "Phone" in message:
+    if message.startswith("Phone enrolment reply"):
         return "Error: Phone did not reply. Check the cable and phone, then retry."
     return f"Error: {message.rstrip('.')}. Check setup, then retry."
 
@@ -1075,7 +1079,7 @@ class Companion:
         if self.granted:
             return
         if self.headless:
-            raise GrantDeclined(f"Error: {computer_noun()} access expired. Restart with --always-allow.")
+            raise GrantDeclined(f"Error: {computer_noun()} access expired. Restart GPU Link to allow access again.")
         self.granted = self.permission()
         if not self.granted:
             raise GrantDeclined(f"Error: {computer_noun()} access was declined. Replug to try again.")
@@ -1279,7 +1283,7 @@ class Companion:
                     runtime.unlisten(runtime_event)
                 pc.on_new_epoch = None
                 join_within(lane_threads, LANE_JOIN_BUDGET)
-                self.events.put((generation, "Reconnecting the answer if the phone is ready."))
+                self.events.put((generation, "Reconnecting if the phone is ready."))
 
         self.worker_stop = stop
         worker = threading.Thread(target=run, name="opos-gpu-worker", daemon=True)
@@ -1361,11 +1365,11 @@ class Companion:
                 self.bridge.remove_own_forward()
                 return
             if not authenticated_idle(pc):
-                raise CompanionError("Error: Saved pairing was rejected. Use Forget on the phone, then reset pairing here.")
+                raise CompanionError("Error: Saved pairing was rejected. Tap Forget on the phone, then restart GPU Link with pairing reset for this phone.")
             launch_failed = open_models_screen()
             self.ensure_permission()
         if not self.link_present():
-            raise RetryLater("Phone link lost during pairing. Replug to retry.")
+            raise RetryLater("USB link lost during pairing. Replug to retry.")
         self.session_pc = pc
         self.session_launch_failed = launch_failed
         if not model_server_listening(self.args.server):
@@ -1447,7 +1451,7 @@ class Companion:
             self._link_lost_while_warming()
             return
         self.preflight_link_losses = 0  # only consecutive link losses back off
-        self.status.set("Error: Model check failed. Check --server and --model; retrying.")
+        self.status.set("Error: Model check failed. Check the model server and selected model; retrying.")
         self._schedule_retry()
 
     def tick(self) -> None:
@@ -1485,7 +1489,7 @@ class Companion:
                 self.bridge.remove_own_forward()
                 # Also cover the warming window, when self.online is still False.
                 self.preflight_link_losses = 0  # a replug must feel instant again
-                self.status.set("Phone unavailable. Check the cable and USB approval; waiting to reconnect.")
+                self.status.set("Phone paused. Replug or allow USB access to resume.")
                 self.next_try = self.clock() + 1
                 self.retry_delay = 3
             if (present and not self.online and self.preflight_thread is not None
@@ -1506,7 +1510,7 @@ class Companion:
                 self.online = False
                 self.detached_at = self.clock() if not present else None
                 if not present:
-                    self.status.set("Phone unavailable. Check the cable and USB approval; waiting to reconnect.")
+                    self.status.set("Phone paused. Replug or allow USB access to resume.")
                 elif not forward_ok:
                     self.status.set("USB link lost. Reconnecting.")
                 elif not server_ok:
@@ -1637,7 +1641,7 @@ def arguments(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--serial", help="authorized USB adb device serial; auto-select if exactly one")
     parser.add_argument("--adb", default="adb", help="adb executable from Android platform tools")
-    parser.add_argument("--label", default="OPOS GPU PC", help="pairing label sent to the phone (1 to 24 letters, digits, spaces or hyphens); "
+    parser.add_argument("--label", help="pairing label sent to the phone (1 to 24 letters, digits, spaces or hyphens); "
                         "the phone keeps the label it saw at pairing, so a new one takes effect only "
                         "after Forget on the phone and --reset-pairing here")
     routes = parser.add_mutually_exclusive_group()
@@ -1669,6 +1673,8 @@ def arguments(argv=None):
         parser.error("--json requires --discover")
     if args.discover:
         return args
+    if args.label is None:
+        args.label = f"OPOS GPU {computer_noun()}"
     if args.serial is not None and not valid_usb_serial(args.serial):
         parser.error("serial must be a USB adb serial, not a network or emulator transport")
     if not proto.valid_label(args.label):

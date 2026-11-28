@@ -472,7 +472,7 @@ class CompanionTests(unittest.TestCase):
             app.keys.save_first_allow(key)
             with patch.object(link, "PC", FakePC), \
                     patch.object(link, "authenticated_idle", return_value=False), \
-                    self.assertRaisesRegex(link.CompanionError, "Use Forget on the phone"):
+                    self.assertRaisesRegex(link.CompanionError, "Tap Forget on the phone"):
                 app._connect()
             app.bridge.remove_own_forward()
             self.assertEqual(app.keys.load(), key)
@@ -607,7 +607,7 @@ class CompanionTests(unittest.TestCase):
                     "More than one authorized USB phone is present; pass --serial")):
             self.assertEqual(link.main(["--headless", "--model", "local"]), 2)
         self.assertEqual(output.getvalue().splitlines(), [
-            "GPU Link: Error: More than one USB phone is ready. Unplug the extra phone or choose --serial."])
+            "GPU Link: Error: More than one USB phone is ready. Unplug the extra phone, then retry."])
 
     def test_one_token_preflight_uses_exact_route_and_model(self):
         class Response:
@@ -1004,7 +1004,7 @@ class CompanionTests(unittest.TestCase):
                 self.assertTrue(app.preflight_done.wait(2))
                 self.assertEqual(fake.forwards, {})
                 self.assertEqual(app.starts, 0)
-                self.assertIn("Phone unavailable. Check the cable and USB approval", app.lines[-1])
+                self.assertIn("Phone paused. Replug or allow USB access", app.lines[-1])
                 self.assertEqual(app.next_try, 101.0)
                 self.assertEqual(app.retry_delay, 3)
                 release.set()
@@ -1211,7 +1211,7 @@ class CompanionTests(unittest.TestCase):
                 self.assertIn("Model check failed", app.lines[-1])
                 fake.state = "unauthorized"
                 app.tick()
-                self.assertIn("Phone unavailable. Check the cable and USB approval", app.lines[-1])
+                self.assertIn("Phone paused. Replug or allow USB access", app.lines[-1])
                 self.assertEqual(app.next_try, 101.0)
                 self.assertEqual(app.retry_delay, 3)
             with patch.object(link, "PC", FakePC), \
@@ -2151,7 +2151,7 @@ class R23ReplugWithLanesTests(unittest.TestCase):
                     self.assertEqual(app.lane_workers, ())
                     self.assertFalse(any(t.is_alive() for t in first_lanes))
                     self.assertEqual(app.extra_checked, set())
-                    self.assertIn("Phone unavailable", app.lines[-1])
+                    self.assertIn("Phone paused", app.lines[-1])
 
                     # Replugged, backend still down: keep retrying quietly.
                     fake.state = "device"

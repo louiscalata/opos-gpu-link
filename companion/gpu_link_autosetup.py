@@ -2072,7 +2072,7 @@ def prefer_running_adb_server(selected: Path, runner=subprocess.run, announce=No
         return chosen if chosen is not None else Path(str(selected))
     if chosen is not None and _same_adb(chosen, live):
         return live
-    msg = f"Using the already-running adb server's USB tools ({live})."
+    msg = "Using USB tools already running on this computer."
     if announce is not None:
         announce(msg)
     else:
@@ -2099,7 +2099,7 @@ def ensure_adb(runtime_dir: Path, explicit=None, allow_download=True, system=Non
             if is_bare_command(explicit):
                 live = running_adb_server_executable(runner=runner, system=system)
                 if live is not None:
-                    say("Using the already-running adb server's executable (%s)." % live)
+                    say("Using USB tools already running on this computer.")
                     return live
             raise _adb_missing_error(explicit)
         selected = prefer_running_adb_server(explicit, runner=runner, system=system)
@@ -2113,7 +2113,7 @@ def ensure_adb(runtime_dir: Path, explicit=None, allow_download=True, system=Non
             return prefer_running_adb_server(path, runner=runner, system=system)
     live = running_adb_server_executable(runner=runner, system=system)
     if live is not None:
-        say("Using the already-running adb server's executable (%s)." % live)
+        say("Using USB tools already running on this computer.")
         return live
     if not allow_download:
         raise RuntimeError("adb not found and downloads are disabled. Install Google's Android SDK "
@@ -2706,7 +2706,6 @@ class Runtime:
             except (Exception, KeyboardInterrupt):
                 return None  # A diagnostic must not prevent owned servers from stopping.
 
-        before = memory_used()
         self.stop_supervision()
         failure = None
         children = [(server, self.launches.get(server.port)) for server in reversed(self.servers)]
@@ -2730,8 +2729,8 @@ class Runtime:
         self.drop_key_file()
         self.key = None
         after = memory_used()
-        if before is not None and after is not None:
-            action = "Stop" if failure is None else "Stop attempt"
+        if after is not None:
+            action = "stop" if failure is None else "stop attempt"
             say(f"GPU use after {action}: {after} MiB total.")
         if failure is not None:
             raise failure
@@ -3018,18 +3017,30 @@ def install_term_handler() -> bool:
     return True
 
 
-def setup_error_message(error: Exception) -> str:
-    """Short next steps for expected offline setup failures."""
+def setup_error_message(error: Exception, stage: str = "plan") -> str:
+    """Give the failed step without exposing paths from unknown errors."""
     message = str(error)
     if message.startswith("No free port in "):
-        return "Error: Model ports are busy. Stop a model server using them or choose another --port."
+        return "Error: Model ports are busy. Stop a model server using them, then retry."
     if message.startswith("No local model fits"):
         return "Error: No local model fits. Add a model file before running offline."
-    if "downloads are disabled" in message or "not found and downloads are disabled" in message:
+    if "adb not found" in message or "platform-tools download" in message:
+        return "Error: USB tools are missing. Install them, then retry."
+    if "SHA-256 mismatch" in message or "unpacked files do not match" in message:
+        return "Error: A download failed its safety check. Try again."
+    if "downloads are disabled" in message:
         return "Error: A model or tool is missing. Add it before running offline."
     if message.startswith("llama-server did not become ready"):
         return "Error: Model server did not start. Check its log, then retry."
-    return "Error: Setup could not start. Check local model files and settings, then retry."
+    if stage == "model":
+        return "Error: Model setup stopped. Check the model server log, then retry."
+    if stage == "usb":
+        return "Error: USB setup stopped. Check the cable and USB tools, then retry."
+    if stage == "phone":
+        return "Error: Phone connection stopped. Check the cable and USB access, then retry."
+    if stage == "link":
+        return "Error: GPU Link stopped. Check the phone and model server, then retry."
+    return "Error: Could not check this computer. Check its settings, then retry."
 
 
 def run(args) -> int:
@@ -3039,7 +3050,7 @@ def run(args) -> int:
     except Terminated:
         return 0
     except (OSError, RuntimeError, ValueError) as error:
-        say(setup_error_message(error))
+        say(setup_error_message(error, "plan"))
         return 2
     if args.detect_only:
         print_detect(info, args.json)
@@ -3047,8 +3058,8 @@ def run(args) -> int:
     if args.prefetch:
         try:
             got = fetch_plan(args, info)
-        except RuntimeError as error:
-            say("Prefetch stopped: " + str(error))
+        except (OSError, RuntimeError, ValueError) as error:
+            say(setup_error_message(error, "model"))
             return 2
         print_detect(info)
         total = sum(Path(p).stat().st_size for p, _ in got["models"]) if got["models"] else 0
@@ -3056,22 +3067,26 @@ def run(args) -> int:
             f"{len(got['models'])} model file(s), {total >> 20} MB of models. Everything is SHA-256 verified.")
         return 0
     rt = None
+    stage = "model"
     try:
         if info["gpu"].get("note"):
             say(info["gpu"]["note"])
         rt = start_runtime(args, info)
         if args.no_phone:
-            say("Model server(s) ready; --no-phone given, not starting the phone link. Ctrl-C to stop.")
+            say("Models ready. Phone link is off. Press Ctrl-C to stop.")
             stop = threading.Event()
             for sig in (signal.SIGINT, signal.SIGTERM):
                 signal.signal(sig, lambda *_: stop.set())
             stop.wait()
             return 0
+        stage = "usb"
         adb = ensure_adb(args.runtime_dir, args.adb, not args.no_download)
         say("USB tools ready.")
+        stage = "phone"
         serial = args.serial or wait_for_phone(adb)
         import opos_gpu_link
         banner(ready_lines(info["gpu"]["name"], rt.lanes, opos_gpu_link.computer_noun()))
+        stage = "link"
         return opos_gpu_link.main(companion_args(args, rt, info, adb, serial), runtime=rt,
                                   data_dir=args.data_dir, models_dir=args.models_dir)
     except Terminated:
@@ -3079,8 +3094,8 @@ def run(args) -> int:
         return 0  # a requested stop is a clean exit, so launchd does not restart it
     except KeyboardInterrupt:
         return 130
-    except RuntimeError as error:
-        say(setup_error_message(error))
+    except (OSError, RuntimeError, ValueError) as error:
+        say(setup_error_message(error, stage))
         return 2
     finally:
         if rt is not None:

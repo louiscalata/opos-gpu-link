@@ -173,10 +173,9 @@ class ModelCopyTests(unittest.TestCase):
             self.assertEqual(setup.vram_used_mb(gpu), 800)
             runtime.stop()
             self.assertEqual(setup.vram_used_mb(gpu), 100)
-        self.assertEqual(events, ["memory", "memory", "memory", "stop", "memory", "memory"])
+        self.assertEqual(events, ["memory", "memory", "stop", "memory", "memory"])
         self.assertEqual(runners[2], runtime.memory_runner)
-        self.assertEqual(runners[3], runtime.memory_runner)
-        log.assert_called_once_with("GPU use after Stop: 100 MiB total.")
+        log.assert_called_once_with("GPU use after stop: 100 MiB total.")
 
     def test_memory_probe_failure_does_not_block_fake_stop(self):
         for failure in (OSError("fixture probe failure"), KeyboardInterrupt()):
@@ -189,7 +188,7 @@ class ModelCopyTests(unittest.TestCase):
                 with patch.object(setup, "vram_used_mb", side_effect=failure) as probe:
                     runtime.stop()
                 self.assertEqual(stopped, [True])
-                self.assertEqual(probe.call_count, 2)
+                self.assertEqual(probe.call_count, 1)
 
     def test_partial_cleanup_failure_counts_the_deleted_model(self):
         owned = self.download_copy()

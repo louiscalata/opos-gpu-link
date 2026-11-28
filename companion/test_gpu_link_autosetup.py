@@ -395,7 +395,8 @@ class AdbServerBinary(unittest.TestCase):
             got = a.prefer_running_adb_server(path_adb, runner=runner, announce=notes.append, system="linux")
             self.assertEqual(got, server_adb.resolve())
             self.assertTrue(notes)
-            self.assertIn("already-running adb server", notes[0])
+            self.assertEqual(notes, ["Using USB tools already running on this computer."])
+            self.assertNotIn(str(server_adb), notes[0])
 
     def test_keeps_selected_when_no_server(self):
         with tempfile.TemporaryDirectory() as d:
