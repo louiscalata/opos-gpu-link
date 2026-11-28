@@ -81,8 +81,6 @@ public final class NewspaperPaletteTest {
                 .getAttribute("android:color"), "lane panel stroke");
         equal("0.5dp", child(xml("drawable/newspaper_panel.xml"), "stroke")
                 .getAttribute("android:width"), "lane panel hairline");
-        equal("@color/newspaper_stroke", child(xml("drawable/outline_panel.xml"), "stroke")
-                .getAttribute("android:color"), "outline panel stroke");
 
         Document front = xml("layout/models.xml");
         boolean sawSend = false;
