@@ -1224,7 +1224,7 @@ public final class MainActivity extends Activity {
         // No inner ScrollView: the card grows with the answer; the page scrolls.
         PaneViews paneView = new PaneViews(pane, card, kicker, heading, byline,
                 stateView, speed, answerView, null);
-        paneView.working = workingLine(stateView);
+        paneView.working = workingLine(stateView, paneView);
         paneView.workingCount = workingCountLine();
         paneView.workingRow = new LinearLayout(this);
         paneView.workingRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -1586,7 +1586,7 @@ public final class MainActivity extends Activity {
                 super.onInitializeAccessibilityNodeInfo(host, info);
                 CharSequence state = article.state.getText();
                 info.setContentDescription(WorkingIndicator.working(state)
-                        ? WorkingIndicator.spoken(state, 0) : state);
+                        ? WorkingIndicator.spoken(state, article.words) : state);
             }
         });
         expandedState.addOnLayoutChangeListener((view, left, top, right, bottom,
@@ -3984,15 +3984,22 @@ public final class MainActivity extends Activity {
         syncWorkingAnimation();
     }
 
-    private TextView workingLine(TextView stateView) {
+    private TextView workingLine(TextView stateView, PaneViews article) {
         TextView view = new TextView(this);
         typography.state(view); // the state slot (S5 face, tabular numbers), same size as above
         view.setIncludeFontPadding(stateView.getIncludeFontPadding());
         view.setPadding(stateView.getPaddingLeft(), stateView.getPaddingTop(),
                 stateView.getPaddingRight(), stateView.getPaddingBottom());
         view.setTextColor(themeColor(R.color.newspaper_ink));
-        // A steady live region says "Working" once; answer growth does not repeat it.
-        view.setContentDescription(WorkingIndicator.spoken(WorkingIndicator.STREAMING, 0));
+        // Read the latest count on focus without changing the live text on every word.
+        view.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+            @Override public void onInitializeAccessibilityNodeInfo(View host,
+                    AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                info.setContentDescription(WorkingIndicator.spoken(
+                        article.state.getText(), article.words));
+            }
+        });
         view.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         return view;
     }

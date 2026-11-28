@@ -23,6 +23,7 @@ public final class WorkingIndicatorTest {
         equal("Working", WorkingIndicator.spoken("  Streaming…  ", 0));
         equal("Working, 1 word", WorkingIndicator.spoken("Streaming…", 1));
         equal("Working, 12 words", WorkingIndicator.spoken("  Streaming…  ", 12));
+        equal("Working, 7 words", WorkingIndicator.spoken("Thinking…", 7));
         equal("Working", WorkingIndicator.spoken("Thinking…", -4));
         equal("", WorkingIndicator.spoken(null, 5));
         equal("", WorkingIndicator.spoken("   ", 5));
