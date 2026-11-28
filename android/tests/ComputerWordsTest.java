@@ -40,6 +40,8 @@ public final class ComputerWordsTest {
         equal("MacBook", ComputerWords.title("MacBook"));
 
         equal("MacBook GPU", ComputerWords.apply("PC GPU", "MacBook"));
+        equal("MacBook ID", ComputerWords.apply("PC ID", "MacBook"));
+        equal("MacBook status", ComputerWords.apply("PC status", "MacBook"));
         equal("on the MacBook's GPU", ComputerWords.apply("on the PC's GPU", "MacBook"));
         equal("Paused — will continue when the MacBook is back",
                 ComputerWords.apply("Paused — will continue when the PC is back", "MacBook"));

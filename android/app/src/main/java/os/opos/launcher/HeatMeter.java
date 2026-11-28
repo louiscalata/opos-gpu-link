@@ -3,7 +3,7 @@ package os.opos.launcher;
 /**
  * The phone heat meter in the masthead, from Android's thermal status (PowerManager 0..6:
  * none, light, moderate, severe, critical, emergency, shutdown). Host-testable; no Android
- * types. Two colours only: green while cool (0–1), red from warm (2) up. No middle colour.
+ * types. Cool (0–1) and warm (2) use ink; hot (3–6) uses error red.
  */
 final class HeatMeter {
     private HeatMeter() {}
@@ -11,8 +11,11 @@ final class HeatMeter {
     /** A status Android actually reports; anything else hides the meter. */
     static boolean known(int status) { return status >= 0 && status <= 6; }
 
-    /** Green for 0–1; every other known status is red. */
+    /** The two ordinary, cool statuses. */
     static boolean cool(int status) { return status >= 0 && status <= 1; }
+
+    /** Red only when Android reports hot or worse. */
+    static boolean hot(int status) { return status >= 3 && status <= 6; }
 
     static String word(int status) {
         switch (status) {
@@ -27,7 +30,7 @@ final class HeatMeter {
 
     /**
      * Words first, readable from a stage: "● Phone warm"; compact (cover screen) "● warm".
-     * Android's raw status number stays in the TalkBack description. Unknown: "".
+     * TalkBack reads the same plain heat word. Unknown: "".
      */
     static String label(int status, boolean compact) {
         if (!known(status)) return "";
@@ -38,8 +41,8 @@ final class HeatMeter {
     static final int TEXT_SP = 16;
     static final int TEXT_SP_COMPACT = 14;
 
-    /** For TalkBack: "Phone heat 2, warm". Unknown: "". */
+    /** For TalkBack: "Phone is warm". Unknown: "". */
     static String description(int status) {
-        return known(status) ? "Phone heat " + status + ", " + word(status) : "";
+        return known(status) ? "Phone is " + word(status) : "";
     }
 }

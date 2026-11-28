@@ -23,6 +23,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.graphics.Color;
 import android.graphics.Insets;
 import android.graphics.Rect;
+import android.os.BatteryManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -94,6 +95,8 @@ public final class MainActivity extends Activity {
     private static final long LINK_STATUS_HOLD_MS = 3500;
     private static final String PREF_UNRESOLVED_ASK = "ask_post_unresolved";
     private static volatile boolean resumed;
+    /** Kept only across a layout-family recreate, so a fold does not blank the newspaper. */
+    private static JSONObject foldSnapshot;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService network = Executors.newSingleThreadExecutor();
     private final AiClient client = new AiClient();
@@ -119,6 +122,7 @@ public final class MainActivity extends Activity {
     // Per-lane Retry: stall detection, one button per card, and a rebind after an uncertain POST.
     private final LaneHealth laneHealth = new LaneHealth();
     private final Map<String, Button> laneRetryButtons = new HashMap<>();
+    private final Map<String, Boolean> laneRetryReady = new HashMap<>();
     private final Map<String, String> laneRetryRebind = new HashMap<>();
     private final Map<View, NewspaperLayoutDecision.RevealOnce> revealStates = new IdentityHashMap<>();
     private final List<String> paneOrder = new ArrayList<>();
@@ -149,6 +153,7 @@ public final class MainActivity extends Activity {
             }
             renderStatus();
             renderAnswers();
+            updateButtons();
             schedule(0);
         }
     };
@@ -171,7 +176,12 @@ public final class MainActivity extends Activity {
     private final Runnable workingTicker = this::tickWorking;
     private long workingTick;
     private boolean workingScheduled;
-    private TextView heatMeter;
+    private TextView heatMeter, batteryNotice;
+    private final BroadcastReceiver batteryReceiver = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            showBattery(intent);
+        }
+    };
     private TextView linkLine, cableBannerTitle, cableBannerBody;
     private LinearLayout cableBanner;
     private PowerManager.OnThermalStatusChangedListener heatListener;
@@ -199,6 +209,12 @@ public final class MainActivity extends Activity {
     private TextView resetAskCopy;
     private TextView status, error, question, pairingText, pairingCode, pairingCountdown;
     private int pairingSeconds = -1;
+    private int lastPairingSeconds = -1;
+    private String lastPairingCode = "", rejectedPairingCode = "";
+    private boolean pairingTimedOut;
+    private String pairingActionMessage = "";
+    private boolean pairingActionError;
+    private int lastPairingProblem;
     private TextView phoneState, phoneAnswer, gpuHeading, gpuState, gpuAnswer;
     private LinearLayout tonightRows;
     private TextView tonightCount, tonightProvenance, tonightTiming, summaryText,
@@ -233,6 +249,7 @@ public final class MainActivity extends Activity {
     private final Map<String, TextView> modelLabels = new HashMap<>();
     private final Map<String, TextView> modelMetaViews = new HashMap<>();
     private boolean displayPinned, quitting;
+    private boolean foldRestored;
     private String archivedIssueId = "";
     private String pendingRefreshSourceId = "";
     private String pendingRefreshQuestion = "";
@@ -402,7 +419,26 @@ public final class MainActivity extends Activity {
             if (event == null || event.getAction() == KeyEvent.ACTION_DOWN) askModels();
             return true;
         });
-        showWaiting();
+        JSONObject carried = foldSnapshot;
+        foldSnapshot = null;
+        if (carried != null) {
+            cableConnected = LinkWatcherService.cableConnected(this);
+            reachable = true;
+            showSnapshot(carried);
+            reachable = false;
+            for (PaneViews article : paneViews.values()) {
+                if (open(answerOf(carried, article.pane)) && !isPausedDateline(article)) {
+                    setLaneState(article.state, article.card, getString(R.string.checking));
+                }
+            }
+            updateCompactLaneStatus();
+            setMainStatus(getString(R.string.checking_connection));
+            renderLinkBanner(false, hasVisiblePcWork());
+            updateButtons();
+            foldRestored = true;
+        } else {
+            showWaiting();
+        }
     }
 
     private void applyInsets() {
@@ -440,17 +476,23 @@ public final class MainActivity extends Activity {
             status.setPadding(dp(12), dp(2), dp(12), dp(2));
             status.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
             status.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+            status.setSingleLine(false);
+            status.setMaxLines(2);
+            status.setEllipsize(TextUtils.TruncateAt.END);
+            status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
             int afterHeader = root.indexOfChild(header) + 1;
             root.addView(status, afterHeader, new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT));
-            compactLaneStatus = newspaperText("", 13, false, false);
-            typography.tabular(compactLaneStatus);
-            compactLaneStatus.setPadding(dp(12), 0, dp(12), dp(2));
-            compactLaneStatus.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-            root.addView(compactLaneStatus, afterHeader + 1, new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT));
+            if (!coverMode) {
+                compactLaneStatus = newspaperText("", 13, false, false);
+                typography.tabular(compactLaneStatus);
+                compactLaneStatus.setPadding(dp(12), 0, dp(12), dp(2));
+                compactLaneStatus.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+                root.addView(compactLaneStatus, afterHeader + 1,
+                        new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                                LinearLayout.LayoutParams.WRAP_CONTENT));
+            }
             updateCompactLaneStatus();
             resultsScroll.addOnLayoutChangeListener((view, left, top, right, bottom,
                     oldLeft, oldTop, oldRight, oldBottom) -> {
@@ -489,6 +531,7 @@ public final class MainActivity extends Activity {
         super.onConfigurationChanged(newConfig);
         if (recreating) return;
         if (CoverScreenPolicy.needsRecreate(layoutMode, currentLayoutMode(newConfig))) {
+            foldSnapshot = pairingPending ? null : snapshot;
             recreating = true;
             recreate();
         } else {
@@ -576,7 +619,8 @@ public final class MainActivity extends Activity {
         Map<String, String> states = new HashMap<>();
         for (String pane : paneOrder) {
             PaneViews article = paneViews.get(pane);
-            if (article != null) states.put(pane, article.lastRenderedState);
+            if (article != null) states.put(pane,
+                    CoverScreenPolicy.visibleState(article.state.getText().toString()));
         }
         return states;
     }
@@ -777,6 +821,8 @@ public final class MainActivity extends Activity {
         title.setOnClickListener(view -> toggleMenu());
         title.setAccessibilityDelegate(mastheadButtonRole());
         typography.display(title, 20);
+        title.setSingleLine(true);
+        title.setEllipsize(TextUtils.TruncateAt.END);
         title.setMinHeight(dp(48));
         title.setAlpha(0f);
         title.setLayoutParams(new LinearLayout.LayoutParams(0,
@@ -786,20 +832,29 @@ public final class MainActivity extends Activity {
         status.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
         status.setTypeface(typography.interMedium);
         status.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        status.setSingleLine(true);
+        status.setEllipsize(TextUtils.TruncateAt.END);
         header.addView(status, 1, new LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         heatMeter = newspaperText("", 13, false, false);
         heatMeter.setSingleLine(true);
-        heatMeter.setGravity(Gravity.CENTER_VERTICAL);
-        heatMeter.setPadding(dp(4), 0, dp(8), 0);
+        heatMeter.setEllipsize(TextUtils.TruncateAt.END);
+        heatMeter.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        heatMeter.setPadding(dp(12), 0, dp(12), dp(4));
         heatMeter.setVisibility(View.GONE);
-        int heatIndex = info != null && info.getParent() == header
-                ? header.indexOfChild(info) : header.getChildCount();
-        LinearLayout.LayoutParams heatParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        heatParams.gravity = Gravity.CENTER_VERTICAL;
-        header.addView(heatMeter, heatIndex, heatParams);
         setupLinkBanner();
+        // Keep the heat reading on its own line: it must never steal the title's width.
+        LinearLayout root = (LinearLayout) screen;
+        root.addView(heatMeter, root.indexOfChild(header) + 1,
+                new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT));
+        batteryNotice = newspaperText("", TypeConfig.body().sizeSp, false, true);
+        batteryNotice.setPadding(dp(12), 0, dp(12), dp(4));
+        batteryNotice.setVisibility(View.GONE);
+        batteryNotice.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        root.addView(batteryNotice, root.indexOfChild(heatMeter) + 1,
+                new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT));
         info.setLayoutParams(new LinearLayout.LayoutParams(dp(52), dp(48)));
         header.setPadding(dp(12), dp(2), dp(12), dp(4));
         bigMasthead = newspaperText(getString(R.string.app_name) + " ⌄", 34, true, true);
@@ -809,6 +864,7 @@ public final class MainActivity extends Activity {
         bigMasthead.setOnClickListener(view -> toggleMenu());
         bigMasthead.setAccessibilityDelegate(mastheadButtonRole());
         bigMasthead.setGravity(Gravity.CENTER_VERTICAL);
+        bigMasthead.setMinHeight(dp(48));
         mastheadBlock = new LinearLayout(this);
         mastheadBlock.setOrientation(LinearLayout.VERTICAL);
         mastheadBlock.setPadding(dp(12), 0, dp(12), 0);
@@ -1032,7 +1088,12 @@ public final class MainActivity extends Activity {
             }
             expandArticle(pane);
         };
+        // The heading is the one TalkBack action. Touch can open the card elsewhere too.
         card.setOnClickListener(open);
+        card.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        heading.setMinHeight(dp(48));
+        heading.setGravity(Gravity.CENTER_VERTICAL);
+        heading.setFocusable(true);
         heading.setOnClickListener(open);
         answerView.setOnClickListener(open);
         enableSmoothGrowth(card);
@@ -1267,6 +1328,8 @@ public final class MainActivity extends Activity {
         float smallAlpha = MastheadPolicy.smallAlpha(fraction);
         mastheadBlock.setAlpha(bigAlpha);
         smallMasthead.setAlpha(smallAlpha);
+        // The hidden title must not take width from the status on narrow screens.
+        smallMasthead.setVisibility(smallAlpha > 0f ? View.VISIBLE : View.GONE);
         bigMasthead.setEnabled(bigAlpha > 0f);
         smallMasthead.setEnabled(smallAlpha > 0f);
         bigMasthead.setImportantForAccessibility(fraction < 0.5f
@@ -1456,9 +1519,22 @@ public final class MainActivity extends Activity {
             registerReceiver(cableReceiver, filter);
         }
         cableConnected = LinkWatcherService.cableConnected(this);
+        Intent battery = Build.VERSION.SDK_INT >= 33
+                ? registerReceiver(batteryReceiver,
+                        new IntentFilter(Intent.ACTION_BATTERY_CHANGED), Context.RECEIVER_NOT_EXPORTED)
+                : registerReceiver(batteryReceiver,
+                        new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        showBattery(battery);
         awaitingReplugSnapshot = false;
         LinkWatcherService.start(this);
-        showWaiting();
+        if (foldRestored) {
+            foldRestored = false;
+            renderLinkBanner(false, hasVisiblePcWork());
+            setMainStatus(getString(R.string.checking_connection));
+            updateButtons();
+        } else {
+            showWaiting();
+        }
         schedule(0);
     }
 
@@ -1494,6 +1570,7 @@ public final class MainActivity extends Activity {
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         visible = false;
         unregisterReceiver(cableReceiver);
+        unregisterReceiver(batteryReceiver);
         handler.removeCallbacks(poll);
         // Keep measured start/duration so TONIGHT does not fall back to dashes
         // after a flip, cover switch, or brief background. elapsedRealtime
@@ -1525,6 +1602,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         handler.removeCallbacks(poll);
+        if (isFinishing()) foldSnapshot = null;
         if (quitting) network.shutdown();
         else network.shutdownNow();
         if (menuPopup != null) menuPopup.dismiss();
@@ -1717,7 +1795,7 @@ public final class MainActivity extends Activity {
     private void showOffline(Exception failure) {
         offline = true;
         boolean pcPaused = Boolean.FALSE.equals(cableConnected) && hasVisiblePcWork();
-        setMainStatus(getString(pcPaused ? R.string.paused_plug_cable : R.string.phone_unreachable));
+        setMainStatus(getString(R.string.phone_unreachable));
         updateModelSelectionRows();
         if (infoDialog != null && infoDialog.isShowing()) {
             setIfChanged(infoDialog.findViewById(R.id.info_pc_status),
@@ -1744,9 +1822,11 @@ public final class MainActivity extends Activity {
             }
         }
         updateCompactLaneStatus();
-        error.setText(failure instanceof AiClient.ApiException
+        setIfChanged(error, getString(failure instanceof AiClient.ApiException
                 && ((AiClient.ApiException) failure).status == 404
-                ? R.string.ai_unavailable : R.string.phone_unreachable_detail);
+                ? R.string.ai_unavailable : R.string.phone_unreachable_detail));
+        renderLinkBanner(false, hasVisiblePcWork());
+        applyErrorView();
         updateButtons();
     }
 
@@ -1994,16 +2074,20 @@ public final class MainActivity extends Activity {
      */
     private void nameExtraLane(PaneViews view, String pane, JSONObject model) {
         if (view == null) return;
-        String slotLabel = model == null || model.isNull("label") ? pane : model.optString("label", pane);
+        String slotLabel = ModelDisplay.firstNonBlank(textField(model, "label"),
+                textField(model, "model"));
+        if (slotLabel.isEmpty()) slotLabel = pane;
         // Only an answer the card actually shows names it; a hidden older answer must not.
         String answered = answerShown(pane, model == null ? null : model.optJSONObject("answer"))
                 ? answeredModel(model) : "";
         String label = AnsweredModel.label(slotLabel, answered);
-        String maker = AnsweredModel.maker(slotLabel,
-                model == null || model.isNull("maker") ? "" : model.optString("maker"), answered);
-        String where = PaneKeys.shownWhere(pane, model == null ? "" : model.optString("where"));
+        String namedModel = answered.isEmpty() ? slotLabel : answered;
+        String maker = ModelMaker.maker(AnsweredModel.maker(slotLabel,
+                textField(model, "maker"), answered),
+                namedModel);
+        String where = PaneKeys.shownWhere(pane, textField(model, "where"));
         setIfChanged(view.heading, label);
-        setIfChanged(view.byline, label + (maker.isEmpty() ? "" : " · " + maker) + " · " + where);
+        setIfChanged(view.byline, ModelMaker.details(label, maker, where));
     }
 
     /**
@@ -2249,6 +2333,13 @@ public final class MainActivity extends Activity {
         }
         pairingPending = false;
         pairingSeconds = -1;
+        lastPairingSeconds = -1;
+        lastPairingCode = "";
+        rejectedPairingCode = "";
+        pairingTimedOut = false;
+        pairingActionMessage = "";
+        pairingActionError = false;
+        lastPairingProblem = 0;
     }
 
     private void renderPairing(JSONObject link) {
@@ -2271,23 +2362,59 @@ public final class MainActivity extends Activity {
             // The pending computer may not be the one already paired: name it by its own label.
             String pendingNoun = ComputerWords.noun(named);
             String label = named.isEmpty() ? "the " + pendingNoun : named;
-            setIfChanged(findViewById(R.id.pairing_header),
+            TextView pairingHeader = findViewById(R.id.pairing_header);
+            setIfChanged(pairingHeader,
                     ComputerWords.apply(getString(R.string.pairing_title), pendingNoun));
             if (allow != null) {
                 setIfChanged(allow, ComputerWords.apply(getString(R.string.allow_pc), pendingNoun));
             }
-            setIfChanged(pairingText, getString(R.string.pairing_request, label));
             TextView disclosure = findViewById(R.id.pairing_disclosure);
             if (disclosure != null) {
                 setIfChanged(disclosure,
                         ComputerWords.apply(getString(R.string.pairing_disclosure), pendingNoun));
             }
-            String formatted = PairingPrompt.formatCode(pending.optString("code"));
-            setIfChanged(pairingCode, formatted);
-            pairingCode.setContentDescription(
-                    getString(R.string.pairing_code_label) + " " + formatted);
+            String formatted = PairingPrompt.formatCode(
+                    pending.isNull("code") ? "" : pending.optString("code"));
             pairingSeconds = PairingPrompt.secondsFromField(
                     pending.has("seconds"), pending.isNull("seconds"), pending.opt("seconds"));
+            if (PairingPrompt.newRequest(!becamePending, lastPairingCode, formatted,
+                    lastPairingSeconds, pairingSeconds)) {
+                rejectedPairingCode = "";
+                pairingTimedOut = false;
+                pairingActionMessage = "";
+                pairingActionError = false;
+                lastPairingProblem = 0;
+            }
+            lastPairingCode = formatted;
+            boolean validCode = PairingPrompt.validCode(formatted);
+            setIfChanged(pairingCode, validCode ? formatted : "");
+            pairingCode.setVisibility(validCode ? View.VISIBLE : View.GONE);
+            pairingCode.setImportantForAccessibility(validCode
+                    ? View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+                    : View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            pairingCode.setContentDescription(validCode
+                    ? getString(R.string.pairing_code_label) + " " + PairingPrompt.spokenCode(formatted)
+                    : "");
+            lastPairingSeconds = pairingSeconds;
+            if (PairingPrompt.expired(pairingSeconds)) pairingTimedOut = true;
+            boolean rejected = !rejectedPairingCode.isEmpty()
+                    && rejectedPairingCode.equals(formatted);
+            int pairingProblem = pairingTimedOut ? R.string.pairing_expired
+                    : rejected ? R.string.pairing_code_mismatch
+                    : validCode ? 0 : R.string.pairing_code_missing;
+            String allowLabel = allow == null
+                    ? ComputerWords.apply(getString(R.string.allow_pc), pendingNoun)
+                    : allow.getText().toString();
+            String request = getString(R.string.pairing_request, label, allowLabel);
+            String message = pairingProblem != 0 ? getString(pairingProblem)
+                    : pairingActionMessage.isEmpty() ? request : pairingActionMessage;
+            setIfChanged(pairingText, message);
+            pairingText.setTextColor(parseHex(pairingTimedOut || rejected || pairingActionError
+                    ? palette.error() : palette.ink()));
+            if (!becamePending && pairingProblem != 0 && pairingProblem != lastPairingProblem) {
+                pairing.announceForAccessibility(message);
+            }
+            lastPairingProblem = pairingProblem;
             if (pairingCountdown != null) {
                 String countdown = PairingPrompt.countdownText(pairingSeconds,
                         getString(R.string.pairing_countdown),
@@ -2295,6 +2422,13 @@ public final class MainActivity extends Activity {
                 setIfChanged(pairingCountdown, countdown);
                 pairingCountdown.setVisibility(countdown.isEmpty() ? View.GONE : View.VISIBLE);
                 applyPairingCountdownTone();
+            }
+            if (pairingHeader != null) {
+                String description = pairingHeader.getText().toString();
+                if (validCode) description += " " + pairingCode.getContentDescription();
+                if (!TextUtils.equals(pairingHeader.getContentDescription(), description)) {
+                    pairingHeader.setContentDescription(description);
+                }
             }
         } else if (closed) {
             pairingSeconds = -1;
@@ -2304,23 +2438,30 @@ public final class MainActivity extends Activity {
         } else {
             pairingSeconds = -1;
         }
+        if (pending == null && screen != null) {
+            screen.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
+        }
+        if (pending == null) {
+            String finalProblem = pairingTimedOut ? getString(R.string.pairing_expired)
+                    : !rejectedPairingCode.isEmpty() ? getString(R.string.pairing_code_mismatch)
+                    : pairingActionError ? pairingActionMessage : "";
+            if (!finalProblem.isEmpty()) setIfChanged(error, finalProblem);
+            pairingTimedOut = false;
+            rejectedPairingCode = "";
+            lastPairingCode = "";
+            lastPairingSeconds = -1;
+            pairingActionMessage = "";
+            pairingActionError = false;
+            lastPairingProblem = 0;
+        }
         if (becamePending) {
             hideKeyboard();
             applyPairingTypography();
-            if (pairingCode != null) {
-                pairingCode.sendAccessibilityEvent(
-                        android.view.accessibility.AccessibilityEvent.TYPE_VIEW_FOCUSED);
+            TextView pairingHeader = findViewById(R.id.pairing_header);
+            if (pairingHeader != null) {
+                pairingHeader.post(() -> pairingHeader.performAccessibilityAction(
+                        AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null));
             }
-            String announcement = (findViewById(R.id.pairing_header) instanceof TextView)
-                    ? ((TextView) findViewById(R.id.pairing_header)).getText().toString()
-                    : pcWords(R.string.pairing_title);
-            if (pairingCode != null && pairingCode.getText().length() > 0) {
-                announcement += " " + pairingCode.getText();
-            }
-            if (pairingCountdown != null && pairingCountdown.getVisibility() == View.VISIBLE) {
-                announcement += " " + pairingCountdown.getText();
-            }
-            pairing.announceForAccessibility(announcement);
         }
         if (screen != null) {
             screen.setImportantForAccessibility(showModal
@@ -2336,7 +2477,10 @@ public final class MainActivity extends Activity {
     private void applyPairingTypography() {
         if (pairing == null) return;
         TextView header = findViewById(R.id.pairing_header);
-        if (header != null) typography.headline(header, typography.headingSp());
+        if (header != null) {
+            typography.headline(header, typography.headingSp());
+            header.setFocusable(true);
+        }
         if (pairingText != null) typography.body(pairingText, typography.bodySp());
         TextView codeLabel = findViewById(R.id.pairing_code_label);
         if (codeLabel != null) typography.kicker(codeLabel);
@@ -2404,7 +2548,7 @@ public final class MainActivity extends Activity {
 
     private void applyPairingCountdownTone() {
         if (pairingCountdown == null) return;
-        int color = themeColor(PairingPrompt.urgent(pairingSeconds)
+        int color = themeColor(PairingPrompt.expired(pairingSeconds)
                 ? R.color.newspaper_error
                 : R.color.newspaper_ink);
         pairingCountdown.setTextColor(color);
@@ -2858,16 +3002,23 @@ public final class MainActivity extends Activity {
             String label = "phone".equals(pane) ? getString(R.string.phone_heading)
                     : article.heading.getText().toString();
             // Keep the model that wrote this answer, even if the slot now holds another one.
-            String maker = PaneKeys.extra(pane)
-                    ? AnsweredModel.maker(model == null || model.isNull("label") ? "" : model.optString("label"),
-                            model == null || model.isNull("maker") ? "" : model.optString("maker"), answer.isNull("model")
-                                    ? "" : answer.optString("model"))
-                    : "phone".equals(pane)
+            String answerModel = textField(answer, "model");
+            String slotLabel = textField(model, "label");
+            String slotModel = textField(model, "model");
+            String slotMaker = textField(model, "maker");
+            String resolvedModel = answerModel.isEmpty()
+                    ? ModelDisplay.firstNonBlank(PaneKeys.extra(pane) ? slotLabel : "", slotModel)
+                    : answerModel;
+            String maker = "phone".equals(pane)
                     // The phone lane's History byline keeps the model that wrote the answer.
-                    ? PhoneByline.modelAndMaker(answer.isNull("model") ? "" : answer.optString("model"))
-                    : model == null ? "" : model.optString("maker");
+                    ? PhoneByline.modelAndMaker(answerModel)
+                    : ModelMaker.maker(AnsweredModel.maker(
+                            PaneKeys.extra(pane) ? slotLabel : slotModel,
+                            slotMaker, answerModel), resolvedModel);
             if (PaneKeys.extra(pane)) {
-                label = AnsweredModel.label(label, answer.isNull("model") ? "" : answer.optString("model"));
+                label = AnsweredModel.label(label, answerModel);
+            } else if ("gpu".equals(pane)) {
+                if (!resolvedModel.isEmpty()) label = ModelDisplay.label(resolvedModel);
             }
             String where = PaneKeys.shownWhere(pane,
                     model == null || model.isNull("where") ? "" : model.optString("where"));
@@ -2924,6 +3075,8 @@ public final class MainActivity extends Activity {
             if (work != null && "answering".equals(work.optString("state"))) streaming = true;
         }
         Connection connection = pcConnection(gpu);
+        AnswerOutcome.Result outcome = AnswerOutcome.visible(
+                currentAnswerOutcome(), connection == Connection.CONNECTED);
         String line;
         if (Boolean.FALSE.equals(cableConnected)) {
             line = pcOpen || hasVisiblePcWork() ? getString(R.string.paused_plug_cable)
@@ -2944,6 +3097,12 @@ public final class MainActivity extends Activity {
             line = getString(R.string.streaming);
         } else if (open(phoneWork) || open(gpuWork) || extraOpen) {
             line = getString(R.string.thinking);
+        } else if (outcome == AnswerOutcome.Result.FAILED) {
+            line = getString(R.string.answers_failed);
+        } else if (outcome == AnswerOutcome.Result.STOPPED) {
+            line = getString(R.string.answer_stopped);
+        } else if (outcome == AnswerOutcome.Result.FINISHED) {
+            line = getString(R.string.answer_done);
         } else if (connection == Connection.CONNECTED) {
             line = getString(R.string.ready_to_ask);
         } else if (connection == Connection.PREPARING) {
@@ -2963,6 +3122,20 @@ public final class MainActivity extends Activity {
             updateInfoPcRows(infoDialog, gpu, connection);
         }
         applyErrorView();
+    }
+
+    private AnswerOutcome.Result currentAnswerOutcome() {
+        if (snapshot == null || latestRequestedPanes.isEmpty()) return AnswerOutcome.Result.NONE;
+        List<String> states = new ArrayList<>();
+        for (String pane : latestRequestedPanes) {
+            JSONObject work = answerOf(snapshot, pane);
+            String id = work == null ? "" : work.optString("id");
+            if (id.isEmpty() || !id.equals(latestRequestIds.get(pane))) {
+                return AnswerOutcome.Result.NONE;
+            }
+            states.add(work.optString("state"));
+        }
+        return AnswerOutcome.terminal(states);
     }
 
     /** The link line and cable-out banner sit under the masthead; the cover screen keeps its own chrome. */
@@ -3069,7 +3242,7 @@ public final class MainActivity extends Activity {
         }
     }
 
-    /** Green while cool (0–1), red from warm (2) up; hidden when Android reports nothing. */
+    /** Ink while cool or warm, red only when hot; hidden for an unknown status. */
     private void showHeat(int status) {
         heatStatus = status;
         if (heatMeter == null) return;
@@ -3082,9 +3255,20 @@ public final class MainActivity extends Activity {
         heatMeter.setTextSize(TypedValue.COMPLEX_UNIT_SP,
                 compactHeat ? HeatMeter.TEXT_SP_COMPACT : HeatMeter.TEXT_SP);
         setIfChanged(heatMeter, HeatMeter.label(status, compactHeat));
-        heatMeter.setTextColor(parseHex(HeatMeter.cool(status) ? palette.ok() : palette.error()));
+        heatMeter.setTextColor(parseHex(HeatMeter.hot(status) ? palette.error() : palette.ink()));
         heatMeter.setContentDescription(HeatMeter.description(status));
         heatMeter.setVisibility(View.VISIBLE);
+    }
+
+    private void showBattery(Intent battery) {
+        if (batteryNotice == null) return;
+        typography.body(batteryNotice, typography.bodySp());
+        boolean low = battery != null && BatteryNotice.show(
+                battery.getIntExtra(BatteryManager.EXTRA_LEVEL, -1),
+                battery.getIntExtra(BatteryManager.EXTRA_SCALE, 0),
+                battery.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0);
+        batteryNotice.setVisibility(low ? View.VISIBLE : View.GONE);
+        setIfChanged(batteryNotice, low ? getString(R.string.battery_low) : "");
     }
 
     private String labMode() {
@@ -3654,22 +3838,23 @@ public final class MainActivity extends Activity {
     }
 
     private void updateCompactLaneStatus() {
-        if (compactLaneStatus == null) return;
-        Map<String, String> states = new HashMap<>();
-        for (String pane : paneOrder) {
-            PaneViews article = paneViews.get(pane);
-            if (article != null) states.put(pane, article.state.getText().toString());
+        if (compactLaneStatus != null) {
+            Map<String, String> states = new HashMap<>();
+            for (String pane : paneOrder) {
+                PaneViews article = paneViews.get(pane);
+                if (article != null) states.put(pane, article.state.getText().toString());
+            }
+            String notAsked = getString(R.string.not_asked_this_time);
+            String checking = getString(R.string.checking);
+            String phone = CompactHeaderStatus.selectedState(
+                    paneOrder, states, false, notAsked, checking);
+            String pc = CompactHeaderStatus.selectedState(
+                    paneOrder, states, true, notAsked, checking);
+            setIfChanged(compactLaneStatus, CompactHeaderStatus.line(
+                    getString(R.string.phone_heading), phone,
+                    pcWords(R.string.gpu_heading), pc,
+                    pcWords(R.string.gpu_paused)));
         }
-        String notAsked = getString(R.string.not_asked_this_time);
-        String checking = getString(R.string.checking);
-        String phone = CompactHeaderStatus.selectedState(
-                paneOrder, states, false, notAsked, checking);
-        String pc = CompactHeaderStatus.selectedState(
-                paneOrder, states, true, notAsked, checking);
-        setIfChanged(compactLaneStatus, CompactHeaderStatus.line(
-                getString(R.string.phone_heading), phone,
-                pcWords(R.string.gpu_heading), pc,
-                pcWords(R.string.gpu_paused)));
         refreshCover();
     }
 
@@ -3736,8 +3921,11 @@ public final class MainActivity extends Activity {
         resetAsk.setEnabled(ambiguous && !acting && !quitting);
         JSONObject link = gpu == null ? null : gpu.optJSONObject("link");
         boolean pairingPending = link != null && link.optJSONObject("pending") != null;
-        allow.setEnabled(reachable && !acting && !quitting && pairingPending);
-        deny.setEnabled(reachable && !acting && !quitting && pairingPending);
+        boolean validPairing = pairingPending && !pairingTimedOut
+                && rejectedPairingCode.isEmpty() && pairingCode != null
+                && PairingPrompt.validCode(pairingCode.getText().toString());
+        allow.setEnabled(reachable && !acting && !quitting && validPairing);
+        deny.setEnabled(reachable && !acting && !quitting && validPairing);
         reopen.setEnabled(reachable && !acting && !quitting);
         boolean retryable = false;
         boolean retryReady = false;
@@ -3746,16 +3934,23 @@ public final class MainActivity extends Activity {
             JSONObject view = paneOf(snapshot, pane);
             if (!retryablePane(pane, answerOf(snapshot, pane))) continue;
             retryable = true;
-            if ("gpu".equals(pane) ? gpuCanQueue(view)
+            if (PaneKeys.pc(pane) ? !Boolean.FALSE.equals(cableConnected)
+                    && ("gpu".equals(pane) ? gpuCanQueue(view)
+                    : view != null && view.optBoolean("ready"))
                     : view != null && view.optBoolean("ready")) retryReady = true;
         }
         retry.setVisibility(retryable ? View.VISIBLE : View.GONE);
         retry.setEnabled(reachable && !acting && !quitting && !running && retryReady);
         styleErrorButton(retry, retryable);
-        if (acting || quitting) {
-            for (Button laneRetry : laneRetryButtons.values()) laneRetry.setEnabled(false);
+        for (Map.Entry<String, Button> entry : laneRetryButtons.entrySet()) {
+            Button laneRetry = entry.getValue();
+            laneRetry.setEnabled(laneRetry.getVisibility() == View.VISIBLE
+                    && RetryControls.laneEnabled(entry.getKey(), cableConnected,
+                    Boolean.TRUE.equals(laneRetryReady.get(entry.getKey())),
+                    reachable, acting, quitting));
         }
         applyComposerState();
+        applyErrorView();
     }
 
     private boolean failedForQuestion(String pane, JSONObject answer) {
@@ -3832,8 +4027,6 @@ public final class MainActivity extends Activity {
     private void addLaneRetryButton(String pane, LinearLayout card) {
         Button button = outlineButton(getString(R.string.lane_retry)); // 0.5dp dark-gray frame
         typography.retry(button);
-        button.setMinHeight(dp(coverMode ? 36 : 44));
-        button.setMinimumHeight(dp(coverMode ? 36 : 44));
         button.setPadding(dp(14), 0, dp(14), 0);
         button.setVisibility(View.GONE);
         button.setContentDescription(getString(R.string.lane_retry_description));
@@ -3863,6 +4056,7 @@ public final class MainActivity extends Activity {
                     && id.equals(latestRequestIds.get(pane)));
             if (!tracked) {
                 laneHealth.observe(pane, "", "", null, 0, "", false, now);
+                laneRetryReady.remove(pane);
                 button.setVisibility(View.GONE);
                 continue;
             }
@@ -3870,6 +4064,7 @@ public final class MainActivity extends Activity {
             // need the lane actually ready, so a warmup is never read as a stall.
             boolean canQueue = Boolean.TRUE.equals(ready.get(pane));
             boolean laneReady = canQueue && (!"gpu".equals(pane) || gpuLaneReady(data));
+            laneRetryReady.put(pane, laneReady);
             String question = answer.optString("question");
             LaneHealth.Verdict verdict = laneHealth.observe(pane, id, answer.optString("state"),
                     answer.optString("error"), answer.optLong("bytes", answer.optString("text").length()),
@@ -3883,7 +4078,8 @@ public final class MainActivity extends Activity {
                     : verdict.status == LaneHealth.Status.STUCK
                     ? R.string.lane_retry_stuck : R.string.lane_retry));
             styleLaneRetry(button, verdict);
-            boolean enabled = reachable && !acting && !quitting && laneReady;
+            boolean enabled = RetryControls.laneEnabled(pane, cableConnected, laneReady,
+                    reachable, acting, quitting);
             button.setEnabled(enabled);
             if (verdict.autoRetryDue && enabled && autoPane == null
                     && !FollowUpPolicy.bareFollowUp(FollowUpPolicy.originalQuestion(
@@ -4103,16 +4299,45 @@ public final class MainActivity extends Activity {
         JSONObject gpu = snapshot == null ? null : snapshot.optJSONObject("gpu");
         JSONObject link = gpu == null ? null : gpu.optJSONObject("link");
         JSONObject pending = link == null ? null : link.optJSONObject("pending");
-        if (pending == null) return;
-        JSONObject body = action(name);
-        try {
-            body.put("code", pending.getString("code"));
-        } catch (JSONException invalid) {
-            error.setText(R.string.pairing_expired);
+        if (pending == null || pairingTimedOut) {
+            pairingTimedOut = true;
+            showPairingProblem(getString(R.string.pairing_expired), true,
+                    R.string.pairing_expired);
             schedule(0);
             return;
         }
+        String code = pending.isNull("code") ? "" : pending.optString("code", "");
+        if (!PairingPrompt.validCode(code)) {
+            showPairingProblem(getString(R.string.pairing_code_missing), false,
+                    R.string.pairing_code_missing);
+            schedule(0);
+            return;
+        }
+        JSONObject body = action(name);
+        try {
+            body.put("code", code);
+        } catch (JSONException invalid) {
+            showPairingProblem(getString(R.string.pairing_confirm_failed), true, 0);
+            schedule(0);
+            return;
+        }
+        pairingActionMessage = "";
+        pairingActionError = false;
         sendAction(body, null, 0, false);
+    }
+
+    private void showPairingProblem(String message, boolean errorTone, int problem) {
+        pairingActionMessage = message == null ? "" : message;
+        pairingActionError = errorTone;
+        lastPairingProblem = problem;
+        if (pairing != null && pairing.getVisibility() == View.VISIBLE) {
+            setIfChanged(pairingText, pairingActionMessage);
+            pairingText.setTextColor(parseHex(errorTone ? palette.error() : palette.ink()));
+            pairing.announceForAccessibility(pairingActionMessage);
+        } else if (errorTone) {
+            setIfChanged(error, pairingActionMessage);
+        }
+        updateButtons();
     }
 
     private static JSONObject action(String name) {
@@ -4285,6 +4510,32 @@ public final class MainActivity extends Activity {
                         schedule(0);
                         return;
                     }
+                    boolean pairingDecision = "allow".equals(body.optString("action"))
+                            || "deny".equals(body.optString("action"));
+                    if (pairingDecision) {
+                        boolean oldCode = failure instanceof AiClient.ApiException
+                                && PairingPrompt.oldRequest(failure.getMessage());
+                        if (oldCode) {
+                            if ("allow".equals(body.optString("action"))) {
+                                rejectedPairingCode = PairingPrompt.formatCode(body.optString("code"));
+                                showPairingProblem(getString(R.string.pairing_code_mismatch),
+                                        true, R.string.pairing_code_mismatch);
+                            }
+                        } else {
+                            String message = failure instanceof AiClient.ApiException
+                                    ? failure.getMessage() : null;
+                            if (message == null || message.trim().isEmpty()) {
+                                message = getString(R.string.pairing_confirm_failed);
+                            }
+                            showPairingProblem(message, true, 0);
+                        }
+                        if (oldCode && "deny".equals(body.optString("action"))) {
+                            allow.setEnabled(false);
+                            deny.setEnabled(false);
+                        }
+                        schedule(0);
+                        return;
+                    }
                     error.setText(failure instanceof AiClient.ApiException
                             ? failure.getMessage() : getString(R.string.action_failed));
                     renderStatus();
@@ -4413,6 +4664,8 @@ public final class MainActivity extends Activity {
         button.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
         button.setTypeface(typography.interSemibold);
         button.setBackground(panelDrawable(palette.stroke()));
+        button.setMinHeight(dp(48));
+        button.setMinimumHeight(dp(48));
         return button;
     }
 
@@ -4500,14 +4753,17 @@ public final class MainActivity extends Activity {
     private String modelLabel(String pane, JSONObject view) {
         if ("phone".equals(pane)) return getString(R.string.phone_heading);
         if ("gpu".equals(pane)) return ComputerWords.title(ComputerWords.current());
-        String label = view == null ? "" : view.optString("label").trim();
-        return label.isEmpty() ? pane.toUpperCase(Locale.US) : label;
+        String label = ModelDisplay.firstNonBlank(textField(view, "label"),
+                textField(view, "model"));
+        return label.isEmpty() ? pane.toUpperCase(Locale.US) : ModelDisplay.label(label);
     }
 
     private String modelDetails(String pane, JSONObject view) {
-        String model = view == null ? "" : view.optString("model").trim();
-        String maker = view == null ? "" : view.optString("maker").trim();
-        String where = PaneKeys.shownWhere(pane, view == null ? "" : view.optString("where"));
+        String model = ModelDisplay.firstNonBlank(
+                PaneKeys.extra(pane) ? textField(view, "label") : "",
+                textField(view, "model"));
+        String maker = textField(view, "maker");
+        String where = PaneKeys.shownWhere(pane, textField(view, "where"));
         StringBuilder details = new StringBuilder(
                 ModelMaker.details(model, ModelMaker.maker(maker, model), where));
         double fileMb = view == null ? Double.NaN : view.optDouble("file_mb", Double.NaN);
@@ -4518,6 +4774,10 @@ public final class MainActivity extends Activity {
                     : String.format(Locale.US, "%.1f MB", fileMb));
         }
         return details.toString();
+    }
+
+    private static String textField(JSONObject object, String key) {
+        return object == null || object.isNull(key) ? "" : object.optString(key).trim();
     }
 
     private void addModelSection(String heading) {
@@ -4553,6 +4813,21 @@ public final class MainActivity extends Activity {
         TextView toggle = newspaperText("", 14, true, false);
         toggle.setGravity(Gravity.CENTER);
         toggle.setFocusable(true);
+        toggle.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+            @Override public void onInitializeAccessibilityNodeInfo(View host,
+                    AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                info.setClassName(android.widget.Switch.class.getName());
+                info.setCheckable(true);
+                info.setChecked(Boolean.TRUE.equals(host.getTag(R.id.model_toggle_selected)));
+            }
+            @Override public void onInitializeAccessibilityEvent(View host,
+                    android.view.accessibility.AccessibilityEvent event) {
+                super.onInitializeAccessibilityEvent(host, event);
+                event.setClassName(android.widget.Switch.class.getName());
+                event.setChecked(Boolean.TRUE.equals(host.getTag(R.id.model_toggle_selected)));
+            }
+        });
         toggle.setOnClickListener(tapped -> {
             List<String> available = paneNames(snapshot);
             Map<String, Boolean> readyNow = readyPanes(snapshot);
@@ -4616,7 +4891,8 @@ public final class MainActivity extends Activity {
             toggle.setTextColor(on ? themeColor(R.color.newspaper_paper) : themeColor(R.color.newspaper_ink));
             toggle.setBackgroundResource(on ? R.drawable.newspaper_primary
                     : R.drawable.newspaper_outline);
-            toggle.setContentDescription(modelLabel(pane, view) + (on ? ", on" : ", off"));
+            toggle.setTag(R.id.model_toggle_selected, on);
+            toggle.setContentDescription(modelLabel(pane, view));
         }
     }
 
@@ -4689,7 +4965,12 @@ public final class MainActivity extends Activity {
             row.setPadding(dp(8), dp(16), dp(8), dp(16));
             row.setFocusable(true);
             row.setClickable(true);
-            row.setContentDescription(getString(R.string.history_open));
+            String savedHeadline = mapped.headline == null ? "" : mapped.headline.trim();
+            row.setContentDescription(savedHeadline.isEmpty()
+                    ? getString(R.string.history_open_untitled_description,
+                            issueDate(issue.askedAtMs))
+                    : getString(R.string.history_open_description,
+                            savedHeadline, issueDate(issue.askedAtMs)));
             TextView date = newspaperText(issueDate(issue.askedAtMs), 13, true, false);
             typography.tabular(date);
             row.addView(date);
@@ -4978,22 +5259,24 @@ public final class MainActivity extends Activity {
         });
         dialog.setContentView(R.layout.gpu_link_info);
         pcLabelStatic(dialog.getWindow().getDecorView(), new int[][]{
-                {R.id.info_pc_label_text, R.string.info_pc_label},
-                {R.id.info_pc_id_label_text, R.string.info_pc_id_label},
-                {R.id.info_pc_status_label_text, R.string.info_pc_status_label},
                 {R.id.info_forget_pc, R.string.forget_pc},
                 {R.id.info_replace_pc_steps, R.string.info_replace_pc_steps}});
+        pcLabelled(dialog.findViewById(R.id.info_pc_label_text), "PC");
+        pcLabelled(dialog.findViewById(R.id.info_pc_id_label_text), "PC ID");
+        pcLabelled(dialog.findViewById(R.id.info_pc_status_label_text), "PC status");
         typography.defaults(dialog.getWindow().getDecorView());
         applyPaletteToDialog(dialog);
         typography.headline(dialog.findViewById(R.id.info_page_title), 26);
         dialog.<TextView>findViewById(R.id.info_replace_pc_steps)
                 .setTypeface(typography.smTextRegular);
-        dialog.<TextView>findViewById(R.id.info_about).setTypeface(typography.smTextRegular);
+        typography.body(dialog.findViewById(R.id.info_about), typography.bodySp());
+        typography.body(dialog.findViewById(R.id.info_wireless_note), typography.bodySp());
         JSONObject phone = snapshot == null ? null : snapshot.optJSONObject("phone");
         JSONObject gpu = snapshot == null ? null : snapshot.optJSONObject("gpu");
-        String phoneModel = phone == null ? "" : phone.optString("model").trim();
+        String phoneModel = textField(phone, "model");
         setIfChanged(dialog.findViewById(R.id.info_phone_model),
-                phoneModel.isEmpty() ? getString(R.string.info_unavailable) : phoneModel);
+                phoneModel.isEmpty() ? getString(R.string.info_unavailable)
+                        : PhoneByline.modelAndMaker(phoneModel));
         updateInfoPcRows(dialog, gpu, pcConnection(gpu));
         String version = getString(R.string.info_unavailable);
         try {
@@ -5246,6 +5529,7 @@ public final class MainActivity extends Activity {
 
     private void applyErrorView() {
         if (error == null) return;
+        syncErrorVisibility();
         boolean has = error.getText() != null && error.getText().length() > 0;
         error.setTextColor(parseHex(has ? palette.error() : palette.ink()));
     }
@@ -5463,29 +5747,15 @@ public final class MainActivity extends Activity {
         LinearLayout themeList = new LinearLayout(this);
         themeList.setOrientation(LinearLayout.VERTICAL);
         page.addView(themeList);
-        TextView typeHeading = newspaperText(getString(R.string.settings_typography),
-                typography.headingSp(), true, true);
-        typography.headline(typeHeading, typography.headingSp());
-        typeHeading.setPadding(0, dp(coverMode ? 8 : 8), 0, dp(coverMode ? 4 : 8));
-        page.addView(typeHeading);
-        LinearLayout typeList = new LinearLayout(this);
-        typeList.setOrientation(LinearLayout.VERTICAL);
-        page.addView(typeList);
         TextView labHeading = newspaperText(getString(R.string.settings_design_lab),
                 typography.headingSp(), true, true);
         typography.headline(labHeading, typography.headingSp());
-        labHeading.setPadding(0, dp(8), 0, dp(4));
+        labHeading.setPadding(0, dp(16), 0, dp(4));
         TextView labNote = newspaperText(getString(R.string.settings_design_lab_note),
                 typography.labelSp(), false, false);
         labNote.setTextColor(themeColor(R.color.you_asked_label));
         LinearLayout labList = new LinearLayout(this);
         labList.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout preview = box();
-        LinearLayout.LayoutParams previewParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        previewParams.topMargin = dp(coverMode ? 6 : 10);
-        previewParams.bottomMargin = dp(coverMode ? 8 : 16);
-        page.addView(preview, previewParams);
         if (!coverMode) {
             page.addView(labHeading);
             page.addView(labNote);
@@ -5497,7 +5767,7 @@ public final class MainActivity extends Activity {
         // Keep the Settings title below the status bar (same as the Info sheet).
         padForSystemBars(scroll);
         dialog.setContentView(scroll);
-        bindSettingsLists(typeList, preview, themeList);
+        bindSettingsLists(themeList);
         applyPaletteToDialog(dialog);
         Window window = dialog.getWindow();
         if (window != null) window.setWindowAnimations(0);
@@ -5508,36 +5778,20 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void bindSettingsLists(LinearLayout typeList, LinearLayout preview, LinearLayout themeList) {
-        typeList.removeAllViews();
-        String currentType = uiSettings.typography().id;
-        for (String id : TypeChoice.OPTIONS) {
-            boolean selected = id.equals(currentType);
-            LinearLayout row = optionRow(id, TypeChoice.caption(id), selected);
-            final String choice = id;
-            row.setOnClickListener(view -> {
-                if (!uiSettings.setTypography(choice)) return;
-                typography.useChoice(uiSettings.typography());
-                applyUi();
-                bindSettingsLists(typeList, preview, themeList);
-            });
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            params.topMargin = dp(coverMode ? 4 : 6);
-            typeList.addView(row, params);
-        }
-        fillTypePreview(preview);
-        if (settingsLabList != null) bindDesignLabList(settingsLabList);
+    private void bindSettingsLists(LinearLayout themeList) {
         themeList.removeAllViews();
         String currentTheme = uiSettings.themePreference();
-        for (String id : new String[]{UiSettings.THEME_DARK, UiSettings.THEME_LIGHT, UiSettings.THEME_SYSTEM}) {
+        String[] themes = {UiSettings.THEME_DARK, UiSettings.THEME_LIGHT, UiSettings.THEME_SYSTEM};
+        for (String id : themes) {
             boolean selected = id.equals(currentTheme);
             LinearLayout row = optionRow(UiSettings.themeCaption(id), "", selected);
             final String choice = id;
             row.setOnClickListener(view -> {
                 if (!uiSettings.setTheme(choice)) return;
                 applyUi();
-                bindSettingsLists(typeList, preview, themeList);
+                updateOptionRows(themeList, themes, choice);
+                view.sendAccessibilityEvent(
+                        android.view.accessibility.AccessibilityEvent.TYPE_VIEW_SELECTED);
             });
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -5555,7 +5809,9 @@ public final class MainActivity extends Activity {
             row.setOnClickListener(view -> {
                 if (!uiSettings.setDesignLab(choice)) return;
                 arrangeArticles();
-                bindDesignLabList(labList);
+                updateOptionRows(labList, DesignLab.MODES.toArray(new String[0]), choice);
+                view.sendAccessibilityEvent(
+                        android.view.accessibility.AccessibilityEvent.TYPE_VIEW_SELECTED);
             });
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -5569,18 +5825,16 @@ public final class MainActivity extends Activity {
         row.setOrientation(LinearLayout.VERTICAL);
         int pad = dp(coverMode ? 6 : 10);
         row.setPadding(pad, pad, pad, pad);
-        row.setBackground(panelDrawable(selected ? palette.ink() : palette.stroke()));
+        row.setMinimumHeight(dp(48));
+        row.setGravity(Gravity.CENTER_VERTICAL);
         TextView heading = newspaperText(title, typography.labelSp() + 2, true, false);
         heading.setTextColor(themeColor(R.color.newspaper_ink));
         row.addView(heading);
-        String detail = selected ? getString(R.string.settings_selected)
-                + (caption.isEmpty() ? "" : " · " + caption) : caption;
-        if (!detail.isEmpty()) {
-            TextView sub = newspaperText(detail, typography.labelSp(), false, false);
-            sub.setTextColor(themeColor(R.color.you_asked_label));
-            sub.setPadding(0, dp(2), 0, 0);
-            row.addView(sub);
-        }
+        TextView sub = newspaperText("", typography.labelSp(), false, false);
+        sub.setTextColor(themeColor(R.color.you_asked_label));
+        sub.setPadding(0, dp(2), 0, 0);
+        row.addView(sub);
+        setOptionSelected(row, caption, selected);
         row.setClickable(true);
         row.setFocusable(true);
         // TalkBack reads each choice as a radio button, checked or not checked.
@@ -5590,29 +5844,26 @@ public final class MainActivity extends Activity {
                 super.onInitializeAccessibilityNodeInfo(host, info);
                 info.setClassName(RadioButton.class.getName());
                 info.setCheckable(true);
-                info.setChecked(selected);
+                info.setChecked(host.isSelected());
             }
         });
         return row;
     }
 
-    private void fillTypePreview(LinearLayout preview) {
-        preview.removeAllViews();
-        TypeChoice choice = uiSettings.typography();
-        typography.useChoice(choice);
-        TextView kicker = newspaperText(getString(R.string.settings_preview_kicker),
-                choice.subheader().size(coverMode), true, false);
-        typography.kicker(kicker);
-        TextView heading = newspaperText(getString(R.string.settings_preview_heading),
-                choice.header().size(coverMode), true, true);
-        typography.headline(heading, choice.header().size(coverMode));
-        TextView body = newspaperText(getString(R.string.settings_preview_body),
-                choice.body().size(coverMode), false, true);
-        typography.body(body, choice.body().size(coverMode));
-        preview.addView(kicker);
-        preview.addView(heading);
-        preview.addView(body);
-        preview.setBackground(panelDrawable(palette.stroke()));
+    private void setOptionSelected(LinearLayout row, String caption, boolean selected) {
+        row.setSelected(selected);
+        row.setBackground(panelDrawable(selected ? palette.ink() : palette.stroke()));
+        TextView sub = (TextView) row.getChildAt(1);
+        String detail = selected ? getString(R.string.settings_selected)
+                + (caption.isEmpty() ? "" : " · " + caption) : caption;
+        setIfChanged(sub, detail);
+        sub.setVisibility(detail.isEmpty() ? View.GONE : View.VISIBLE);
+    }
+
+    private void updateOptionRows(LinearLayout list, String[] ids, String selected) {
+        for (int i = 0; i < ids.length && i < list.getChildCount(); i++) {
+            setOptionSelected((LinearLayout) list.getChildAt(i), "", ids[i].equals(selected));
+        }
     }
 
     /** Reserve the Notes tab height at the bottom of the results so Summary is not covered. */
@@ -6061,13 +6312,14 @@ public final class MainActivity extends Activity {
 
     private void wireNotesDrag(PaneViews article) {
         View.OnTouchListener listener = notesDragTouchListener(article.pane);
-        View.AccessibilityDelegate delegate = notesAccessibility(article.pane);
         View[] views = {article.card, article.kicker, article.heading, article.byline,
                 article.state, article.speed, article.answer};
         for (View view : views) {
             if (view == null) continue;
             view.setOnTouchListener(listener);
-            view.setAccessibilityDelegate(delegate);
+        }
+        if (article.heading != null) {
+            article.heading.setAccessibilityDelegate(notesAccessibility(article));
         }
     }
 
@@ -6214,11 +6466,15 @@ public final class MainActivity extends Activity {
         return NotesDrop.format(model, questionText, article.rawAnswer, time);
     }
 
-    private View.AccessibilityDelegate notesAccessibility(String pane) {
+    private View.AccessibilityDelegate notesAccessibility(PaneViews article) {
         return new View.AccessibilityDelegate() {
             @Override public void onInitializeAccessibilityNodeInfo(View host,
                     AccessibilityNodeInfo info) {
                 super.onInitializeAccessibilityNodeInfo(host, info);
+                info.setClassName(Button.class.getName());
+                info.setContentDescription(getString(R.string.open_answer_description,
+                        AnswerActionLabel.target(article.heading == null
+                                ? null : article.heading.getText())));
                 if (NotesDrop.available(notesVisible())) {
                     info.addAction(new AccessibilityNodeInfo.AccessibilityAction(
                             AccessibilityNodeInfo.ACTION_LONG_CLICK,
@@ -6229,7 +6485,7 @@ public final class MainActivity extends Activity {
             @Override public boolean performAccessibilityAction(View host, int action, Bundle args) {
                 if (NotesDrop.available(notesVisible())
                         && action == AccessibilityNodeInfo.ACTION_LONG_CLICK) {
-                    saveCardToNotes(pane);
+                    saveCardToNotes(article.pane);
                     return true;
                 }
                 return super.performAccessibilityAction(host, action, args);

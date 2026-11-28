@@ -16,15 +16,15 @@ public final class UiSettingsTest {
         equal(UiSettings.THEME_DARK, settings.themePreference());
         equal(UiPalette.Theme.DARK, settings.resolvedTheme(false));
 
-        check(settings.setTypography("H7+S7+B7"));
-        equal("H7+S7+B7", settings.typography().id);
-        equal("H7", settings.typography().header().id);
-        check(settings.setTypography(TypeChoice.FABLE));
+        check(!settings.setTypography("H7+S7+B7"));
+        equal(TypeChoice.DEFAULT, settings.typography().id);
+        check(settings.setTypography(TypeChoice.DEFAULT));
+        check(!store.values.containsKey(UiSettings.KEY_TYPOGRAPHY));
         equal("H5", settings.typography().headerId);
-        equal("S6", settings.typography().subheaderId);
-        equal("B7", settings.typography().bodyId);
+        equal("S5", settings.typography().subheaderId);
+        equal("B5", settings.typography().bodyId);
         check(!settings.setTypography("H1+S1+B1"));
-        equal(TypeChoice.FABLE, settings.typography().id);
+        equal(TypeChoice.DEFAULT, settings.typography().id);
 
         check(settings.setTheme(UiSettings.THEME_LIGHT));
         equal(UiSettings.THEME_LIGHT, settings.themePreference());
@@ -35,18 +35,19 @@ public final class UiSettingsTest {
         check(!settings.setTheme("sepia"));
         equal(UiSettings.THEME_SYSTEM, settings.themePreference());
 
-        store.values.put(UiSettings.KEY_TYPOGRAPHY, "not-a-set");
+        store.values.put(UiSettings.KEY_TYPOGRAPHY, "H7+S7+B7");
         store.values.put(UiSettings.KEY_THEME, "rainbow");
         equal(TypeChoice.DEFAULT, settings.typography().id);
+        equal(TypeChoice.DEFAULT, TypeChoice.parse("H7+S7+B7").id);
         equal(UiSettings.THEME_DARK, settings.themePreference());
 
-        equal("Optical broadsheet (default)", TypeChoice.caption("H5+S5+B5"));
-        equal("Fable", TypeChoice.caption(TypeChoice.FABLE));
+        equal("Newspaper type", TypeChoice.caption("H5+S5+B5"));
+        equal("", TypeChoice.caption("H7+S7+B7"));
         equal("Dark (default)", UiSettings.themeCaption(UiSettings.THEME_DARK));
         equal("Light", UiSettings.themeCaption(UiSettings.THEME_LIGHT));
         equal("Follow system", UiSettings.themeCaption(UiSettings.THEME_SYSTEM));
         check(TypeChoice.defaults().isDefault());
-        check(TypeChoice.OPTIONS.size() == 5);
+        check(TypeChoice.OPTIONS.size() == 1);
         // Design lab is off unless chosen, and an unknown stored value reads as off.
         equal(DesignLab.OFF, settings.designLab());
         check(settings.setDesignLab(DesignLab.SCHEMATIC));

@@ -135,6 +135,7 @@ final class DesignLab {
         if (state.startsWith("Done")) return Belt.DONE;
         if (state.startsWith("Paused")) return Belt.PAUSED;
         if (state.startsWith("Streaming") || state.startsWith("Thinking")) return Belt.MOVING;
+        if (state.startsWith("Stopped")) return Belt.STOPPED;
         if (ErrorCopy.errorLine(state)) return Belt.STOPPED;
         return Belt.QUEUED;
     }

@@ -6,7 +6,7 @@ final class LeadModelByline {
 
     static String text(String pc, String leadLabel, String defaultPc) {
         String connection = (pc == null || pc.isEmpty() ? defaultPc : pc) + " · over USB";
-        return leadLabel == null || leadLabel.isEmpty()
-                ? connection : leadLabel + " · " + connection;
+        String model = PhoneByline.modelAndMaker(leadLabel);
+        return model.isEmpty() ? connection : model + " · " + connection;
     }
 }

@@ -182,6 +182,7 @@ final class NewspaperSummary {
         if (lane.pending) return true;
         String state = lane.state == null ? "" : lane.state.trim();
         if (state.startsWith("Done")) return false;
+        if (state.startsWith("Stopped")) return false;
         if (state.toLowerCase(Locale.US).contains("paused")) return true;
         return !ErrorCopy.errorLine(state);
     }

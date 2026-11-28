@@ -12,6 +12,12 @@ public final class LeadModelBylineTest {
                 LeadModelByline.text("", label, "PC"));
         equal("PC · over USB", LeadModelByline.text(null, null, "PC"));
         equal("Ordinateur · over USB", LeadModelByline.text("", "", "Ordinateur"));
+        equal("Nemotron 3.5 Bolt · NVIDIA · M5 Pro MacBook Pro · over USB",
+                LeadModelByline.text("M5 Pro MacBook Pro", "NVIDIA Nemotron 3.5 Bolt E4B 4GB", "computer"));
+        equal("LFM2 1.2B (baseline) · Liquid AI · Demo Mac · over USB",
+                LeadModelByline.text("Demo Mac", "LFM2 1.2B", "computer"));
+        equal("Granite 4.1 3B · IBM · Demo Mac · over USB",
+                LeadModelByline.text("Demo Mac", "IBM Granite 4.1 3B", "computer"));
 
         // Clearing the backend field immediately restores the same legacy text;
         // this formatter retains no label across snapshots or PC changes.

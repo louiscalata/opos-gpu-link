@@ -7,7 +7,6 @@ package os.opos.launcher;
  */
 final class PairingPrompt {
     static final int TIMEOUT_SECONDS = 60;
-    static final int WARN_SECONDS = 10;
     static final int CODE_SP_INNER = 56;
     static final int CODE_SP_COVER = 36;
     static final int ALLOW_DP_INNER = 72;
@@ -34,6 +33,26 @@ final class PairingPrompt {
     static boolean validCode(String code) {
         if (code == null) return false;
         return code.replace(" ", "").trim().matches("[0-9]{6}");
+    }
+
+    /** The service uses this one refusal for a changed, mismatched or timed-out request. */
+    static boolean oldRequest(String message) {
+        return "That request is no longer waiting.".equals(message);
+    }
+
+    /** Treat a request after an empty snapshot as new even if its code repeats. */
+    static boolean newRequest(boolean wasPending, String previousCode, String code,
+                              int previousSeconds, int seconds) {
+        return !wasPending || !code.equals(previousCode)
+                || seconds >= 0 && previousSeconds >= 0 && seconds > previousSeconds;
+    }
+
+    /** Read six code digits separately to TalkBack, with a pause between groups. */
+    static String spokenCode(String code) {
+        if (!validCode(code)) return "";
+        String digits = code.replace(" ", "").trim();
+        return digits.charAt(0) + " " + digits.charAt(1) + " " + digits.charAt(2)
+                + ", " + digits.charAt(3) + " " + digits.charAt(4) + " " + digits.charAt(5);
     }
 
     /**
@@ -71,10 +90,6 @@ final class PairingPrompt {
 
     static boolean hasCountdown(int seconds) {
         return seconds >= 0;
-    }
-
-    static boolean urgent(int seconds) {
-        return hasCountdown(seconds) && seconds <= WARN_SECONDS;
     }
 
     static boolean expired(int seconds) {
