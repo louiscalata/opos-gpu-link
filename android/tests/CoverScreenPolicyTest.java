@@ -57,6 +57,7 @@ public final class CoverScreenPolicyTest {
     }
 
     private static void selection() {
+        eq(1, CoverScreenPolicy.MAX_PANES);
         // Nothing asked yet: the first three in newspaper order, one phone and one PC guaranteed.
         eq(Arrays.asList("phone", "gpu", "m1"), CoverScreenPolicy.visiblePanes(
                 ORDER, states(), new ArrayList<>(), 3));
@@ -79,9 +80,12 @@ public final class CoverScreenPolicyTest {
         eq(Arrays.asList("phone", "m1", "m2"), CoverScreenPolicy.visiblePanes(
                 Arrays.asList("phone", "m1", "m2", "m3"), states("m2", "answering"),
                 new ArrayList<>(), 3));
-        // max of one keeps only the best phone pane.
+        // One cover card shows the most active answer from either device.
         eq(Arrays.asList("m2"), CoverScreenPolicy.visiblePanes(
                 ORDER, states("m2", "answering"), new ArrayList<>(), 1));
+        eq(Arrays.asList("gpu"), CoverScreenPolicy.visiblePanes(
+                ORDER, states("phone", "done", "gpu", "answering"),
+                new ArrayList<>(), CoverScreenPolicy.MAX_PANES));
         eq(Arrays.asList("phone", "gpu"), CoverScreenPolicy.visiblePanes(
                 Arrays.asList("phone", "gpu"), states(), new ArrayList<>(), 3));
         try {

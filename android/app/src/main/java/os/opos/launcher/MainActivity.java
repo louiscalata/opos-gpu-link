@@ -172,8 +172,12 @@ public final class MainActivity extends Activity {
     private long workingTick;
     private boolean workingScheduled;
     private TextView heatMeter;
-    private TextView linkLine, cableBannerTitle, cableBannerBody;
+    private TextView cableBannerTitle, cableBannerBody;
     private LinearLayout cableBanner;
+    private LinearLayout deviceBand, devicePhone, deviceComputer;
+    private TextView devicePhoneKicker, devicePhoneName, deviceComputerKicker,
+            deviceComputerName, deviceLink;
+    private DeviceLayoutPolicy.LinkState deviceLinkState = DeviceLayoutPolicy.LinkState.WAITING;
     private PowerManager.OnThermalStatusChangedListener heatListener;
     private boolean heatRegistered;
     private int heatStatus = -1;
@@ -434,6 +438,7 @@ public final class MainActivity extends Activity {
         compactLayout = layoutMode != CoverScreenPolicy.Mode.FULL;
         typography.useCover(coverMode);
         typography.defaults(screen);
+        applyDeviceBandMode();
         if (compactLayout) {
             LinearLayout root = (LinearLayout) screen;
             ((ViewGroup) status.getParent()).removeView(status);
@@ -847,8 +852,9 @@ public final class MainActivity extends Activity {
             revealVisible(false);
         });
         LinearLayout content = findViewById(R.id.content);
+        setupDeviceBand();
         content.removeView(question);
-        content.addView(question, 0);
+        content.addView(question, content.indexOfChild(deviceBand) + 1);
 
         LinearLayout phoneCard = findViewById(R.id.phone_card);
         LinearLayout gpuCard = findViewById(R.id.gpu_card);
@@ -1181,12 +1187,15 @@ public final class MainActivity extends Activity {
         leftColumn.removeAllViews();
         rightColumn.removeAllViews();
         columns.removeAllViews();
+        int columnCount = DeviceLayoutPolicy.columns(
+                getResources().getConfiguration().screenWidthDp, coverMode, paneOrder.size());
         if (coverMode) {
             arrangeCoverArticles();
-        } else if (compactLayout) {
+        } else if (columnCount == 1) {
             addLabView();
-            for (int i = 0; i < paneOrder.size(); i++) {
-                PaneViews pane = paneViews.get(paneOrder.get(i));
+            List<String> ordered = orderedDevicePanes();
+            for (int i = 0; i < ordered.size(); i++) {
+                PaneViews pane = paneViews.get(ordered.get(i));
                 typography.body(pane.answer, typography.bodySp());
                 putWrapCard(answers, pane.card, LaneCardLayout.MIN_LANE_DP,
                         LaneCardLayout.gapDp(i));
@@ -1194,28 +1203,18 @@ public final class MainActivity extends Activity {
             putWrapCard(answers, timingCard, 96, LaneCardLayout.CARD_GAP_DP);
             pinSummaryBar();
         } else {
-            // TONIGHT is the race: full width on top, then the computer and the phone side by
-            // side so the two answers can be compared from the stage. Each lane grows with
-            // its own answer; extra lanes go to the shorter column.
+            // The first phone and computer answers sit under their device panels. Extra
+            // answers use the less full column when one side would otherwise be empty.
             addLabView();
             putWrapCard(answers, timingCard, 96, 0);
-            List<View> cards = new ArrayList<>();
-            if (paneOrder.contains("gpu")) cards.add(paneViews.get("gpu").card);
-            if (paneOrder.contains("phone")) cards.add(paneViews.get("phone").card);
-            for (String pane : paneOrder) {
-                if (PaneKeys.extra(pane)) cards.add(paneViews.get(pane).card);
-            }
+            List<String> ordered = orderedDevicePanes();
             for (String pane : paneOrder) {
                 typography.body(paneViews.get(pane).answer, typography.bodySp());
             }
             LinearLayout.LayoutParams columnsParams = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
             columnsParams.topMargin = dp(LaneCardLayout.CARD_GAP_DP);
-            if (cards.size() == 1) {
-                // One lane uses the whole width instead of half a row.
-                putWrapCard(answers, cards.get(0), LaneCardLayout.MIN_LANE_DP,
-                        LaneCardLayout.CARD_GAP_DP);
-            } else if (!cards.isEmpty()) {
+            if (!ordered.isEmpty()) {
                 columns.addView(leftColumn, new LinearLayout.LayoutParams(0,
                         LinearLayout.LayoutParams.WRAP_CONTENT, 0.5f));
                 LinearLayout.LayoutParams rightParams = new LinearLayout.LayoutParams(0,
@@ -1223,16 +1222,39 @@ public final class MainActivity extends Activity {
                 rightParams.leftMargin = dp(LaneCardLayout.CARD_GAP_DP);
                 columns.addView(rightColumn, rightParams);
                 answers.addView(columns, columnsParams);
-                for (int i = 0; i < cards.size(); i++) {
-                    LinearLayout target = leftColumn.getChildCount() <= rightColumn.getChildCount()
+                for (String pane : ordered) {
+                    JSONObject lane = paneOf(snapshot, pane);
+                    DeviceLayoutPolicy.Side side = DeviceLayoutPolicy.side(pane,
+                            lane == null ? "" : lane.optString("kind"));
+                    DeviceLayoutPolicy.Side placed = DeviceLayoutPolicy.column(side,
+                            leftColumn.getChildCount(), rightColumn.getChildCount());
+                    LinearLayout target = placed == DeviceLayoutPolicy.Side.PHONE
                             ? leftColumn : rightColumn;
-                    putWrapCard(target, cards.get(i), LaneCardLayout.MIN_LANE_DP,
+                    putWrapCard(target, paneViews.get(pane).card, LaneCardLayout.MIN_LANE_DP,
                             target.getChildCount() == 0 ? 0 : LaneCardLayout.CARD_GAP_DP);
                 }
             }
             pinSummaryBar();
         }
         resultsScroll.post(() -> revealVisible(!initialRevealDone));
+    }
+
+    private List<String> orderedDevicePanes() {
+        List<String> result = new ArrayList<>();
+        for (String lead : new String[]{"phone", "gpu"}) {
+            if (paneOrder.contains(lead)) result.add(lead);
+        }
+        for (DeviceLayoutPolicy.Side side : new DeviceLayoutPolicy.Side[]{
+                DeviceLayoutPolicy.Side.PHONE, DeviceLayoutPolicy.Side.COMPUTER,
+                DeviceLayoutPolicy.Side.UNKNOWN}) {
+            for (String pane : paneOrder) {
+                if (result.contains(pane)) continue;
+                JSONObject lane = paneOf(snapshot, pane);
+                if (DeviceLayoutPolicy.side(pane,
+                        lane == null ? "" : lane.optString("kind")) == side) result.add(pane);
+            }
+        }
+        return result;
     }
 
     private boolean readReducedMotion() {
@@ -1710,6 +1732,7 @@ public final class MainActivity extends Activity {
         hidePairingUi();
         applyComposerState();
         setIfChanged(error, "");
+        renderLinkBanner(false, hasVisiblePcWork());
         retry.setVisibility(View.GONE);
         updateButtons();
     }
@@ -1747,6 +1770,7 @@ public final class MainActivity extends Activity {
         error.setText(failure instanceof AiClient.ApiException
                 && ((AiClient.ApiException) failure).status == 404
                 ? R.string.ai_unavailable : R.string.phone_unreachable_detail);
+        renderLinkBanner(false, hasVisiblePcWork());
         updateButtons();
     }
 
@@ -1782,6 +1806,7 @@ public final class MainActivity extends Activity {
                 updateExpanded(pane);
             }
             setIfChanged(error, "");
+            renderLinkBanner(false, false);
             updateButtons();
             return;
         }
@@ -2944,6 +2969,8 @@ public final class MainActivity extends Activity {
             line = getString(R.string.streaming);
         } else if (open(phoneWork) || open(gpuWork) || extraOpen) {
             line = getString(R.string.thinking);
+        } else if (connection == Connection.CONNECTED && cableConnected == null) {
+            line = pcWords(R.string.cable_checking);
         } else if (connection == Connection.CONNECTED) {
             line = getString(R.string.ready_to_ask);
         } else if (connection == Connection.PREPARING) {
@@ -2965,20 +2992,67 @@ public final class MainActivity extends Activity {
         applyErrorView();
     }
 
-    /** The link line and cable-out banner sit under the masthead; the cover screen keeps its own chrome. */
+    private void setupDeviceBand() {
+        deviceBand = findViewById(R.id.device_band);
+        devicePhone = findViewById(R.id.device_phone);
+        deviceComputer = findViewById(R.id.device_computer);
+        devicePhoneKicker = findViewById(R.id.device_phone_kicker);
+        devicePhoneName = findViewById(R.id.device_phone_name);
+        deviceComputerKicker = findViewById(R.id.device_computer_kicker);
+        deviceComputerName = findViewById(R.id.device_computer_name);
+        deviceLink = findViewById(R.id.device_link);
+        deviceBand.setFocusable(true);
+        devicePhone.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+        deviceComputer.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
+        deviceLink.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        deviceBand.setContentDescription(DeviceLayoutPolicy.description("computer", deviceLinkState));
+    }
+
+    private void applyDeviceBandMode() {
+        if (deviceBand == null) return;
+        devicePhoneKicker.setVisibility(coverMode ? View.GONE : View.VISIBLE);
+        deviceComputerKicker.setVisibility(coverMode ? View.GONE : View.VISIBLE);
+        for (LinearLayout panel : new LinearLayout[]{devicePhone, deviceComputer}) {
+            panel.setMinimumHeight(dp(coverMode ? 44 : 64));
+            int pad = dp(coverMode ? 6 : 8);
+            panel.setPadding(pad, pad, pad, pad);
+        }
+    }
+
+    private void renderDeviceBand(boolean linkConnected) {
+        if (deviceBand == null) return;
+        JSONObject gpu = snapshot == null ? null : snapshot.optJSONObject("gpu");
+        JSONObject link = gpu == null ? null : gpu.optJSONObject("link");
+        JSONObject pc = link == null ? null : link.optJSONObject("pc");
+        JSONObject pending = link == null ? null : link.optJSONObject("pending");
+        String name = computerLabel(pc);
+        if (name.isEmpty()) name = computerLabel(pending);
+        if (name.isEmpty()) name = ComputerWords.title(ComputerWords.current());
+        boolean errorState = pc != null && "error".equals(pc.optString("state"));
+        deviceLinkState = DeviceLayoutPolicy.linkState(cableConnected, linkConnected,
+                pausedAfterFreshSnapshot, errorState);
+        setIfChanged(deviceComputerName, name);
+        setIfChanged(deviceLink, DeviceLayoutPolicy.linkLabel(deviceLinkState));
+        deviceBand.setContentDescription(DeviceLayoutPolicy.description(name, deviceLinkState));
+        styleDeviceBand();
+    }
+
+    private void styleDeviceBand() {
+        if (deviceBand == null) return;
+        devicePhone.setBackground(panelDrawable(palette.stroke()));
+        deviceComputer.setBackground(panelDrawable(palette.stroke()));
+        devicePhoneKicker.setTextColor(parseHex(palette.label()));
+        deviceComputerKicker.setTextColor(parseHex(palette.label()));
+        deviceLink.setTextColor(parseHex(deviceLinkState == DeviceLayoutPolicy.LinkState.CONNECTED
+                ? palette.ok() : deviceLinkState == DeviceLayoutPolicy.LinkState.ERROR
+                ? palette.error() : palette.ink()));
+    }
+
+    /** Cable-out banner sits under the masthead. The device band owns the link state. */
     private void setupLinkBanner() {
         ViewGroup root = (ViewGroup) header.getParent();
         if (root == null) return;
         int afterHeader = root.indexOfChild(header) + 1;
-        linkLine = newspaperText("", 13, true, false);
-        typography.tabular(linkLine);
-        linkLine.setSingleLine(true);
-        linkLine.setEllipsize(TextUtils.TruncateAt.END);
-        linkLine.setPadding(dp(12), 0, dp(12), dp(2));
-        linkLine.setVisibility(View.GONE);
-        linkLine.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-        root.addView(linkLine, afterHeader, new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         cableBanner = new LinearLayout(this);
         cableBanner.setOrientation(LinearLayout.VERTICAL);
         cableBanner.setPadding(dp(12), dp(8), dp(12), dp(8));
@@ -2991,22 +3065,15 @@ public final class MainActivity extends Activity {
         cableBannerBody.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         cableBanner.addView(cableBannerTitle);
         cableBanner.addView(cableBannerBody);
-        root.addView(cableBanner, afterHeader + 1, new LinearLayout.LayoutParams(
+        root.addView(cableBanner, afterHeader, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
     }
 
     private void renderLinkBanner(boolean linkConnected, boolean computerWorkVisible) {
-        if (linkLine == null || cableBanner == null) return;
+        renderDeviceBand(linkConnected);
+        if (cableBanner == null) return;
         String noun = ComputerWords.current();
         boolean banner = !coverMode && LinkBanner.showBanner(cableConnected, computerWorkVisible);
-        String line = coverMode || banner ? "" : LinkBanner.line(cableConnected, linkConnected, noun);
-        // Visible before the text changes, so the live region announces it.
-        if (!line.isEmpty()) {
-            linkLine.setVisibility(View.VISIBLE);
-            linkLine.setTextColor(parseHex(palette.ok()));
-        }
-        setIfChanged(linkLine, line);
-        if (line.isEmpty()) linkLine.setVisibility(View.GONE);
         if (banner) {
             cableBanner.setVisibility(View.VISIBLE);
             // Inverted ink, like the paused chip: a planned pull is a pause, not an error.
@@ -5161,6 +5228,8 @@ public final class MainActivity extends Activity {
         applyTypographyToPage();
         applyErrorView();
         showHeat(heatStatus); // the meter's green or red follows the new theme
+        JSONObject gpu = snapshot == null ? null : snapshot.optJSONObject("gpu");
+        renderLinkBanner(pcConnection(gpu) == Connection.CONNECTED, hasVisiblePcWork());
     }
 
     private void applySystemBars() {
@@ -5283,6 +5352,7 @@ public final class MainActivity extends Activity {
         if (notesCard != null && !notesDragActive) {
             notesCard.setBackground(panelDrawable(palette.stroke()));
         }
+        styleDeviceBand();
         styleNotesDock();
         syncErrorVisibility();
         if (timingCard != null) timingCard.setBackground(panelDrawable(palette.stroke()));
@@ -5402,6 +5472,13 @@ public final class MainActivity extends Activity {
         typography.useChoice(uiSettings.typography());
         typography.useCover(coverMode);
         applyPairingTypography();
+        if (deviceBand != null) {
+            typography.kicker(devicePhoneKicker);
+            typography.kicker(deviceComputerKicker);
+            typography.headline(devicePhoneName, typography.headingSp());
+            typography.headline(deviceComputerName, typography.headingSp());
+            typography.state(deviceLink);
+        }
         if (bigMasthead != null) {
             typography.display(bigMasthead, coverMode ? CoverScreenPolicy.MASTHEAD_SP : 34);
         }

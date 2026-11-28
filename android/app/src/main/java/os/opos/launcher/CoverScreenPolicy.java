@@ -12,8 +12,8 @@ import java.util.Map;
 final class CoverScreenPolicy {
     enum Mode { FULL, COMPACT, COVER }
 
-    /** The cover shows at most this many answer panes; the rest are summarised as "+N more". */
-    static final int MAX_PANES = 3;
+    /** One full answer at a time; the rest are summarised as "+N more". */
+    static final int MAX_PANES = 1;
     static final int MASTHEAD_DP = 40;
     static final int COMPOSER_ROW_DP = 52;
     static final int KEYBOARD_COMPOSER_ROW_DP = 44;
@@ -67,10 +67,10 @@ final class CoverScreenPolicy {
     }
 
     /**
-     * Picks up to {@code max} panes in their original newspaper order. The best phone pane and the
-     * best PC pane are always kept (the demo is about the two sides, so a frozen PC pane must not
-     * disappear behind busier phone panes); remaining slots go to the most active panes. A pane that
-     * is already visible wins ties so the page does not reshuffle under the reader.
+     * Picks up to {@code max} panes in their original newspaper order. With one slot, show the
+     * most active answer from either device. With more room, the best phone and computer panes
+     * are both kept; remaining slots go to active panes. A visible pane wins ties so the page
+     * does not reshuffle under the reader.
      */
     static List<String> visiblePanes(List<String> order, Map<String, String> states,
                                      List<String> current, int max) {
@@ -80,6 +80,11 @@ final class CoverScreenPolicy {
                 .comparingInt((String pane) -> priority(states.get(pane)))
                 .thenComparingInt(pane -> current.contains(pane) ? 0 : 1)
                 .thenComparingInt(order::indexOf));
+        if (max == 1) {
+            List<String> one = new ArrayList<>();
+            if (!ranked.isEmpty()) one.add(ranked.get(0));
+            return one;
+        }
         List<String> chosen = new ArrayList<>();
         for (boolean pc : new boolean[]{false, true}) {
             for (String pane : ranked) {
