@@ -14,12 +14,14 @@ import android.content.IntentFilter;
 import android.content.ClipData;
 import android.content.ClipDescription;
 import android.content.SharedPreferences;
+import android.content.res.ColorStateList;
 import android.content.res.Configuration;
 import android.graphics.Bitmap;
 import android.graphics.Canvas;
 import android.graphics.Point;
 import android.graphics.drawable.ColorDrawable;
 import android.graphics.drawable.GradientDrawable;
+import android.graphics.drawable.StateListDrawable;
 import android.graphics.Color;
 import android.graphics.Insets;
 import android.graphics.Rect;
@@ -642,8 +644,8 @@ public final class MainActivity extends Activity {
         for (Button button : new Button[]{send, stop, reconnect}) {
             LinearLayout.LayoutParams action = button.getLayoutParams() instanceof LinearLayout.LayoutParams
                     ? (LinearLayout.LayoutParams) button.getLayoutParams()
-                    : new LinearLayout.LayoutParams(dp(84), rowHeight);
-            action.width = dp(84);
+                    : new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT, rowHeight);
+            action.width = LinearLayout.LayoutParams.WRAP_CONTENT;
             action.height = rowHeight;
             action.leftMargin = dp(6);
             action.topMargin = 0;
@@ -651,6 +653,8 @@ public final class MainActivity extends Activity {
             action.gravity = Gravity.CENTER_VERTICAL;
             button.setMinHeight(rowHeight);
             button.setMinimumHeight(rowHeight);
+            button.setMinWidth(dp(84));
+            button.setMinimumWidth(dp(84));
             button.setPaddingRelative(dp(8), 0, dp(8), 0);
             zeroButtonInsets(button);
             button.setIncludeFontPadding(false);
@@ -4893,10 +4897,9 @@ public final class MainActivity extends Activity {
         Button button = new Button(this);
         button.setText(label);
         button.setAllCaps(false);
-        button.setTextColor(themeColor(R.color.newspaper_ink));
         button.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
         button.setTypeface(typography.interSemibold);
-        button.setBackground(panelDrawable(palette.stroke()));
+        styleChromeOutline(button);
         button.setMinHeight(dp(48));
         button.setMinimumHeight(dp(48));
         return button;
@@ -5770,8 +5773,8 @@ public final class MainActivity extends Activity {
 
     private void styleErrorButton(Button button, boolean errorState) {
         if (button == null) return;
-        button.setTextColor(parseHex(errorState ? palette.error() : palette.ink()));
-        button.setBackground(panelDrawable(errorState ? palette.error() : palette.stroke()));
+        styleButton(button, parseHex(errorState ? palette.error() : palette.ink()),
+                panelDrawable(errorState ? palette.error() : palette.stroke()));
     }
 
     private void styleLaneRetry(Button button, LaneHealth.Verdict verdict) {
@@ -5848,18 +5851,29 @@ public final class MainActivity extends Activity {
     private void stylePrimaryButton(Button button) {
         GradientDrawable fill = new GradientDrawable();
         fill.setColor(themeColor(R.color.newspaper_ink));
-        button.setBackground(fill);
-        button.setTextColor(themeColor(R.color.newspaper_paper));
+        styleButton(button, themeColor(R.color.newspaper_paper), fill);
     }
 
     private void styleChromeOutline(Button button) {
-        button.setTextColor(themeColor(R.color.newspaper_ink));
-        button.setBackground(panelDrawable(palette.stroke()));
+        styleButton(button, themeColor(R.color.newspaper_ink), panelDrawable(palette.stroke()));
+    }
+
+    private void styleButton(Button button, int enabledText, GradientDrawable enabledBackground) {
+        int[] disabled = {-android.R.attr.state_enabled};
+        int[] enabled = {android.R.attr.state_enabled};
+        button.setTextColor(new ColorStateList(new int[][]{disabled, enabled},
+                new int[]{parseHex(palette.label()), enabledText}));
+        GradientDrawable disabledBackground = panelDrawable(palette.stroke());
+        disabledBackground.setAlpha(120);
+        StateListDrawable backgrounds = new StateListDrawable();
+        backgrounds.addState(disabled, disabledBackground);
+        backgrounds.addState(enabled, enabledBackground);
+        button.setBackground(backgrounds);
     }
 
     private void recolorChrome(View view, int paper, int ink, int label) {
         if (view == null) return;
-        if (view == send || view == allow || view == reopen) {
+        if (view == send || view == reconnect || view == allow || view == reopen) {
             stylePrimaryButton((Button) view);
             return;
         }
