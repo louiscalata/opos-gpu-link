@@ -53,4 +53,9 @@ final class LaneCardLayout {
     static int gapDp(int index) {
         return index == 0 ? 0 : CARD_GAP_DP;
     }
+
+    /** Keep Retry after the state row; append it if the row is missing. */
+    static int retryInsertIndex(int stateRowIndex, int childCount) {
+        return stateRowIndex >= 0 ? stateRowIndex + 1 : childCount;
+    }
 }

@@ -53,6 +53,11 @@ final class TonightRows {
         return matches;
     }
 
+    /** The lane state owns the row color; a timing value cannot turn a Stop into an error. */
+    static UiPalette.Tone tone(Row row, NewspaperSummary.Lane lane) {
+        return UiPalette.tone(lane == null ? row.label + " " + row.value : lane.state);
+    }
+
     private static Row parseLine(String line) {
         String[] tokens = line.split(String.valueOf(NBSP), -1);
         if (tokens.length < 2) return new Row(line.trim(), "");

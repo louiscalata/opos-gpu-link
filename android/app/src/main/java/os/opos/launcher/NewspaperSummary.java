@@ -36,7 +36,7 @@ final class NewspaperSummary {
     static String line(String label, String answer, String state) {
         int count = wordCount(answer);
         return label + " · " + count + (count == 1 ? " word" : " words")
-                + " · " + state;
+                + " · " + WorkingIndicator.display(state);
     }
 
     static String finishedFirst(String pcState, Long pcMillis,
@@ -126,14 +126,13 @@ final class NewspaperSummary {
     }
 
     /**
-     * The TONIGHT value for a lane that has no time yet. It names what the lane card already
-     * says, so a streaming lane never reads "waiting" next to a card that says "Streaming…".
+     * The TONIGHT value for a lane that has no time yet. Keep its live word in step with
+     * the visible card and compact header.
      * Unknown states keep the old "waiting".
      */
     static String pendingWord(String state) {
         String lower = state == null ? "" : state.trim().toLowerCase(Locale.US);
-        if (lower.startsWith("streaming")) return "streaming";
-        if (lower.startsWith("thinking")) return "thinking";
+        if (WorkingIndicator.working(state)) return "working";
         if (lower.startsWith("paused")) return "paused";
         if (lower.startsWith("retrying")) return "retrying";
         if (lower.startsWith("waiting for its turn") || lower.startsWith("queued")) return "queued";
@@ -175,7 +174,7 @@ final class NewspaperSummary {
 
     /**
      * Fail closed: a lane is settled only when the caller does not flag it pending and its
-     * state is a known end (Done, or an error line such as a stop or failure). Anything
+     * state is a known end (Done, a user Stop, or a failure). Anything
      * else ("Loading…", "Retrying… (2/3)", "Queued", "Paused — …") is still going.
      */
     static boolean stillGoing(Lane lane) {
@@ -202,7 +201,7 @@ final class NewspaperSummary {
             if (result.length() > 0) result.append('\n');
             result.append(lane.label).append(" · ").append(lane.words)
                     .append(lane.words == 1 ? " word" : " words")
-                    .append(" · ").append(lane.state);
+                    .append(" · ").append(WorkingIndicator.display(lane.state));
             if (!lane.included) continue;
             anyIncluded = true;
             includedCount++;

@@ -1,15 +1,11 @@
 package os.opos.launcher;
 
-/**
- * The green "working" line under a lane that is streaming or thinking. Host-testable; no
- * Android types. It shows only for the exact live lane labels, so it disappears the moment a
- * lane is done, paused, stopped or failed.
- */
+/** The live card label and motion, with no Android types so the frames can be host-tested. */
 final class WorkingIndicator {
-    /** About 6–7 frames a second: visibly alive from the stage, light on battery. */
-    static final long TICK_MS = 150L;
-    /** A rising and falling bar. Every glyph is in the bundled JetBrains Mono. */
-    static final String SPINNER = "▁▂▃▄▅▆▇█▇▆▅▄▃▂";
+    static final long CYCLE_MS = 1200L;
+    static final int DOT_COUNT = 3;
+    static final String DISPLAY = "Working...";
+    private static final float TAU = (float) (2.0 * Math.PI);
 
     private WorkingIndicator() {}
 
@@ -18,32 +14,58 @@ final class WorkingIndicator {
 
     /** True only for the exact live lane labels "Streaming…" and "Thinking…". */
     static boolean working(CharSequence stateWords) {
-        if (stateWords == null) return false;
-        String s = stateWords.toString().trim();
+        String s = label(stateWords);
         return STREAMING.equals(s) || THINKING.equals(s);
     }
 
-    /**
-     * "● ▃ Working… · 312 words"; with reduced motion "● Working… · 312 words". Compact (cover
-     * screen, narrow columns) drops "Working…" once words arrive: "● ▃ 312 words".
-     */
-    static String line(long tick, int words, boolean reducedMotion, boolean compact) {
-        int w = Math.max(0, words);
-        StringBuilder sb = new StringBuilder("● ");
-        if (!reducedMotion) sb.append(SPINNER.charAt(index(tick, SPINNER.length()))).append(' ');
-        if (w > 0 && compact) return sb.append(w).append(w == 1 ? " word" : " words").toString();
-        sb.append("Working…");
-        if (w > 0) sb.append(" · ").append(w).append(w == 1 ? " word" : " words");
-        return sb.toString();
+    static String display(CharSequence stateWords) {
+        String state = label(stateWords);
+        return STREAMING.equals(state) || THINKING.equals(state) ? DISPLAY : state;
     }
 
-    /** The dot pulses about once a second (bright 4 ticks, dim 4); steady with reduced motion. */
-    static boolean dotBright(long tick, boolean reducedMotion) {
-        return reducedMotion || index(tick, 8) < 4;
+    /** A steady live label lets TalkBack announce the transition without repeating every word. */
+    static String line(CharSequence stateWords) {
+        return working(stateWords) ? "● " + DISPLAY : "";
     }
 
-    /** floorMod for a long tick without the API 31 Math.floorMod(long, int) overload. */
-    private static int index(long tick, int n) {
-        return (int) Math.floorMod(tick, (long) n);
+    /** The visible count is separate from the live region, so it never repeats a spoken state. */
+    static String count(int words) {
+        return words <= 0 ? "" : " · " + words + (words == 1 ? " word" : " words");
+    }
+
+    /** A spoken label without the moving dot or bar. */
+    static String spoken(CharSequence stateWords, int words) {
+        String state = label(stateWords);
+        state = STREAMING.equals(state) || THINKING.equals(state)
+                ? "Working" : state.replace("…", "").trim();
+        if (state.isEmpty()) return "";
+        int count = Math.max(0, words);
+        return count == 0 ? state : state + ", " + count
+                + (count == 1 ? " word" : " words");
+    }
+
+    private static String label(CharSequence stateWords) {
+        return stateWords == null ? "" : stateWords.toString().trim();
+    }
+
+    /** One smooth green pulse, with a visible floor so the live dot never disappears. */
+    static float dotAlpha(float frame, boolean reducedMotion) {
+        return reducedMotion ? 1f : 0.42f + 0.58f * wave(frame);
+    }
+
+    /** Three white dots brighten in turn without changing the line's text or width. */
+    static float trailingAlpha(float frame, int dot, boolean reducedMotion) {
+        if (dot < 0 || dot >= DOT_COUNT) throw new IllegalArgumentException("dot");
+        return reducedMotion ? 1f : 0.30f + 0.70f * wave(frame - dot / (float) DOT_COUNT);
+    }
+
+    /** A stopped, hidden or reduced-motion card never gets animation frames. */
+    static boolean animate(boolean live, boolean onScreen, boolean resumed,
+                           boolean reducedMotion, boolean animatorsEnabled) {
+        return live && onScreen && resumed && !reducedMotion && animatorsEnabled;
+    }
+
+    private static float wave(float frame) {
+        return 0.5f + 0.5f * (float) Math.cos(TAU * frame);
     }
 }

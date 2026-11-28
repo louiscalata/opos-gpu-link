@@ -19,7 +19,9 @@ final class CompactHeaderStatus {
 
     static String line(String phoneLabel, String phoneState, String pcLabel,
                        String pcState, String fullPausedState) {
-        String compactPcState = pcState.equals(fullPausedState) ? "Paused" : pcState;
-        return phoneLabel + ": " + phoneState + " · " + pcLabel + ": " + compactPcState;
+        String compactPcState = pcState.equals(fullPausedState) ? "Paused"
+                : WorkingIndicator.display(pcState);
+        return phoneLabel + ": " + WorkingIndicator.display(phoneState)
+                + " · " + pcLabel + ": " + compactPcState;
     }
 }
