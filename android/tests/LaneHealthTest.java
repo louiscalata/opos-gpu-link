@@ -108,8 +108,11 @@ public final class LaneHealthTest {
         // Done shows no Retry; cancelled shows Retry (rerun). Neither retries itself.
         v = h.observe("phone", "h1", "done", null, 3162, Q, true, 0);
         check(v.status == LaneHealth.Status.DONE && !v.retryVisible && !v.autoRetryDue);
-        v = h.observe("m1", "h2", "cancelled", null, 191, Q, true, 0);
-        check(v.status == LaneHealth.Status.CANCELLED && v.retryVisible && !v.autoRetryDue);
+        for (String pane : new String[]{"phone", "m1", "m2", "m3", "m4"}) {
+            v = h.observe(pane, "stopped-" + pane, "cancelled", null, 0, Q, true, 0);
+            check(v.status == LaneHealth.Status.CANCELLED
+                    && v.retryVisible && !v.autoRetryDue);
+        }
         // No answer: nothing to retry.
         v = h.observe("g3", "", "", null, 0, "", true, 0);
         check(v.status == LaneHealth.Status.IDLE && !v.retryVisible);
