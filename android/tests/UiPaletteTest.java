@@ -46,6 +46,9 @@ public final class UiPaletteTest {
         equal(UiPalette.Tone.ERROR, UiPalette.tone("Cable out · Phone unreachable"));
         equal(UiPalette.Tone.NEUTRAL, UiPalette.tone("Not connected"));
         equal(UiPalette.Tone.NEUTRAL, UiPalette.tone("Not ready"));
+        equal(UiPalette.Tone.NEUTRAL, UiPalette.tone("Model not ready"));
+        equal(UiPalette.Tone.NEUTRAL, UiPalette.tone("Not ready · waiting"));
+        equal(UiPalette.Tone.NEUTRAL, UiPalette.tone("Cable out · Not connected"));
         equal(UiPalette.Tone.ERROR, UiPalette.tone("Connection error: not connected"));
         equal(UiPalette.Tone.ERROR, UiPalette.tone("validator rejected the answer"));
         equal(UiPalette.Tone.ERROR, UiPalette.tone("stream_error"));

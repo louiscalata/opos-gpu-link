@@ -89,16 +89,16 @@ final class UiPalette {
         else if (lower.startsWith("cable out")) lower = lower.substring(9);
         // A user-requested Stop is a neutral end state, including its elapsed time.
         if (lower.equals("stopped") || lower.startsWith("stopped ·")) return Tone.NEUTRAL;
-        // These are ordinary waiting states, not a broken link or a successful model.
-        if (lower.equals("not connected") || lower.equals("not ready")) return Tone.NEUTRAL;
         // Hard errors first, so "Paused — stuck" stays red; a plain pause is ink.
         if (containsAny(lower, "garbled", "stuck", "failed", "failure",
-                "disconnected", "unreachable", "not connected", "unavailable",
+                "disconnected", "unreachable", "unavailable",
                 "validator", "invalid", "stale snapshot", "expired", "could not",
                 "stopped early", "not enough free memory") || hasWord(lower, "stopped")) {
             return Tone.ERROR;
         }
         if (lower.contains("error")) return Tone.ERROR;
+        // These are ordinary waiting states, even with a model name or cable prefix.
+        if (lower.contains("not connected") || lower.contains("not ready")) return Tone.NEUTRAL;
         if (hasWord(lower, "paused")) return Tone.PAUSED;
         if (lower.contains("getting ready") || lower.contains("getting the pc")) {
             return Tone.NEUTRAL;
