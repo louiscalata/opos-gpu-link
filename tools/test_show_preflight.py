@@ -17,7 +17,7 @@ SPEC.loader.exec_module(preflight)
 
 
 SERIAL = "demo-123"
-LISTING = f"List of devices attached\n{SERIAL} device product:demo model:Flip\n"
+LISTING = f"List of devices attached\n{SERIAL} device usb:1-1 product:demo model:Flip\n"
 READS = {
     ("devices", "-l"): LISTING,
     ("-s", SERIAL, "shell", "dumpsys", "thermalservice"): "Thermal Status: 2\n",
@@ -72,7 +72,7 @@ class ShowPreflightTests(unittest.TestCase):
         self.assertEqual([line.split()[0] for line in lines], ["PASS"] * 5)
         self.assertIn("USB powered yes", lines[2])
         self.assertIn("4619827551948147201, 9", lines[3])
-        self.assertIn("keyguard unlocked", lines[4])
+        self.assertIn("screen lock unlocked", lines[4])
         for forbidden in (("start-server",), ("kill-server",), ("reconnect",),
                           ("-s", SERIAL, "shell", "input", "keyevent", "1"),
                           ("-s", SERIAL, "shell", "dumpsys", "power", "--set")):
@@ -83,7 +83,7 @@ class ShowPreflightTests(unittest.TestCase):
         self.assertEqual(fake.calls, [])
 
     def test_device_selection_requires_one_authorized_device_or_serial(self):
-        second = "other-456 device model:Other\n"
+        second = "other-456 device usb:1-2 model:Other\n"
         for listing in ("List of devices attached\n",
                         f"List of devices attached\n{SERIAL} unauthorized\n",
                         f"List of devices attached\n{SERIAL} offline\n",
@@ -106,6 +106,27 @@ class ShowPreflightTests(unittest.TestCase):
         self.assertEqual(code, 1)
         self.assertEqual(len(calls), 1)
         self.assertTrue(lines[0].startswith("FAIL device:"))
+
+    def test_network_and_emulator_cannot_pass_a_usb_check(self):
+        self.assertFalse(preflight.usb_serial("192.0.2.5:5555\n"))
+        self.assertFalse(preflight.usb_serial("demo-123\n"))
+        for transport in ("192.0.2.5:5555 device model:Flip\n",
+                          "emulator-5554 device usb:1-1 model:Flip\n",
+                          "adb-Flip._adb-tls-connect._tcp device usb:1-1 model:Flip\n"):
+            listing = "List of devices attached\n" + transport
+            for args in (None, ["--serial", transport.split()[0]]):
+                with self.subTest(transport=transport, args=args):
+                    code, lines, calls = self.run_check({("devices", "-l"): listing}, args)
+                    self.assertEqual(code, 1)
+                    self.assertTrue(lines[0].startswith("FAIL device:"))
+                    self.assertIn("(not a USB phone)", lines[0])
+                    self.assertEqual(calls, [("adb", "devices", "-l")])
+
+        listing = LISTING + "192.0.2.5:5555 device model:Other\n"
+        code, lines, calls = self.run_check({("devices", "-l"): listing})
+        self.assertEqual(code, 0)
+        self.assertEqual(lines[0], f"PASS device: {SERIAL}")
+        self.assertEqual(len(calls), 5)
 
     def test_thermal_thresholds_and_read_failure(self):
         key = ("-s", SERIAL, "shell", "dumpsys", "thermalservice")
@@ -133,7 +154,7 @@ class ShowPreflightTests(unittest.TestCase):
         self.assertEqual(lines[2], "WARN battery: 29%; USB powered no")
         self.assertEqual(lines[3], "WARN display IDs: none found")
         self.assertEqual(lines[4],
-                         "WARN screen: unknown (legacy on); keyguard unknown (legacy locked)")
+                         "WARN screen: unknown (legacy on); screen lock unknown (legacy locked)")
 
     def test_samsung_style_delegate_wins_over_unscoped_legacy_flag(self):
         key = ("-s", SERIAL, "shell", "dumpsys", "window", "policy")
@@ -145,7 +166,7 @@ class ShowPreflightTests(unittest.TestCase):
                   "  mScreenOnFully=true\n")
         code, lines, _ = self.run_check({key: window})
         self.assertEqual(code, 0)
-        self.assertEqual(lines[4], "WARN screen: on; keyguard locked")
+        self.assertEqual(lines[4], "WARN screen: on; screen lock locked")
 
     def test_aod_screen_state_on_is_not_awake(self):
         key = ("-s", SERIAL, "shell", "dumpsys", "window", "policy")
@@ -155,28 +176,28 @@ class ShowPreflightTests(unittest.TestCase):
                   "    interactiveState=INTERACTIVE_STATE_ASLEEP\n")
         code, lines, _ = self.run_check({key: window})
         self.assertEqual(code, 0)
-        self.assertEqual(lines[4], "WARN screen: off; keyguard unlocked")
+        self.assertEqual(lines[4], "WARN screen: off; screen lock unlocked")
 
     def test_missing_delegate_fields_are_unknown_even_with_legacy_flags(self):
         key = ("-s", SERIAL, "shell", "dumpsys", "window", "policy")
         for window, expected in (
             ("mScreenOnFully=true mKeyguardShowing=false\n",
-             "WARN screen: unknown (legacy on); keyguard unknown (legacy unlocked)"),
+             "WARN screen: unknown (legacy on); screen lock unknown (legacy unlocked)"),
             ("  KeyguardServiceDelegate:\n"
              "    showing=false\n"
              "    screenState=SCREEN_STATE_ON\n"
              "  mScreenOnFully=true\n",
-             "WARN screen: unknown (legacy on); keyguard unlocked"),
+             "WARN screen: unknown (legacy on); screen lock unlocked"),
             ("  KeyguardServiceDelegate:\n"
              "    screenState=SCREEN_STATE_ON\n"
              "    interactiveState=INTERACTIVE_STATE_AWAKE\n"
              "  mKeyguardShowing=false\n",
-             "WARN screen: on; keyguard unknown (legacy unlocked)"),
+             "WARN screen: on; screen lock unknown (legacy unlocked)"),
             ("  KeyguardServiceDelegate:\n"
              "    showing=false/true\n"
              "    screenState=SCREEN_STATE_ON\n"
              "    interactiveState=INTERACTIVE_STATE_AWAKE\n",
-             "WARN screen: on; keyguard unknown"),
+             "WARN screen: on; screen lock unknown"),
         ):
             with self.subTest(window=window):
                 code, lines, _ = self.run_check({key: window})

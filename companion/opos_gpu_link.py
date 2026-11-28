@@ -1015,6 +1015,8 @@ def presenter_error(error: Exception) -> str:
         return "Error: GPU Link is already running for this phone. Stop the other copy, then retry."
     if "More than one authorized USB phone" in message:
         return "Error: More than one USB phone is ready. Unplug the extra phone, then retry."
+    if "No authorized USB phone is present" in message:
+        return "Error: No USB phone is ready. Connect and allow the phone by USB, then retry."
     if "adb is unavailable" in message or "adb not found" in message:
         return "Error: USB tools are missing. Install Android platform tools, then retry."
     if "adb" in message or "forward" in message:
@@ -1025,7 +1027,7 @@ def presenter_error(error: Exception) -> str:
         return "Error: Pairing could not continue. Check the phone, then retry."
     if message.startswith("Phone enrolment reply"):
         return "Error: Phone did not reply. Check the cable and phone, then retry."
-    return f"Error: {message.rstrip('.')}. Check setup, then retry."
+    return "Error: GPU Link stopped. Check setup, then retry."
 
 
 class InstanceGuard:
@@ -1767,8 +1769,8 @@ class Companion:
             return
         try:
             removed = remove_model_copies(self.args.data_dir, models_dir)
-        except (OSError, RuntimeError, ValueError) as error:
-            message = str(error) or "Model copies could not be removed from the companion cache"
+        except (OSError, RuntimeError, ValueError):
+            message = "Error: Could not finish removing model copies. Check the model folder before retrying."
             self.status.set(message)
             print("GPU Link: " + message, flush=True)
             return
@@ -1957,7 +1959,7 @@ def resolve_launch_adb(adb: str, runner=subprocess.run, system=None) -> str:
         return str(setup.ensure_adb(Path("."), explicit=adb, allow_download=False,
                                     runner=runner, system=system))
     except RuntimeError as error:
-        raise CompanionError(str(error)) from error
+        raise CompanionError("adb is unavailable; install or select Android platform tools") from error
 
 
 def main(argv=None, runtime=None, data_dir=None, models_dir=None) -> int:
@@ -2030,14 +2032,29 @@ def main(argv=None, runtime=None, data_dir=None, models_dir=None) -> int:
                 import tkinter as tk
                 root = tk.Tk()
                 root.title("OPOS GPU Link")
-            except (ImportError, RuntimeError):
+            except Exception:
+                if root is not None:
+                    try:
+                        root.destroy()
+                    except Exception:
+                        pass
+                root, tk = None, None
                 headless = True
-            except Exception as error:
-                if tk is not None and isinstance(error, tk.TclError):
-                    headless = True
-                else:
-                    raise
-        app = Companion(args, root, tk, headless=headless)
+                print("GPU Link: Window unavailable. Continuing in the terminal.", flush=True)
+        if headless:
+            app = Companion(args, None, None, headless=True)
+        else:
+            try:
+                app = Companion(args, root, tk, headless=False)
+            except tk.TclError:
+                try:
+                    root.destroy()
+                except Exception:
+                    pass
+                root, tk = None, None
+                headless = True
+                print("GPU Link: Window unavailable. Continuing in the terminal.", flush=True)
+                app = Companion(args, root, tk, headless=True)
         old_handlers = {}
         if headless:
             for sig in (signal.SIGINT, signal.SIGTERM):
