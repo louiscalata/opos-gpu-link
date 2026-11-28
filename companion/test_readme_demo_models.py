@@ -1,5 +1,5 @@
 # SPDX-License-Identifier: Apache-2.0
-"""Check the documented demo file inventory without reading model files."""
+"""Check current card names and the dated file inventory without reading model files."""
 
 import re
 import unittest
@@ -13,13 +13,31 @@ class DemoModelReadmeTest(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         readme = README.read_text(encoding="utf-8")
-        cls.section = readme.split("## Models in the demo\n", 1)[1].split("\n## ", 1)[0]
+        cls.current = readme.split("## What you will see\n", 1)[1].split("\n## ", 1)[0]
+        cls.section = readme.split("## Recorded model files (previous lineup)\n", 1)[1].split("\n## ", 1)[0]
         lines = [line for line in cls.section.splitlines() if line.startswith("| ")]
         cls.header = lines[0].strip("| ").split(" | ")
         cls.rows = {
             cells[0]: cells
             for cells in (line.strip("| ").split(" | ") for line in lines[2:])
         }
+
+    def test_current_cards_have_owner_names_without_invented_file_details(self):
+        lines = [line for line in self.current.splitlines() if line.startswith("| ")]
+        self.assertEqual(lines[0], "| Card | Model | Maker | Role |")
+        cards = {
+            cells[0]: cells[1:]
+            for cells in (line.strip("| ").split(" | ") for line in lines[2:])
+        }
+        self.assertEqual(cards, {
+            "Computer": ["Nemotron 3.5 Bolt", "NVIDIA", "Primary; runs on the computer GPU"],
+            "Comparison": ["LFM2", "Liquid AI", "Baseline (comparison)"],
+            "Phone `m1`": ["Qwen3.5-2B", "Qwen (Alibaba)", "Phone model"],
+            "Phone `m4`": ["Granite 4.1 3B", "IBM", "Phone model"],
+        })
+        self.assertNotIn("AceInstruct", self.current)
+        self.assertNotIn("Nemotron Mini", self.current)
+        self.assertNotIn("SHA-256 |", self.current)
 
     def test_recorded_files_match_supplied_on_disk_values(self):
         self.assertEqual(self.header, ["Where", "Model", "File", "Size", "SHA-256", "License"])
