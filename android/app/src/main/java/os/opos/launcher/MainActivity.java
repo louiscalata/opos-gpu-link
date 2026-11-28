@@ -209,6 +209,12 @@ public final class MainActivity extends Activity {
     private TextView resetAskCopy;
     private TextView status, error, question, pairingText, pairingCode, pairingCountdown;
     private int pairingSeconds = -1;
+    private int lastPairingSeconds = -1;
+    private String lastPairingCode = "", rejectedPairingCode = "";
+    private boolean pairingTimedOut;
+    private String pairingActionMessage = "";
+    private boolean pairingActionError;
+    private int lastPairingProblem;
     private TextView phoneState, phoneAnswer, gpuHeading, gpuState, gpuAnswer;
     private LinearLayout tonightRows;
     private TextView tonightCount, tonightProvenance, tonightTiming, summaryText,
@@ -2317,6 +2323,13 @@ public final class MainActivity extends Activity {
         }
         pairingPending = false;
         pairingSeconds = -1;
+        lastPairingSeconds = -1;
+        lastPairingCode = "";
+        rejectedPairingCode = "";
+        pairingTimedOut = false;
+        pairingActionMessage = "";
+        pairingActionError = false;
+        lastPairingProblem = 0;
     }
 
     private void renderPairing(JSONObject link) {
@@ -2344,18 +2357,53 @@ public final class MainActivity extends Activity {
             if (allow != null) {
                 setIfChanged(allow, ComputerWords.apply(getString(R.string.allow_pc), pendingNoun));
             }
-            setIfChanged(pairingText, getString(R.string.pairing_request, label));
             TextView disclosure = findViewById(R.id.pairing_disclosure);
             if (disclosure != null) {
                 setIfChanged(disclosure,
                         ComputerWords.apply(getString(R.string.pairing_disclosure), pendingNoun));
             }
-            String formatted = PairingPrompt.formatCode(pending.optString("code"));
-            setIfChanged(pairingCode, formatted);
-            pairingCode.setContentDescription(
-                    getString(R.string.pairing_code_label) + " " + formatted);
+            String formatted = PairingPrompt.formatCode(
+                    pending.isNull("code") ? "" : pending.optString("code"));
             pairingSeconds = PairingPrompt.secondsFromField(
                     pending.has("seconds"), pending.isNull("seconds"), pending.opt("seconds"));
+            if (PairingPrompt.newRequest(!becamePending, lastPairingCode, formatted,
+                    lastPairingSeconds, pairingSeconds)) {
+                rejectedPairingCode = "";
+                pairingTimedOut = false;
+                pairingActionMessage = "";
+                pairingActionError = false;
+                lastPairingProblem = 0;
+            }
+            lastPairingCode = formatted;
+            boolean validCode = PairingPrompt.validCode(formatted);
+            setIfChanged(pairingCode, validCode ? formatted : "");
+            pairingCode.setVisibility(validCode ? View.VISIBLE : View.GONE);
+            pairingCode.setImportantForAccessibility(validCode
+                    ? View.IMPORTANT_FOR_ACCESSIBILITY_AUTO
+                    : View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            pairingCode.setContentDescription(validCode
+                    ? getString(R.string.pairing_code_label) + " " + PairingPrompt.spokenCode(formatted)
+                    : "");
+            lastPairingSeconds = pairingSeconds;
+            if (PairingPrompt.expired(pairingSeconds)) pairingTimedOut = true;
+            boolean rejected = !rejectedPairingCode.isEmpty()
+                    && rejectedPairingCode.equals(formatted);
+            int pairingProblem = pairingTimedOut ? R.string.pairing_expired
+                    : rejected ? R.string.pairing_code_mismatch
+                    : validCode ? 0 : R.string.pairing_code_missing;
+            String allowLabel = allow == null
+                    ? ComputerWords.apply(getString(R.string.allow_pc), pendingNoun)
+                    : allow.getText().toString();
+            String request = getString(R.string.pairing_request, label, allowLabel);
+            String message = pairingProblem != 0 ? getString(pairingProblem)
+                    : pairingActionMessage.isEmpty() ? request : pairingActionMessage;
+            setIfChanged(pairingText, message);
+            pairingText.setTextColor(parseHex(pairingTimedOut || rejected || pairingActionError
+                    ? palette.error() : palette.ink()));
+            if (!becamePending && pairingProblem != 0 && pairingProblem != lastPairingProblem) {
+                pairing.announceForAccessibility(message);
+            }
+            lastPairingProblem = pairingProblem;
             if (pairingCountdown != null) {
                 String countdown = PairingPrompt.countdownText(pairingSeconds,
                         getString(R.string.pairing_countdown),
@@ -2372,6 +2420,22 @@ public final class MainActivity extends Activity {
         } else {
             pairingSeconds = -1;
         }
+        if (pending == null && screen != null) {
+            screen.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_AUTO);
+        }
+        if (pending == null) {
+            String finalProblem = pairingTimedOut ? getString(R.string.pairing_expired)
+                    : !rejectedPairingCode.isEmpty() ? getString(R.string.pairing_code_mismatch)
+                    : pairingActionError ? pairingActionMessage : "";
+            if (!finalProblem.isEmpty()) setIfChanged(error, finalProblem);
+            pairingTimedOut = false;
+            rejectedPairingCode = "";
+            lastPairingCode = "";
+            lastPairingSeconds = -1;
+            pairingActionMessage = "";
+            pairingActionError = false;
+            lastPairingProblem = 0;
+        }
         if (becamePending) {
             hideKeyboard();
             applyPairingTypography();
@@ -2382,8 +2446,8 @@ public final class MainActivity extends Activity {
             String announcement = (findViewById(R.id.pairing_header) instanceof TextView)
                     ? ((TextView) findViewById(R.id.pairing_header)).getText().toString()
                     : pcWords(R.string.pairing_title);
-            if (pairingCode != null && pairingCode.getText().length() > 0) {
-                announcement += " " + pairingCode.getText();
+            if (pairingCode != null && pairingCode.getVisibility() == View.VISIBLE) {
+                announcement += " " + pairingCode.getContentDescription();
             }
             if (pairingCountdown != null && pairingCountdown.getVisibility() == View.VISIBLE) {
                 announcement += " " + pairingCountdown.getText();
@@ -2472,7 +2536,7 @@ public final class MainActivity extends Activity {
 
     private void applyPairingCountdownTone() {
         if (pairingCountdown == null) return;
-        int color = themeColor(PairingPrompt.urgent(pairingSeconds)
+        int color = themeColor(PairingPrompt.expired(pairingSeconds)
                 ? R.color.newspaper_error
                 : R.color.newspaper_ink);
         pairingCountdown.setTextColor(color);
@@ -3838,8 +3902,11 @@ public final class MainActivity extends Activity {
         resetAsk.setEnabled(ambiguous && !acting && !quitting);
         JSONObject link = gpu == null ? null : gpu.optJSONObject("link");
         boolean pairingPending = link != null && link.optJSONObject("pending") != null;
-        allow.setEnabled(reachable && !acting && !quitting && pairingPending);
-        deny.setEnabled(reachable && !acting && !quitting && pairingPending);
+        boolean validPairing = pairingPending && !pairingTimedOut
+                && rejectedPairingCode.isEmpty() && pairingCode != null
+                && PairingPrompt.validCode(pairingCode.getText().toString());
+        allow.setEnabled(reachable && !acting && !quitting && validPairing);
+        deny.setEnabled(reachable && !acting && !quitting && validPairing);
         reopen.setEnabled(reachable && !acting && !quitting);
         boolean retryable = false;
         boolean retryReady = false;
@@ -3864,6 +3931,7 @@ public final class MainActivity extends Activity {
                     reachable, acting, quitting));
         }
         applyComposerState();
+        applyErrorView();
     }
 
     private boolean failedForQuestion(String pane, JSONObject answer) {
@@ -4214,16 +4282,45 @@ public final class MainActivity extends Activity {
         JSONObject gpu = snapshot == null ? null : snapshot.optJSONObject("gpu");
         JSONObject link = gpu == null ? null : gpu.optJSONObject("link");
         JSONObject pending = link == null ? null : link.optJSONObject("pending");
-        if (pending == null) return;
-        JSONObject body = action(name);
-        try {
-            body.put("code", pending.getString("code"));
-        } catch (JSONException invalid) {
-            error.setText(R.string.pairing_expired);
+        if (pending == null || pairingTimedOut) {
+            pairingTimedOut = true;
+            showPairingProblem(getString(R.string.pairing_expired), true,
+                    R.string.pairing_expired);
             schedule(0);
             return;
         }
+        String code = pending.isNull("code") ? "" : pending.optString("code", "");
+        if (!PairingPrompt.validCode(code)) {
+            showPairingProblem(getString(R.string.pairing_code_missing), false,
+                    R.string.pairing_code_missing);
+            schedule(0);
+            return;
+        }
+        JSONObject body = action(name);
+        try {
+            body.put("code", code);
+        } catch (JSONException invalid) {
+            showPairingProblem(getString(R.string.pairing_confirm_failed), true, 0);
+            schedule(0);
+            return;
+        }
+        pairingActionMessage = "";
+        pairingActionError = false;
         sendAction(body, null, 0, false);
+    }
+
+    private void showPairingProblem(String message, boolean errorTone, int problem) {
+        pairingActionMessage = message == null ? "" : message;
+        pairingActionError = errorTone;
+        lastPairingProblem = problem;
+        if (pairing != null && pairing.getVisibility() == View.VISIBLE) {
+            setIfChanged(pairingText, pairingActionMessage);
+            pairingText.setTextColor(parseHex(errorTone ? palette.error() : palette.ink()));
+            pairing.announceForAccessibility(pairingActionMessage);
+        } else if (errorTone) {
+            setIfChanged(error, pairingActionMessage);
+        }
+        updateButtons();
     }
 
     private static JSONObject action(String name) {
@@ -4392,6 +4489,32 @@ public final class MainActivity extends Activity {
                         } else {
                             reachable = false;
                             showOffline(failure);
+                        }
+                        schedule(0);
+                        return;
+                    }
+                    boolean pairingDecision = "allow".equals(body.optString("action"))
+                            || "deny".equals(body.optString("action"));
+                    if (pairingDecision) {
+                        boolean oldCode = failure instanceof AiClient.ApiException
+                                && PairingPrompt.oldRequest(failure.getMessage());
+                        if (oldCode) {
+                            if ("allow".equals(body.optString("action"))) {
+                                rejectedPairingCode = PairingPrompt.formatCode(body.optString("code"));
+                                showPairingProblem(getString(R.string.pairing_code_mismatch),
+                                        true, R.string.pairing_code_mismatch);
+                            }
+                        } else {
+                            String message = failure instanceof AiClient.ApiException
+                                    ? failure.getMessage() : null;
+                            if (message == null || message.trim().isEmpty()) {
+                                message = getString(R.string.pairing_confirm_failed);
+                            }
+                            showPairingProblem(message, true, 0);
+                        }
+                        if (oldCode && "deny".equals(body.optString("action"))) {
+                            allow.setEnabled(false);
+                            deny.setEnabled(false);
                         }
                         schedule(0);
                         return;
@@ -5357,6 +5480,7 @@ public final class MainActivity extends Activity {
 
     private void applyErrorView() {
         if (error == null) return;
+        syncErrorVisibility();
         boolean has = error.getText() != null && error.getText().length() > 0;
         error.setTextColor(parseHex(has ? palette.error() : palette.ink()));
     }
