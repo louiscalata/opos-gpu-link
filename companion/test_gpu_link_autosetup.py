@@ -335,8 +335,8 @@ class PhoneDetection(unittest.TestCase):
             serial = a.wait_for_phone(Path("adb"), run, sleep=lambda s: None)
         text = buffer.getvalue()
         self.assertEqual(serial, "R5CX")
-        self.assertIn("Plug the phone in", text)
-        self.assertEqual(text.count("Allow USB debugging?"), 1)  # shown once per state change
+        self.assertIn("Plug in the USB-C cable", text)
+        self.assertEqual(text.count("Allow USB debugging on the phone"), 1)  # shown once per state change
 
     def test_adb_found_before_download(self):
         with tempfile.TemporaryDirectory() as d:

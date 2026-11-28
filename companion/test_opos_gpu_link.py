@@ -293,7 +293,7 @@ class CompanionTests(unittest.TestCase):
             self.assertEqual(len(app.keys.load()), link.proto.KEY_BYTES)
             self.assertIsNone(app.pending_key)
             self.assertIn("Compare code ", output.getvalue())
-            self.assertIn("tap Allow on the phone", output.getvalue())
+            self.assertIn("Tap Allow there", output.getvalue())
             self.assertNotIn("Allow this PC", output.getvalue())
             self.assertNotIn("fake enrolment request", output.getvalue())
             self.assertEqual(sum("nc" in args for args, _ in fake.calls), 1)
@@ -454,7 +454,7 @@ class CompanionTests(unittest.TestCase):
                 now[0] = 101.0
                 app.tick()
                 self.assertFalse(app.online)
-                self.assertIn("Phone link interrupted", app.lines[-1])
+                self.assertIn("USB link lost", app.lines[-1])
                 now[0] = app.next_try
                 app.tick()
                 finish_preflight(app)
@@ -472,7 +472,7 @@ class CompanionTests(unittest.TestCase):
             app.keys.save_first_allow(key)
             with patch.object(link, "PC", FakePC), \
                     patch.object(link, "authenticated_idle", return_value=False), \
-                    self.assertRaisesRegex(link.CompanionError, "owner recovery"):
+                    self.assertRaisesRegex(link.CompanionError, "Use Forget on the phone"):
                 app._connect()
             app.bridge.remove_own_forward()
             self.assertEqual(app.keys.load(), key)
@@ -495,7 +495,7 @@ class CompanionTests(unittest.TestCase):
                 self.assertFalse(app.online)
                 self.assertEqual(app.next_try, 103.0)
                 self.assertEqual(list(fake.forwards), [18767])
-                self.assertIn("Local model server unavailable", app.lines[-1])
+                self.assertIn("Model server unavailable", app.lines[-1])
                 available[0] = True
                 now[0] = 102.0
                 app.tick()
@@ -510,7 +510,7 @@ class CompanionTests(unittest.TestCase):
                 app.tick()
             self.assertFalse(app.online)
             self.assertEqual(fake.forwards, {})
-            self.assertIn("Local model server unavailable", app.lines[-1])
+            self.assertIn("Model server unavailable", app.lines[-1])
 
     def test_all_forbidden_pc_ports_are_removed(self):
         for forbidden in sorted(link.FORBIDDEN_PC_PORTS):
@@ -607,7 +607,7 @@ class CompanionTests(unittest.TestCase):
                     "More than one authorized USB phone is present; pass --serial")):
             self.assertEqual(link.main(["--headless", "--model", "local"]), 2)
         self.assertEqual(output.getvalue().splitlines(), [
-            "GPU Link: More than one authorized USB phone is present; pass --serial"])
+            "GPU Link: Error: More than one USB phone is ready. Unplug the extra phone or choose --serial."])
 
     def test_one_token_preflight_uses_exact_route_and_model(self):
         class Response:
@@ -749,7 +749,7 @@ class CompanionTests(unittest.TestCase):
                     self.assertEqual(app.starts, 0)
                     self.assertEqual(app.next_try - now[0], delay)
                     self.assertEqual(list(fake.forwards), [18767])
-                    self.assertIn("one-token check", app.lines[-1])
+                    self.assertIn("Model check failed", app.lines[-1])
                     now[0] = app.next_try
                 valid[0] = True
                 app.tick()
@@ -992,7 +992,7 @@ class CompanionTests(unittest.TestCase):
                     patch.object(link, "model_server_preflight", side_effect=preflight):
                 app.tick()
                 self.assertTrue(entered.wait(2))
-                self.assertEqual(app.lines[-1], "Warming model")
+                self.assertEqual(app.lines[-1], "Checking the model.")
                 app.tick()
                 app.tick()
                 self.assertEqual(len(requests), 1)
@@ -1004,7 +1004,7 @@ class CompanionTests(unittest.TestCase):
                 self.assertTrue(app.preflight_done.wait(2))
                 self.assertEqual(fake.forwards, {})
                 self.assertEqual(app.starts, 0)
-                self.assertIn("Phone disconnected; waiting to reconnect", app.lines[-1])
+                self.assertIn("Phone unavailable. Check the cable and USB approval", app.lines[-1])
                 self.assertEqual(app.next_try, 101.0)
                 self.assertEqual(app.retry_delay, 3)
                 release.set()
@@ -1032,12 +1032,12 @@ class CompanionTests(unittest.TestCase):
                     patch.object(link, "model_server_listening", return_value=True), \
                     patch.object(link, "model_server_preflight", return_value=True):
                 app.tick()
-                self.assertEqual(app.lines[-1], "Warming model")
+                self.assertEqual(app.lines[-1], "Checking the model.")
                 fake.forwards.clear()
                 finish_preflight(app)
                 self.assertFalse(app.online)
                 self.assertEqual(app.starts, 0)
-                self.assertEqual(app.lines[-1], "Phone link interrupted; reconnecting")
+                self.assertEqual(app.lines[-1], "USB link lost. Reconnecting.")
                 self.assertNotIn("Local model or chat route failed", "".join(app.lines))
                 self.assertEqual(app.next_try, 101.0)
                 now[0] = 101.0
@@ -1062,10 +1062,10 @@ class CompanionTests(unittest.TestCase):
                     patch.object(link, "model_server_preflight", return_value=True):
                 for _ in range(3):
                     app.tick()
-                    self.assertEqual(app.lines[-1], "Warming model")
+                    self.assertEqual(app.lines[-1], "Checking the model.")
                     fake.forwards.clear()
                     finish_preflight(app)
-                    self.assertEqual(app.lines[-1], "Phone link interrupted; reconnecting")
+                    self.assertEqual(app.lines[-1], "USB link lost. Reconnecting.")
                     delays.append(app.next_try - now[0])
                     now[0] = app.next_try
                 self.assertEqual(delays, [1, 3, 6])
@@ -1096,10 +1096,10 @@ class CompanionTests(unittest.TestCase):
                     patch.object(link, "model_server_listening", return_value=True), \
                     patch.object(link, "model_server_preflight", side_effect=slow_preflight):
                 app.tick()
-                self.assertEqual(app.lines[-1], "Warming model")
+                self.assertEqual(app.lines[-1], "Checking the model.")
                 fake.forwards.clear()
                 app.tick()
-                self.assertEqual(app.lines[-1], "Phone link interrupted; reconnecting")
+                self.assertEqual(app.lines[-1], "USB link lost. Reconnecting.")
                 gate.set()
                 finish_preflight(app)
                 self.assertEqual(app.preflight_link_losses, 1)
@@ -1124,7 +1124,7 @@ class CompanionTests(unittest.TestCase):
                 now[0] = app.next_try
                 app.tick()
                 finish_preflight(app)  # forward intact, model check fails
-                self.assertIn("one-token check", app.lines[-1])
+                self.assertIn("Model check failed", app.lines[-1])
                 self.assertEqual(app.preflight_link_losses, 0)
             app.preflight_link_losses = 2
             fake.state = "unauthorized"
@@ -1144,12 +1144,12 @@ class CompanionTests(unittest.TestCase):
                     patch.object(link, "model_server_listening", return_value=True), \
                     patch.object(link, "model_server_preflight", return_value=False):
                 app.tick()
-                self.assertEqual(app.lines[-1], "Warming model")
+                self.assertEqual(app.lines[-1], "Checking the model.")
                 fake.forwards.clear()
                 finish_preflight(app)
                 self.assertFalse(app.online)
                 self.assertEqual(app.starts, 0)
-                self.assertEqual(app.lines[-1], "Phone link interrupted; reconnecting")
+                self.assertEqual(app.lines[-1], "USB link lost. Reconnecting.")
                 self.assertNotIn("Local model or chat route failed", "".join(app.lines))
                 self.assertEqual(app.next_try, 101.0)
 
@@ -1176,11 +1176,11 @@ class CompanionTests(unittest.TestCase):
                     patch.object(link, "model_server_preflight", side_effect=preflight):
                 app.tick()
                 self.assertTrue(entered.wait(2))
-                self.assertEqual(app.lines[-1], "Warming model")
+                self.assertEqual(app.lines[-1], "Checking the model.")
                 fake.forwards.clear()
                 app.tick()
                 self.assertTrue(app.preflight_done.wait(2))
-                self.assertEqual(app.lines[-1], "Phone link interrupted; reconnecting")
+                self.assertEqual(app.lines[-1], "USB link lost. Reconnecting.")
                 self.assertEqual(app.starts, 0)
                 self.assertEqual(app.next_try, 101.0)
                 release.set()
@@ -1208,10 +1208,10 @@ class CompanionTests(unittest.TestCase):
                 finish_preflight(app)
                 self.assertFalse(app.online)
                 self.assertGreater(app.next_try, now[0])
-                self.assertIn("Local model or chat route failed", app.lines[-1])
+                self.assertIn("Model check failed", app.lines[-1])
                 fake.state = "unauthorized"
                 app.tick()
-                self.assertIn("Phone disconnected; waiting to reconnect", app.lines[-1])
+                self.assertIn("Phone unavailable. Check the cable and USB approval", app.lines[-1])
                 self.assertEqual(app.next_try, 101.0)
                 self.assertEqual(app.retry_delay, 3)
             with patch.object(link, "PC", FakePC), \
@@ -1998,7 +1998,7 @@ class R23WorkerLifecycleTests(unittest.TestCase):
         lines = []
         while not app.events.empty():
             lines.append(app.events.get_nowait()[1])
-        self.assertIn(f"Phone restarted; reconnecting {link.computer_noun()} models", lines)
+        self.assertIn("Phone restarted. Reconnecting the models.", lines)
 
     def test_phone_restart_with_legacy_rejection_restarts_the_session(self):
         app = self.companion()
@@ -2151,7 +2151,7 @@ class R23ReplugWithLanesTests(unittest.TestCase):
                     self.assertEqual(app.lane_workers, ())
                     self.assertFalse(any(t.is_alive() for t in first_lanes))
                     self.assertEqual(app.extra_checked, set())
-                    self.assertIn("Phone disconnected", app.lines[-1])
+                    self.assertIn("Phone unavailable", app.lines[-1])
 
                     # Replugged, backend still down: keep retrying quietly.
                     fake.state = "device"

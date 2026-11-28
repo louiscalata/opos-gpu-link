@@ -108,12 +108,13 @@ class ScreenWordsTest(unittest.TestCase):
     def test_ready_banner_names_the_mac(self):
         lanes = [{"label": "Nemotron 3.5 Bolt E4B"}, {"label": "Small"}]
         lines = setup.ready_lines("Apple M5 Pro", lanes, "MacBook")
-        self.assertIn("MacBook answer lanes: 2 (Nemotron 3.5 Bolt E4B, Small)", lines)
-        self.assertIn("First time only: compare the 6-digit code and tap Allow on the phone.", lines)
+        self.assertIn("MacBook GPU: Apple M5 Pro.", lines)
+        self.assertIn("Models ready: Nemotron 3.5 Bolt E4B, Small.", lines)
+        self.assertIn("Wireless: coming later.", lines)
         self.assertFalse([line for line in lines if "PC" in line.split()])
 
     def test_ready_banner_on_a_pc_still_says_pc(self):
-        self.assertIn("PC answer lanes: 0 ()", setup.ready_lines("RTX 5080", [], "PC"))
+        self.assertIn("PC GPU: RTX 5080.", setup.ready_lines("RTX 5080", [], "PC"))
 
     def test_wire_label_names_a_mac_as_a_mac(self):
         self.assertEqual(setup.safe_label({"name": "Apple M5 Pro"}, "Darwin", "MacBook Pro"), "M5 Pro MacBook Pro")
@@ -123,10 +124,10 @@ class ScreenWordsTest(unittest.TestCase):
     def test_grant_messages_use_the_noun(self):
         app = SimpleNamespace(granted=False, headless=True)
         with patch.object(link, "computer_noun", return_value="MacBook"):
-            with self.assertRaisesRegex(link.GrantDeclined, r"^MacBook grant expired"):
+            with self.assertRaisesRegex(link.GrantDeclined, r"^Error: MacBook access expired"):
                 link.Companion.ensure_permission(app)
             app = SimpleNamespace(granted=False, headless=False, permission=lambda: False)
-            with self.assertRaisesRegex(link.GrantDeclined, r"^MacBook permission declined"):
+            with self.assertRaisesRegex(link.GrantDeclined, r"^Error: MacBook access was declined"):
                 link.Companion.ensure_permission(app)
 
     def test_no_screen_string_calls_the_computer_a_pc(self):

@@ -176,7 +176,7 @@ class ModelCopyTests(unittest.TestCase):
         self.assertEqual(events, ["memory", "memory", "memory", "stop", "memory", "memory"])
         self.assertEqual(runners[2], runtime.memory_runner)
         self.assertEqual(runners[3], runtime.memory_runner)
-        log.assert_called_once_with("GPU memory used before/after Stop: 800 -> 100 MiB (total GPU use)")
+        log.assert_called_once_with("GPU use after Stop: 100 MiB total.")
 
     def test_memory_probe_failure_does_not_block_fake_stop(self):
         for failure in (OSError("fixture probe failure"), KeyboardInterrupt()):

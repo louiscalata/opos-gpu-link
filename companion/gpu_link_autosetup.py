@@ -96,11 +96,8 @@ def say(message: str) -> None:
 
 
 def banner(lines) -> None:
-    width = max(len(line) for line in lines) + 4
-    print("\n" + "=" * width, flush=True)
     for line in lines:
-        print("  " + line, flush=True)
-    print("=" * width + "\n", flush=True)
+        say(line)
 
 
 def _run(cmd, runner=subprocess.run, timeout=10, env=None):
@@ -1678,7 +1675,7 @@ class LaunchedServer:
                 except ProcessLookupError:
                     pass
         if not quiet:
-            say(f"Local model server on port {self.port} stopped; model unloaded from GPU memory.")
+            say("Model server stopped.")
 
 
 def new_key() -> str:
@@ -2075,9 +2072,7 @@ def prefer_running_adb_server(selected: Path, runner=subprocess.run, announce=No
         return chosen if chosen is not None else Path(str(selected))
     if chosen is not None and _same_adb(chosen, live):
         return live
-    label = chosen if chosen is not None else selected
-    msg = ("Using the already-running adb server's executable instead of "
-           f"{label} so USB forwards belong to the same binary ({live}).")
+    msg = f"Using the already-running adb server's USB tools ({live})."
     if announce is not None:
         announce(msg)
     else:
@@ -2139,15 +2134,11 @@ def ensure_adb(runtime_dir: Path, explicit=None, allow_download=True, system=Non
 
 
 PHONE_TEXT = {
-    "none": ["Plug the phone in with a USB-C data cable and unlock it.",
-             "If nothing happens: Settings > Developer options > USB debugging = On."],
-    "unauthorized": ["Look at the phone: tap  Allow  on \"Allow USB debugging?\"",
-                     "Tick \"Always allow from this computer\" so you are not asked again."],
-    "no permissions": ["This computer may not use the phone over USB yet (Linux USB rules).",
-                       "Install your distro's android-udev rules (e.g. sudo apt install android-sdk-platform-tools-common),",
-                       "then unplug and replug the phone."],
-    "offline": ["The phone is connected but offline. Unplug it, wait 2 seconds, plug it back in."],
-    "many": ["More than one phone is connected. Unplug the extra one (or pass --serial)."],
+    "none": "Waiting for the phone. Plug in the USB-C cable and unlock the phone.",
+    "unauthorized": "Error: Phone not authorized. Allow USB debugging on the phone.",
+    "no permissions": "Error: USB access denied. Check this computer's USB access, then replug.",
+    "offline": "Error: Phone is offline. Unplug, wait, then replug.",
+    "many": "Error: More than one phone is connected. Unplug the extra phone.",
 }
 
 
@@ -2188,10 +2179,10 @@ def wait_for_phone(adb: Path, runner=subprocess.run, sleep=time.sleep, timeout=N
     while True:
         state, serial = phone_state(adb, runner)
         if state == "device":
-            say(f"Phone connected over USB ({serial[:4]}…).")
+            say("Phone connected over USB.")
             return serial
         if state != last:
-            banner(["PHONE: " + PHONE_TEXT[state][0], *PHONE_TEXT[state][1:]])
+            say(PHONE_TEXT[state])
             last = state
         if timeout is not None and time.monotonic() - start > timeout:
             return None
@@ -2256,13 +2247,14 @@ def safe_label(gpu, system=None, model_name=None) -> str:
 
 
 def ready_lines(gpu_name, lanes, noun):
-    """The "ready" banner, naming this computer by noun ("MacBook", "Mac" or "PC")."""
-    return ["GPU Link is ready.", f"Computer GPU: {gpu_name}",
-            f"{noun} answer lanes: {len(lanes)} ({', '.join(l['label'] for l in lanes)})",
-            "Open GPU Link on the phone and ask a question.",
-            "First time only: compare the 6-digit code and tap Allow on the phone.",
-            "Unplugging pauses the computer answers; plugging back in resumes them.",
-            "Press Ctrl-C here to stop."]
+    """Short presenter lines, naming this computer by its actual noun."""
+    names = ", ".join(lane["label"] for lane in lanes)
+    return [f"{noun} GPU: {gpu_name}.",
+            f"Models ready: {names}." if names else "No models are ready.",
+            "Ask a question on the phone.",
+            "Unplug to pause. Replug to resume.",
+            "Wireless: coming later.",
+            "Press Ctrl-C to stop."]
 
 
 def protected_flags(chat_url: str):
@@ -2740,7 +2732,7 @@ class Runtime:
         after = memory_used()
         if before is not None and after is not None:
             action = "Stop" if failure is None else "Stop attempt"
-            say(f"GPU memory used before/after {action}: {before} -> {after} MiB (total GPU use)")
+            say(f"GPU use after {action}: {after} MiB total.")
         if failure is not None:
             raise failure
 
@@ -2868,7 +2860,7 @@ def start_runtime(args, info, runner=subprocess.run):
             taken.append(port)
             alias = ALIAS if index == 0 else f"{ALIAS}-{index + 1}"
             target = "the CPU" if gpu["backend"] == "cpu" else gpu["name"]
-            say(f"Loading {label} on {target} (port {port}) ...")
+            say(f"Loading {label} on {target}.")
             used_before = vram_used_mb(gpu, runner) if gpu["backend"] != "cpu" else None
             server = launch_llama_server(binary, model_path, port, env, args.log_dir, gpu["backend"],
                                          rt.key_file, alias, profile=profile, device=device)
@@ -2904,7 +2896,7 @@ def start_runtime(args, info, runner=subprocess.run):
                     if index == 0:
                         rt.on_gpu, rt.evidence = on_gpu, evidence
             if on_gpu:
-                say(f"{label} is on the GPU: " + " | ".join(evidence))
+                say(f"{label} is ready on the GPU.")
             elif gpu_output_bad:
                 say(f"{label} is on the CPU (the GPU backend returned blank text).")
             elif gpu["backend"] != "cpu":
@@ -3026,12 +3018,29 @@ def install_term_handler() -> bool:
     return True
 
 
+def setup_error_message(error: Exception) -> str:
+    """Short next steps for expected offline setup failures."""
+    message = str(error)
+    if message.startswith("No free port in "):
+        return "Error: Model ports are busy. Stop a model server using them or choose another --port."
+    if message.startswith("No local model fits"):
+        return "Error: No local model fits. Add a model file before running offline."
+    if "downloads are disabled" in message or "not found and downloads are disabled" in message:
+        return "Error: A model or tool is missing. Add it before running offline."
+    if message.startswith("llama-server did not become ready"):
+        return "Error: Model server did not start. Check its log, then retry."
+    return "Error: Setup could not start. Check local model files and settings, then retry."
+
+
 def run(args) -> int:
     install_term_handler()
     try:
         info = plan(args)
     except Terminated:
         return 0
+    except (OSError, RuntimeError, ValueError) as error:
+        say(setup_error_message(error))
+        return 2
     if args.detect_only:
         print_detect(info, args.json)
         return 0
@@ -3059,19 +3068,19 @@ def run(args) -> int:
             stop.wait()
             return 0
         adb = ensure_adb(args.runtime_dir, args.adb, not args.no_download)
-        say(f"adb: {adb}")
+        say("USB tools ready.")
         serial = args.serial or wait_for_phone(adb)
         import opos_gpu_link
         banner(ready_lines(info["gpu"]["name"], rt.lanes, opos_gpu_link.computer_noun()))
         return opos_gpu_link.main(companion_args(args, rt, info, adb, serial), runtime=rt,
                                   data_dir=args.data_dir, models_dir=args.models_dir)
     except Terminated:
-        say("Stopping (SIGTERM).")
+        say("Stopping.")
         return 0  # a requested stop is a clean exit, so launchd does not restart it
     except KeyboardInterrupt:
         return 130
     except RuntimeError as error:
-        say("Setup stopped: " + str(error))
+        say(setup_error_message(error))
         return 2
     finally:
         if rt is not None:
@@ -3080,7 +3089,10 @@ def run(args) -> int:
                 rt.drop_key_file()
                 rt.key = None
             else:
-                rt.stop()
+                try:
+                    rt.stop()
+                except (OSError, subprocess.SubprocessError):
+                    say("Error: Model server did not stop. Check the running server.")
             os.environ.pop(KEY_ENV, None)
 
 
