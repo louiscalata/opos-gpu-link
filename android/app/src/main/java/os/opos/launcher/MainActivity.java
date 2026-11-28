@@ -964,8 +964,9 @@ public final class MainActivity extends Activity {
         answers.setOrientation(LinearLayout.VERTICAL);
         TextView title = findViewById(R.id.title);
         smallMasthead = title;
-        title.setText(getString(R.string.app_name) + " ⌄");
-        title.setContentDescription(getString(R.string.app_name) + ", menu");
+        title.setText(getString(R.string.masthead_menu_title, getString(R.string.app_name)));
+        title.setContentDescription(getString(R.string.masthead_menu_description,
+                getString(R.string.app_name)));
         title.setFocusable(true);
         title.setOnClickListener(view -> toggleMenu());
         title.setAccessibilityDelegate(mastheadButtonRole());
@@ -1005,8 +1006,11 @@ public final class MainActivity extends Activity {
                         LinearLayout.LayoutParams.WRAP_CONTENT));
         info.setLayoutParams(new LinearLayout.LayoutParams(dp(52), dp(48)));
         header.setPadding(dp(12), dp(2), dp(12), dp(4));
-        bigMasthead = displayText(getString(R.string.app_name) + " ⌄", MASTHEAD_DISPLAY_SP);
-        bigMasthead.setContentDescription(getString(R.string.app_name) + ", menu");
+        bigMasthead = displayText(
+                getString(R.string.masthead_menu_title, getString(R.string.app_name)),
+                MASTHEAD_DISPLAY_SP);
+        bigMasthead.setContentDescription(getString(R.string.masthead_menu_description,
+                getString(R.string.app_name)));
         bigMasthead.setFocusable(true);
         bigMasthead.setOnClickListener(view -> toggleMenu());
         bigMasthead.setAccessibilityDelegate(mastheadButtonRole());
@@ -1181,9 +1185,13 @@ public final class MainActivity extends Activity {
         list.setOrientation(LinearLayout.VERTICAL);
         list.setPadding(dp(1), dp(1), dp(1), dp(1));
         list.setBackgroundResource(R.drawable.newspaper_panel);
+        int[] menuLabels = {
+                R.string.model_selection_title, R.string.history_title,
+                R.string.settings, R.string.quit_action
+        };
         for (int i = 0; i < MenuState.ENTRIES.size(); i++) {
             final int index = i;
-            TextView item = bodyText(MenuState.ENTRIES.get(i));
+            TextView item = bodyText(getString(menuLabels[i]));
             item.setGravity(Gravity.CENTER_VERTICAL);
             item.setPadding(dp(16), 0, dp(16), 0);
             item.setBackgroundColor(themeColor(R.color.newspaper_paper));
@@ -2652,7 +2660,8 @@ public final class MainActivity extends Activity {
             String named = computerLabel(pending);
             // The pending computer may not be the one already paired: name it by its own label.
             String pendingNoun = ComputerWords.noun(named);
-            String label = named.isEmpty() ? "the " + pendingNoun : named;
+            String label = named.isEmpty()
+                    ? getString(R.string.pairing_unnamed_computer, pendingNoun) : named;
             TextView pairingHeader = findViewById(R.id.pairing_header);
             setIfChanged(pairingHeader,
                     ComputerWords.apply(getString(R.string.pairing_title), pendingNoun));
@@ -3352,7 +3361,7 @@ public final class MainActivity extends Activity {
                     lastSubmittedQuestion, tonightTiming.getText().toString(),
                     tonightCount.getText().toString(), lanes, anyInterrupted, sourceId));
         } catch (IllegalArgumentException failure) {
-            error.setText("Could not save this question to History.");
+            error.setText(R.string.history_save_failed);
         }
         if (pendingRefreshQuestion.equals(lastSubmittedQuestion)) {
             pendingRefreshSourceId = "";
@@ -3711,7 +3720,9 @@ public final class MainActivity extends Activity {
         } else {
             frame = DesignLab.schematic(labTick,
                     DesignLab.link(cableConnected, hasVisiblePcWork()),
-                    ComputerWords.title(ComputerWords.current()), coverMode ? "Phone" : "This phone", width);
+                    ComputerWords.title(ComputerWords.current()),
+                    getString(coverMode ? R.string.device_phone_name : R.string.phone_heading),
+                    width);
         }
         labView.setTextColor(themeColor(R.color.newspaper_ink));
         setIfChanged(labView, frame);
@@ -5333,15 +5344,15 @@ public final class MainActivity extends Activity {
             }
         });
         LinearLayout root = pageRoot();
-        root.addView(pageBar("Model Selection", "Close", view -> dialog.dismiss()));
+        root.addView(pageBar(getString(R.string.model_selection_title),
+                getString(R.string.close), view -> dialog.dismiss()));
         View rule = new View(this);
         rule.setBackgroundColor(themeColor(R.color.newspaper_stroke));
         LinearLayout.LayoutParams ruleParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(1));
         ruleParams.topMargin = dp(12);
         root.addView(rule, ruleParams);
-        TextView note = bodyText(
-                "Phone models answer one at a time. Computer models can answer together.");
+        TextView note = bodyText(getString(R.string.model_selection_note));
         note.setPadding(0, dp(14), 0, dp(10));
         root.addView(note);
         modelSelectionNotice = stateText("");
@@ -5401,8 +5412,8 @@ public final class MainActivity extends Activity {
         if (Double.isFinite(fileMb) && fileMb >= 0) {
             if (details.length() > 0) details.append(" · ");
             details.append(fileMb == Math.rint(fileMb)
-                    ? String.format(Locale.US, "%.0f MB", fileMb)
-                    : String.format(Locale.US, "%.1f MB", fileMb));
+                    ? String.format(Locale.US, getString(R.string.model_size_whole_mb), fileMb)
+                    : String.format(Locale.US, getString(R.string.model_size_decimal_mb), fileMb));
         }
         return details.toString();
     }
@@ -5493,7 +5504,7 @@ public final class MainActivity extends Activity {
             modelLabels.clear();
             modelMetaViews.clear();
             modelRows.removeAllViews();
-            addModelSection("This phone");
+            addModelSection(getString(R.string.phone_heading));
             for (String pane : grouped) {
                 if (PaneKeys.pc(pane)) continue;
                 addModelRow(pane);
@@ -5514,11 +5525,11 @@ public final class MainActivity extends Activity {
             TextView hint = modelReadyHints.get(pane);
             if (hint != null) setIfChanged(hint, reachable && !offline
                     && view != null && view.optBoolean("ready")
-                    ? getString(R.string.ready_to_ask) : "Not ready");
+                    ? getString(R.string.ready_to_ask) : getString(R.string.model_not_ready));
             TextView toggle = modelToggles.get(pane);
             if (toggle == null) continue;
             boolean on = laneSelection.isOn(available, ready, pane);
-            setIfChanged(toggle, on ? "ON" : "OFF");
+            setIfChanged(toggle, getString(on ? R.string.model_on : R.string.model_off));
             toggle.setTextColor(parseHex(palette.selectionText(on)));
             GradientDrawable toggleBackground = new GradientDrawable();
             toggleBackground.setColor(parseHex(palette.selectionFill(on)));
@@ -5886,9 +5897,11 @@ public final class MainActivity extends Activity {
         pcLabelStatic(dialog.getWindow().getDecorView(), new int[][]{
                 {R.id.info_forget_pc, R.string.forget_pc},
                 {R.id.info_replace_pc_steps, R.string.info_replace_pc_steps}});
-        pcLabelled(dialog.findViewById(R.id.info_pc_label_text), "PC");
-        pcLabelled(dialog.findViewById(R.id.info_pc_id_label_text), "PC ID");
-        pcLabelled(dialog.findViewById(R.id.info_pc_status_label_text), "PC status");
+        pcLabelled(dialog.findViewById(R.id.info_pc_label_text), getString(R.string.pc));
+        pcLabelled(dialog.findViewById(R.id.info_pc_id_label_text),
+                getString(R.string.info_pc_dynamic_id_label));
+        pcLabelled(dialog.findViewById(R.id.info_pc_status_label_text),
+                getString(R.string.info_pc_dynamic_status_label));
         typography.defaults(dialog.getWindow().getDecorView());
         applyPaletteToDialog(dialog);
         typography.headline(dialog.findViewById(R.id.info_page_title), typography.headingSp());
@@ -6656,8 +6669,8 @@ public final class MainActivity extends Activity {
     }
 
     private void setSummaryHeadingCue(boolean expanded) {
-        String title = "SUMMARY";
-        String cue = expanded ? " · Close" : " · Open";
+        String title = getString(R.string.summary_label);
+        String cue = getString(expanded ? R.string.summary_cue_close : R.string.summary_cue_open);
         SpannableStringBuilder heading = new SpannableStringBuilder(title + cue);
         heading.setSpan(new TypefaceSpan(typography.interMedium), title.length(), heading.length(),
                 Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
