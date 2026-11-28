@@ -27,13 +27,16 @@
     <string name="link_waiting">%1$s · Waiting for GPU</string>
     <string name="pairing_pending">Pair your PC to use its GPU</string>
     <string name="pairing_title">Pair this PC?</string>
-    <string name="pairing_request">Compare this code with %1$s before you allow.</string>
+    <string name="pairing_request">Compare this code with the one on %1$s. If they match, tap %2$s.</string>
     <string name="pairing_notification_title">Pair with %1$s?</string>
     <string name="pairing_notification_title_unnamed">Pair with this computer?</string>
-    <string name="pairing_notification_text">Compare code %1$s. Tap for Allow / Not now.</string>
+    <string name="pairing_notification_text">Compare with your computer: %1$s. Tap to choose.</string>
     <string name="pairing_code_label">Pairing code</string>
     <string name="pairing_countdown">%d s left</string>
     <string name="pairing_expired_short">Expired</string>
+    <string name="pairing_code_mismatch">Code did not match or timed out. Wait for a new code.</string>
+    <string name="pairing_code_missing">Waiting for a new code…</string>
+    <string name="pairing_confirm_failed">Could not confirm. Try again.</string>
     <string name="pairing_disclosure">If allowed, this PC can see what you ask the GPU model and keeps a copy of the model file.</string>
     <string name="pairing_closed">New PC requests are paused. You can allow pairing again.</string>
     <string name="pairing_closed_title">Pairing requests closed</string>
@@ -155,7 +158,7 @@
     <string name="answer_garbled">Garbled — Retry</string>
     <string name="lane_retry_description">Retry this model with the same question</string>
     <string name="stop_failed">One answer could not be stopped. Try Stop again.</string>
-    <string name="pairing_expired">That pairing request expired. Wait for a new code.</string>
+    <string name="pairing_expired">Code expired. Wait for a new code.</string>
     <string name="you_asked">You asked: %1$s</string>
     <string name="settings">Settings</string>
     <string name="settings_description">Show typography and theme settings</string>

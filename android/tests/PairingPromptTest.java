@@ -13,6 +13,15 @@ public final class PairingPromptTest {
         check(PairingPrompt.validCode("738 414"));
         check(!PairingPrompt.validCode("73841"));
         check(!PairingPrompt.validCode(null));
+        check(PairingPrompt.oldRequest("That request is no longer waiting."));
+        check(!PairingPrompt.oldRequest("GPU Link is off."));
+        check(!PairingPrompt.oldRequest(null));
+        check(PairingPrompt.newRequest(false, "738 414", "738 414", 60, 59));
+        check(PairingPrompt.newRequest(true, "738 414", "111 222", 60, 59));
+        check(PairingPrompt.newRequest(true, "738 414", "738 414", 20, 60));
+        check(!PairingPrompt.newRequest(true, "738 414", "738 414", 60, 59));
+        equal("7 3 8, 4 1 4", PairingPrompt.spokenCode("738 414"));
+        equal("", PairingPrompt.spokenCode("null"));
 
         equal(-1, PairingPrompt.reportedSeconds(false, 60));
         equal(-1, PairingPrompt.reportedSeconds(false, 0));
@@ -24,10 +33,6 @@ public final class PairingPromptTest {
         check(PairingPrompt.expired(0));
         check(!PairingPrompt.expired(-1));
         check(!PairingPrompt.expired(1));
-        check(PairingPrompt.urgent(0));
-        check(PairingPrompt.urgent(10));
-        check(!PairingPrompt.urgent(11));
-        check(!PairingPrompt.urgent(-1));
 
         equal("45 s left", PairingPrompt.countdownText(45, "%d s left", "Expired"));
         equal("1 s left", PairingPrompt.countdownText(1, "%d s left", "Expired"));
