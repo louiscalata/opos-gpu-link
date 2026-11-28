@@ -30,7 +30,7 @@ public final class AnswerFailureLabelTest {
         equal("Stopped early. Here is what it sent.", string(strings, "gpu_failed_partial"));
         equal("Could not finish on this phone. Try again.", string(strings, "phone_failed"));
         equal("Could not finish on the computer. Try again.", string(strings, "gpu_failed"));
-        equal("Garbled — Retry", string(strings, "answer_garbled"));
+        equal("Could not read answer · Retry", string(strings, "answer_garbled"));
         // The fallback wording remains safe before the computer's name arrives.
         equal("Could not finish on the computer. Try again.",
                 ComputerWords.apply(string(strings, "gpu_failed"), "MacBook"));

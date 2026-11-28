@@ -39,7 +39,7 @@ public final class BackIssueTest {
         BackIssue resumed = BackIssue.from(store.list().get(0));
         equal("PC  unmeasured\nPhone  1.0 s", resumed.timing);
         equal("9.2 s", resumed.elapsed);
-        equal("Wall elapsed · includes pause", resumed.elapsedLabel);
+        equal("Total time includes cable pause", resumed.elapsedLabel);
         equal("Done · time unmeasured", resumed.lanes.get(0).state);
         equal(-1L, resumed.lanes.get(0).elapsedMs);
 
@@ -49,12 +49,12 @@ public final class BackIssueTest {
         List<HistoryStore.Issue> oldEntries = store.list();
         equal(1, oldEntries.size());
         BackIssue old = BackIssue.from(oldEntries.get(0));
-        equal("Wall elapsed · pause history unknown", old.elapsedLabel);
-        equal("Lane wall elapsed · pause history unknown\nPC  2.0 s\nPhone  1.0 s",
+        equal("Saved time may include a cable pause", old.elapsedLabel);
+        equal("Saved model times may include a cable pause\nPC  2.0 s\nPhone  1.0 s",
                 old.timing);
-        equal("Done · 2.0 s wall elapsed (pause history unknown)",
+        equal("Done · 2.0 s (may include cable pause)",
                 old.lanes.get(0).state);
-        equal("Done · 1.0 s wall elapsed (pause history unknown)",
+        equal("Done · 1.0 s (may include cable pause)",
                 old.lanes.get(1).state);
         System.out.println("BackIssueTest: OK");
     }

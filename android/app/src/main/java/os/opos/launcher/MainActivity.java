@@ -1125,7 +1125,8 @@ public final class MainActivity extends Activity {
         byline.setTextColor(themeColor(R.color.newspaper_ink));
         card.addView(byline, 2);
         TextView speed = newspaperText("", typography.labelSp(), false, false);
-        typography.tabular(speed);
+        typography.state(speed);
+        speed.setVisibility(View.GONE);
         card.addView(speed, 4);
         card.removeView(answerView);
         typography.body(answerView, typography.bodySp());
@@ -1202,7 +1203,7 @@ public final class MainActivity extends Activity {
     private PaneViews createExtraArticle(String pane) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        TextView heading = newspaperText(pane.toUpperCase(Locale.US), 19, true, true);
+        TextView heading = newspaperText(PaneKeys.fallbackLabel(pane), 19, true, true);
         TextView stateView = newspaperText(getString(R.string.checking), 13, true, false);
         stateView.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         TextView answerView = newspaperText("", 17, false, true);
@@ -1854,6 +1855,7 @@ public final class MainActivity extends Activity {
         for (PaneViews pane : paneViews.values()) {
             setLaneState(pane.state, pane.card, getString(R.string.checking));
             setPlainAnswer(pane.answer, getString(R.string.empty_answer));
+            setLiveSpeed(pane, "");
         }
         updateCompactLaneStatus();
         hidePairingUi();
@@ -1880,6 +1882,7 @@ public final class MainActivity extends Activity {
             for (PaneViews pane : paneViews.values()) {
                 setLaneState(pane.state, pane.card, getString(R.string.checking));
                 setPlainAnswer(pane.answer, getString(R.string.empty_answer));
+                setLiveSpeed(pane, "");
             }
         } else {
             for (PaneViews pane : paneViews.values()) {
@@ -1891,6 +1894,7 @@ public final class MainActivity extends Activity {
                 } else {
                     setLaneState(pane.state, pane.card, getString(R.string.stale_snapshot));
                 }
+                setLiveSpeed(pane, "");
             }
         }
         updateCompactLaneStatus();
@@ -2124,9 +2128,6 @@ public final class MainActivity extends Activity {
             JSONObject model = paneOf(data, pane);
             PaneViews view = paneViews.get(pane);
             nameExtraLane(view, pane, model);
-            Object speed = model == null ? null : model.opt("live_speed");
-            setIfChanged(view.speed, speed == null || speed == JSONObject.NULL
-                    ? "" : speed + " tokens/s");
         }
         updateCompactLaneStatus();
     }
@@ -2178,7 +2179,7 @@ public final class MainActivity extends Activity {
         if (view == null) return;
         String slotLabel = ModelDisplay.firstNonBlank(textField(model, "label"),
                 textField(model, "model"));
-        if (slotLabel.isEmpty()) slotLabel = pane;
+        if (slotLabel.isEmpty()) slotLabel = PaneKeys.fallbackLabel(pane);
         // Only an answer the card actually shows names it; a hidden older answer must not.
         String answered = answerShown(pane, model == null ? null : model.optJSONObject("answer"))
                 ? answeredModel(model) : "";
@@ -2684,6 +2685,8 @@ public final class MainActivity extends Activity {
                 if ("phone".equals(pane)) namePhoneLane(article, view);
                 renderPane(article, view, PaneKeys.pc(pane)
                         ? gpu.optJSONObject("link") : null);
+            } else if (article != null && PaneKeys.extra(pane)) {
+                setLiveSpeed(article, "");
             }
         }
         updateSummary();
@@ -2777,6 +2780,7 @@ public final class MainActivity extends Activity {
         article.lastRenderedState = "";
         article.userScrolled = false;
         setPlainAnswer(article.answer, text);
+        setLiveSpeed(article, "");
         if (article.bodyScroll != null) {
             article.programmaticScroll = true;
             article.bodyScroll.scrollTo(0, 0);
@@ -2790,8 +2794,12 @@ public final class MainActivity extends Activity {
         int visibility = waiting ? View.GONE : View.VISIBLE;
         setVisibilityIfNeeded(article.kicker, visibility);
         setVisibilityIfNeeded(article.heading, visibility);
-        setVisibilityIfNeeded(article.speed, visibility);
         setVisibilityIfNeeded(article.answer, visibility);
+    }
+
+    private void setLiveSpeed(PaneViews article, String speed) {
+        setIfChanged(article.speed, speed);
+        setVisibilityIfNeeded(article.speed, speed.isEmpty() ? View.GONE : View.VISIBLE);
     }
 
     private static void setVisibilityIfNeeded(View view, int visibility) {
@@ -2805,6 +2813,7 @@ public final class MainActivity extends Activity {
             article.words = 0;
             article.follow.reset();
             setPlainAnswer(article.answer, "");
+            setLiveSpeed(article, "");
             updateExpanded(article);
         }
         setSummaryReport("");
@@ -2860,6 +2869,7 @@ public final class MainActivity extends Activity {
                 setLaneState(stateView, article.card, pcWords(message));
                 setWaitingLayout(article, extra && message == R.string.waiting_turn);
                 if (!pcPaused) plainArticle(article, "");
+                else setLiveSpeed(article, "");
                 return;
             }
             if (!expectedId.equals(answer.optString("id"))) {
@@ -2937,6 +2947,10 @@ public final class MainActivity extends Activity {
             stateWords = pcWords(R.string.gpu_paused);
         } else if (isGpu && awaitingReplugSnapshot && open(answer)) {
             stateWords = pcWords(R.string.cable_checking);
+        }
+        if (extra) {
+            setLiveSpeed(article, LiveSpeedLabel.text(pane.opt("live_speed"), state,
+                    answerShown(paneName, answer), stateWords, getString(R.string.streaming)));
         }
         setLaneState(stateView, article.card, stateWords);
         if (extra && ("queued".equals(state) || "waiting".equals(state)
@@ -4413,7 +4427,7 @@ public final class MainActivity extends Activity {
     private void confirmQuit() {
         showAlert(new AlertDialog.Builder(this, R.style.LinkDialogTheme)
                 .setTitle("Quit OPOS GPU Link?")
-                .setMessage("Quit OPOS GPU Link? Answers in progress will stop.")
+                .setMessage("Answers in progress will stop.")
                 .setNegativeButton(R.string.not_now, null)
                 .setPositiveButton("Quit", (dialog, which) -> quitActivity()));
     }
@@ -4489,9 +4503,9 @@ public final class MainActivity extends Activity {
                     schedule(0);
                     showAlert(new AlertDialog.Builder(this, R.style.LinkDialogTheme)
                             .setTitle("Answers may still be running")
-                            .setMessage("The phone service did not confirm Stop for every answer.")
+                            .setMessage("The phone could not confirm that every answer stopped.")
                             .setPositiveButton("Try again", (dialog, which) -> quitActivity())
-                            .setNegativeButton("Close UI", (dialog, which) -> finishAndRemoveTask()));
+                            .setNegativeButton("Close app", (dialog, which) -> finishAndRemoveTask()));
                 } else finishAndRemoveTask();
             });
         });
@@ -4922,7 +4936,7 @@ public final class MainActivity extends Activity {
         ruleParams.topMargin = dp(12);
         root.addView(rule, ruleParams);
         TextView note = newspaperText(
-                ComputerWords.apply("On-device models run one after another to save memory. PC models run together."),
+                "Phone models answer one at a time. Computer models can answer together.",
                 15, false, false);
         note.setPadding(0, dp(14), 0, dp(10));
         root.addView(note);
@@ -4957,7 +4971,7 @@ public final class MainActivity extends Activity {
         if ("gpu".equals(pane)) return leadTitle(view);
         String label = ModelDisplay.firstNonBlank(textField(view, "label"),
                 textField(view, "model"));
-        return label.isEmpty() ? pane.toUpperCase(Locale.US) : ModelDisplay.label(label);
+        return label.isEmpty() ? PaneKeys.fallbackLabel(pane) : ModelDisplay.label(label);
     }
 
     private String modelDetails(String pane, JSONObject view) {
@@ -5035,10 +5049,10 @@ public final class MainActivity extends Activity {
             Map<String, Boolean> readyNow = readyPanes(snapshot);
             boolean next = !laneSelection.isOn(available, readyNow, pane);
             if (!laneSelection.set(available, readyNow, pane, next)) {
-                setIfChanged(modelSelectionNotice, "At least one lane must stay on.");
+                setIfChanged(modelSelectionNotice, "Keep at least one model on.");
                 return;
             }
-            setIfChanged(modelSelectionNotice, "Changes take effect on the next Send.");
+            setIfChanged(modelSelectionNotice, "Your choices apply to the next question.");
             updateModelSelectionRows();
             if (!displayPinned && snapshot != null) syncModelViews(snapshot);
             updateButtons();
@@ -5069,7 +5083,7 @@ public final class MainActivity extends Activity {
                 if (PaneKeys.pc(pane)) continue;
                 addModelRow(pane);
             }
-            addModelSection(PaneKeys.kicker("gpu"));
+            addModelSection(getString(R.string.gpu_heading_neutral));
             for (String pane : grouped) {
                 if (PaneKeys.pc(pane)) addModelRow(pane);
             }
@@ -5211,17 +5225,16 @@ public final class MainActivity extends Activity {
     private LinearLayout savedArticle(HistoryStore.Lane lane) {
         LinearLayout card = savedBox();
         // A saved answer keeps the noun of the computer that wrote it, when known.
-        String laneWhere = lane.where == null ? "" : lane.where.trim();
-        String laneComputer = laneWhere.isEmpty() || "unknown".equalsIgnoreCase(laneWhere)
-                || "on the PC's GPU".equals(laneWhere)
-                ? ComputerWords.current() : ComputerWords.noun(laneWhere);
+        String laneWhere = PaneKeys.archivedWhere(lane.where);
+        String laneComputer = PaneKeys.archivedComputer(lane.where);
         TextView kicker = newspaperText(PaneKeys.kicker(lane.pane, laneComputer),
                 LaneCardLayout.LABEL_SP, true, false);
         typography.kicker(kicker);
         card.addView(kicker);
         card.addView(newspaperText(lane.label, LaneCardLayout.headingSp(PaneKeys.extra(lane.pane),
                 "gpu".equals(lane.pane)), true, true));
-        String byline = lane.maker.isEmpty() ? lane.where : lane.maker + " · " + lane.where;
+        String byline = lane.maker.isEmpty() ? laneWhere
+                : laneWhere.isEmpty() ? lane.maker : lane.maker + " · " + laneWhere;
         TextView bylineView = newspaperText(byline, LaneCardLayout.LABEL_SP, false, false);
         typography.byline(bylineView);
         card.addView(bylineView);
@@ -5231,7 +5244,7 @@ public final class MainActivity extends Activity {
         applyTone(stateView);
         card.addView(stateView);
         if (lane.truncated) {
-            TextView excerpt = newspaperText("Saved excerpt · local 200 KB limit",
+            TextView excerpt = newspaperText("This saved answer was shortened.",
                     LaneCardLayout.LABEL_SP, true, false);
             typography.tabular(excerpt);
             card.addView(excerpt);
@@ -5909,7 +5922,7 @@ public final class MainActivity extends Activity {
             typography.byline(pane.byline);
             typography.state(pane.state);
             typography.tabular(pane.state);
-            typography.tabular(pane.speed);
+            typography.state(pane.speed);
             typography.body(pane.answer, typography.bodySp());
             if (pane.working != null) {
                 typography.state(pane.working);
@@ -6680,8 +6693,11 @@ public final class MainActivity extends Activity {
     }
 
     private View.DragShadowBuilder notesDragShadow(View card) {
-        int width = Math.max(1, card.getWidth());
-        int height = Math.max(1, card.getHeight());
+        // An answer card grows with its text. Draw only a bounded preview of its top section.
+        int width = NotesDragShadowBounds.pixels(card.getWidth(),
+                dp(NotesDragShadowBounds.MAX_WIDTH_DP));
+        int height = NotesDragShadowBounds.pixels(card.getHeight(),
+                dp(NotesDragShadowBounds.MAX_HEIGHT_DP));
         Bitmap bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888);
         Canvas canvas = new Canvas(bitmap);
         card.draw(canvas);

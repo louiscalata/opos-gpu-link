@@ -34,6 +34,27 @@ public final class PaneKeysTest {
         open.put("m1", "c");
         open.put("m4", "");
         equal(Arrays.asList("a", "b", "c"), PaneKeys.uniqueOpenIds(ordered, open));
+        equal("on the computer's GPU", PaneKeys.archivedWhere("on the PC's GPU"));
+        equal("over USB-C", PaneKeys.archivedWhere("over USB"));
+        equal("M5 Pro MacBook Pro", PaneKeys.archivedWhere(" M5 Pro MacBook Pro "));
+        equal("", PaneKeys.archivedWhere(null));
+        equal("computer", PaneKeys.archivedComputer("over USB"));
+        equal("computer", PaneKeys.archivedComputer("over USB-C"));
+        equal("computer", PaneKeys.archivedComputer("on the PC's GPU"));
+        equal("computer", PaneKeys.archivedComputer("unknown"));
+        equal("computer", PaneKeys.archivedComputer(null));
+        equal("MacBook", PaneKeys.archivedComputer("M5 Pro MacBook Pro"));
+        equal("Computer GPU", PaneKeys.kicker("gpu", PaneKeys.archivedComputer("over USB")));
+        equal("Phone model", PaneKeys.fallbackLabel("phone"));
+        equal("Phone model 1", PaneKeys.fallbackLabel("m1"));
+        equal("Phone model 2", PaneKeys.fallbackLabel("m2"));
+        equal("Phone model 3 (baseline)", PaneKeys.fallbackLabel("m3"));
+        equal("Phone model 4", PaneKeys.fallbackLabel("m4"));
+        equal("Computer model", PaneKeys.fallbackLabel("gpu"));
+        equal("Computer model 1", PaneKeys.fallbackLabel("g1"));
+        equal("Computer model 2", PaneKeys.fallbackLabel("g2"));
+        equal("Computer model 3", PaneKeys.fallbackLabel("g3"));
+        equal("Model", PaneKeys.fallbackLabel("unknown"));
         try {
             PaneKeys.pref("m5", "latest_id");
             throw new AssertionError("Unknown pane accepted");

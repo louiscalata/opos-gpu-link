@@ -117,7 +117,7 @@ def main(argv: list[str] | None = None) -> int:
     p.add_argument("action", choices=["install", "uninstall", "status", "print"])
     p.add_argument("--python", default=sys.executable, help="Python to run the companion with")
     p.add_argument("--port", type=int, default=DEFAULT_PORT)
-    p.add_argument("--model-path", help="GGUF file the companion serves")
+    p.add_argument("--model-path", help="model file to prefer; check startup for the model used")
     p.add_argument("--serial", help="phone USB serial")
     p.add_argument("--adb", help="adb executable")
     p.add_argument("--log-dir", help="companion receipts directory (passed to --log-dir)")

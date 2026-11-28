@@ -286,8 +286,10 @@ class ModelCopyTests(unittest.TestCase):
         with patch.object(link, "_confirm_remove_model_copies", return_value=True),                 patch.object(setup, "remove_model_copies", side_effect=failure),                 patch("builtins.print") as printed:
             tk.buttons["Remove model copies"]()
         self.assertTrue(owned.exists())
-        self.assertEqual(tk.messages[-1], str(failure))
-        printed.assert_called_once_with("GPU Link: " + str(failure), flush=True)
+        message = "Error: Could not finish removing model copies. Check the model folder before retrying."
+        self.assertEqual(tk.messages[-1], message)
+        self.assertNotIn(str(self.models), message)
+        printed.assert_called_once_with("GPU Link: " + message, flush=True)
 
 
 if __name__ == "__main__":

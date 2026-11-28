@@ -142,13 +142,17 @@ public final class CoverScreenPolicyTest {
         eq("failed", CoverScreenPolicy.visibleState("Could not finish. Try again."));
         eq("failed", CoverScreenPolicy.visibleState("Paused — stuck"));
         eq("", CoverScreenPolicy.visibleState("Ready"));
+        eq("", CoverScreenPolicy.visibleState("Not connected"));
+        eq("", CoverScreenPolicy.visibleState("Not ready"));
         check(CoverScreenPolicy.invertIndicator("paused"));
         check(!CoverScreenPolicy.invertIndicator("answering"));
         eq("Computer GPU · PAUSED", CoverScreenPolicy.kicker("g1", "paused"));
         eq("PHONE · LIVE", CoverScreenPolicy.kicker("m1", "answering"));
         eq("Computer GPU", CoverScreenPolicy.kicker("gpu", ""));
         eq("", CoverScreenPolicy.moreLabel(0));
-        eq("+6 more models hidden", CoverScreenPolicy.moreLabel(6));
+        eq("", CoverScreenPolicy.moreLabel(-1));
+        eq("+1 more model · open the phone", CoverScreenPolicy.moreLabel(1));
+        eq("+6 more models · open the phone", CoverScreenPolicy.moreLabel(6));
         check(!CoverScreenPolicy.userBusy(false, false, 10_000, 5_000));
         check(CoverScreenPolicy.userBusy(true, false, 10_000, 0));
         check(CoverScreenPolicy.userBusy(false, true, 10_000, 0));

@@ -1,6 +1,6 @@
 # OPOS GPU Link computer companion
 
-This companion waits for one authorized USB phone. It pairs with a six-digit code, then signs requests between the phone and computer. A saved pairing is reused after replug; a rejected pairing stops. For the commands below, start a local model server and load a model first.
+This companion waits for one authorized USB phone. It pairs with a six-digit code, then signs requests between the phone and computer. A saved pairing is reused after replug; a rejected pairing stops. The direct launchers below need a running local model server. For a first run that starts its own server, use the [quick start](../README.md#quick-start).
 
 Before it says it is ready, the companion asks the selected server and model for a one-token streamed answer. A completed stream passes even if it has no text. This checks the server route. It does not prove which GPU ran the model or whether an answer will continue after unplugging.
 
@@ -24,7 +24,7 @@ $env:OPOS_GPU_LINK_MODEL = "MODEL_ID"
 
 The scripts wait for an authorized USB phone. They check every two seconds and select it when only one is connected. Network connections, emulators, and unauthorized USB phones are excluded. Wireless: coming later. Pass `--serial SERIAL` if more than one authorized USB phone is connected. With no explicit server, startup uses a local model server it finds only when there is exactly one on an allowed port; otherwise it keeps `http://127.0.0.1:1235/v1/chat/completions`. Use `--lm-url URL` for a server base URL or `--server URL` for a full chat-completions route. Pass `--adb PATH` if platform tools are not on `PATH`. No port scan, installation, model download, server startup, login item, or firewall change is performed.
 
-The companion says **Warming model** while a cold model prepares its first response. TCP connect has a two-second limit; response headers and first stream event can take up to 90 seconds total, followed by up to 10 seconds for the finish and `[DONE]`. Stop or phone detach cancels that wait. Only one preflight is in flight. A failed check retries after 3, 6, 12, 24, then 30 seconds while the same phone attachment keeps its checked forward and avoids another app launch. Detach or a lost forward begins a new attachment session.
+The companion says **Checking the model.** before the first answer. If a model is still starting when an answer begins, it says **Loading the model.** TCP connect has a two-second limit; response headers and first stream event can take up to 90 seconds total, followed by up to 10 seconds for the finish and `[DONE]`. Stop or phone detach cancels that wait. Only one preflight is in flight. A failed check retries after 3, 6, then every 10 seconds while the same phone attachment keeps its checked forward and avoids another app launch. Detach or a lost forward begins a new attachment session.
 
 The scripts explicitly opt into `--headless --always-allow`. Headless prints a six-digit compare code for first pairing and waits up to 60 seconds for **Allow** on the phone (the button names this computer, for example **Allow this MacBook**); it never prints the key or question/answer text. On later plugs it uses the saved per-phone key without a prompt on the computer. Starting the process grants use for that process; Ctrl-C or SIGTERM stops the worker and removes its own forward. Without `--always-allow`, a headless grant expires after 120 seconds unplugged and requires a restart. The Tk window remains available by running `python3 -B opos_gpu_link.py --model MODEL_ID` without `--headless` when Tk is installed.
 
@@ -32,7 +32,7 @@ The saved key is written only after signed proof of phone Allow. Windows uses cu
 
 For a deliberate computer change, or to correct the computer name shown on the phone, first use **Forget** in the phone's GPU Link Info (for example **Forget this MacBook**). Then stop the old companion. On that computer, run `python3 -B opos_gpu_link.py --reset-pairing --serial SERIAL` from this directory (add its original `--key-dir DIRECTORY` if customized). This command requires the exact USB serial, does not call adb, and removes only that serial's saved key while its companion lock is free. It refuses to run while the companion holds the lock. Then start the companion and compare the new code on the phone. Resetting only the computer's key does not forget phone trust.
 
-The staged phone backend omits the computer's key fingerprint from its `/api/ai` snapshot and accepts `forget` without a fingerprint precondition. Info displays that the fingerprint is unavailable on this phone build; its two confirmations still recheck the saved computer label, and will also compare a fingerprint if a future snapshot supplies `pc.id`. Same-label replacement cannot be guarded atomically until the phone backend includes the ID and checks it during `forget`. This is a backend integration gate, not a verified phone behavior.
+The phone service in this checkout includes the saved computer's ID in `/api/ai`. Before Forget, the app checks that the name and ID still match; the service checks the ID sent with the request. This code path still needs a live phone check.
 
 ## Tests
 
@@ -40,7 +40,6 @@ From the checkout root:
 
 ```sh
 python3 -B -m unittest discover -s companion -p 'test_*.py' -v
-/usr/bin/python3 -B -m unittest discover -s companion -p 'test_*.py' -v
 ```
 
 The tests use fake adb and do not access the phone. The wire code in `src/opos/gpu_link_proto.py` and `gpu_link_worker.py` is shared with the phone-side link service. Native adb, Windows DPAPI, phone-side pause/resume, and model continuation still need separate checks.

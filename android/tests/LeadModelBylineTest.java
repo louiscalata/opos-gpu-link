@@ -10,7 +10,7 @@ public final class LeadModelBylineTest {
         equal("Liquid AI LFM2-1.2B", answered);
         equal("LFM2 1.2B (baseline)", LeadModelByline.title("Older MacBook",
                 answered, "Computer"));
-        equal("Liquid AI · Older MacBook · over USB",
+        equal("Liquid AI · Older MacBook · over USB-C",
                 LeadModelByline.text("Older MacBook", answered, "Computer"));
         equal("NVIDIA Nemotron 3.5 Bolt E4B 4GB", LeadModelByline.reportedModel(
                 "NVIDIA Nemotron 3.5 Bolt E4B 4GB", "", true));
@@ -29,26 +29,26 @@ public final class LeadModelBylineTest {
         String label = "Small (fallback for Original)";
         equal("Small (fallback for Original)",
                 LeadModelByline.title("Demo Mac", label, "Computer"));
-        equal("Demo Mac · over USB",
+        equal("Demo Mac · over USB-C",
                 LeadModelByline.text("Demo Mac", label, "PC"));
-        equal("Demo Mac · over USB", LeadModelByline.text("Demo Mac", null, "PC"));
-        equal("Demo Mac · over USB", LeadModelByline.text("Demo Mac", "", "PC"));
-        equal("PC · over USB",
+        equal("Demo Mac · over USB-C", LeadModelByline.text("Demo Mac", null, "PC"));
+        equal("Demo Mac · over USB-C", LeadModelByline.text("Demo Mac", "", "PC"));
+        equal("PC · over USB-C",
                 LeadModelByline.text("", label, "PC"));
-        equal("PC · over USB", LeadModelByline.text(null, null, "PC"));
-        equal("Ordinateur · over USB", LeadModelByline.text("", "", "Ordinateur"));
-        equal("NVIDIA · M5 Pro MacBook Pro · over USB",
+        equal("PC · over USB-C", LeadModelByline.text(null, null, "PC"));
+        equal("Ordinateur · over USB-C", LeadModelByline.text("", "", "Ordinateur"));
+        equal("NVIDIA · M5 Pro MacBook Pro · over USB-C",
                 LeadModelByline.text("M5 Pro MacBook Pro", "NVIDIA Nemotron 3.5 Bolt E4B 4GB", "computer"));
-        equal("Liquid AI · Demo Mac · over USB",
+        equal("Liquid AI · Demo Mac · over USB-C",
                 LeadModelByline.text("Demo Mac", "LFM2 1.2B", "computer"));
-        equal("IBM · Demo Mac · over USB",
+        equal("IBM · Demo Mac · over USB-C",
                 LeadModelByline.text("Demo Mac", "IBM Granite 4.1 3B", "computer"));
 
         // Clearing the reported label returns to the computer title and place.
         equal("Mac", LeadModelByline.title("Demo Mac", null, "Computer"));
-        equal("Demo Mac · over USB",
+        equal("Demo Mac · over USB-C",
                 LeadModelByline.text("Demo Mac", null, "PC"));
-        equal("Other PC · over USB", LeadModelByline.text("Other PC", null, "PC"));
+        equal("Other PC · over USB-C", LeadModelByline.text("Other PC", null, "PC"));
         System.out.println("LeadModelBylineTest: OK");
     }
 
