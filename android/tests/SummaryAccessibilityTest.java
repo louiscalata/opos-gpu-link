@@ -15,7 +15,8 @@ public final class SummaryAccessibilityTest {
         require(source, "summaryCard.addView(summaryText");
         require(binding, "summaryCard.setFocusable(false)");
         require(binding, "summaryCard.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO)");
-        require(binding, "summaryHeading.setContentDescription(getString(R.string.summary_open))");
+        require(binding, "setSummaryHeadingCue(false)");
+        require(binding, "summaryHeading.setMinimumHeight(dp(coverMode ? 0 : 48))");
         require(binding, "summaryHeading.setAccessibilityDelegate(mastheadButtonRole())");
         require(binding, "summaryHeading.setOnClickListener(view -> showSummaryPage())");
         if (binding.contains("summaryCard.setContentDescription")) {
