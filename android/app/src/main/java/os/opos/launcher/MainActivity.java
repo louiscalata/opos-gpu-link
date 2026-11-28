@@ -1935,17 +1935,12 @@ public final class MainActivity extends Activity {
                     SystemClock.elapsedRealtime());
         }
         reconcileUncertain(data);
-        syncModelViews(data);
-        updateModelSelectionRows();
         setIfChanged(error, "");
         JSONObject link = gpu.optJSONObject("link");
         JSONObject pc = link == null ? null : link.optJSONObject("pc");
         String label = pcLabel(gpu);
-        observeComputer(label, link, pc);
-        // The lane is "MacBook" everywhere (race, card, summary, history); the full label,
-        // e.g. "M5 Pro MacBook Pro", stays in the byline and in Info.
-        setIfChanged(gpuHeading, label.isEmpty() ? pcWords(R.string.gpu_heading)
-                : ComputerWords.title(ComputerWords.noun(label)));
+        observeComputer(LeadModelByline.namedComputer(label) ? label : "", link, pc);
+        syncModelViews(data);
         long[] heartbeats = PcHeartbeat.afterSnapshot(pc != null,
                 pc != null && pc.optBoolean("live"), gpu.optBoolean("ready"),
                 SystemClock.elapsedRealtime(), lastPcLiveAtMs, lastGoodPcAtMs);
@@ -1989,6 +1984,7 @@ public final class MainActivity extends Activity {
             }
         }
         renderAnswers();
+        updateModelSelectionRows();
         updateLaneRetry(data);
         archiveCompletedQuestion();
         restoreFailedDraftIfUntouched();
@@ -2099,12 +2095,7 @@ public final class MainActivity extends Activity {
             paneOrder.addAll(desired);
             arrangeArticles();
         }
-        JSONObject leadModel = data.optJSONObject("gpu");
-        String pc = pcLabel(leadModel);
-        String leadLabel = leadModel == null || leadModel.isNull("lead_label")
-                ? null : leadModel.optString("lead_label", "");
-        setIfChanged(paneViews.get("gpu").byline,
-                LeadModelByline.text(pc, leadLabel, pcWords(R.string.pc)));
+        nameGpuLane(paneViews.get("gpu"), data.optJSONObject("gpu"));
         namePhoneLane(paneViews.get("phone"), data.optJSONObject("phone"));
         for (String pane : available) {
             if (!PaneKeys.extra(pane)) continue;
@@ -2116,6 +2107,44 @@ public final class MainActivity extends Activity {
                     ? "" : speed + " tokens/s");
         }
         updateCompactLaneStatus();
+    }
+
+    private String leadReportedModel(JSONObject gpu) {
+        JSONObject answer = gpu == null ? null : gpu.optJSONObject("answer");
+        return LeadModelByline.reportedModel(textField(gpu, "lead_label"),
+                textField(answer, "model"), answerShown("gpu", answer));
+    }
+
+    private static String pairedComputerLabel(JSONObject gpu) {
+        JSONObject link = gpu == null ? null : gpu.optJSONObject("link");
+        String label = computerLabel(link == null ? null : link.optJSONObject("pc"));
+        return label.isEmpty() ? computerLabel(link == null ? null
+                : link.optJSONObject("pending")) : label;
+    }
+
+    private String leadComputer(JSONObject gpu) {
+        JSONObject answer = gpu == null ? null : gpu.optJSONObject("answer");
+        if (answerShown("gpu", answer)) {
+            String where = textField(answer, "where");
+            if (LeadModelByline.namedComputer(where)) return where;
+        }
+        String paired = pairedComputerLabel(gpu);
+        if (!paired.isEmpty()) return paired;
+        String where = textField(gpu, "where");
+        return LeadModelByline.namedComputer(where) ? where : "";
+    }
+
+    private String leadTitle(JSONObject gpu) {
+        return LeadModelByline.title(leadComputer(gpu), leadReportedModel(gpu),
+                ComputerWords.title(ComputerWords.current()));
+    }
+
+    private void nameGpuLane(PaneViews view, JSONObject gpu) {
+        if (view == null) return;
+        String model = leadReportedModel(gpu);
+        setIfChanged(view.heading, leadTitle(gpu));
+        setIfChanged(view.byline, LeadModelByline.text(leadComputer(gpu), model,
+                pcWords(R.string.pc)));
     }
 
     /**
@@ -2628,6 +2657,7 @@ public final class MainActivity extends Activity {
             JSONObject view = paneOf(snapshot, pane);
             PaneViews article = paneViews.get(pane);
             if (view != null && article != null) {
+                if ("gpu".equals(pane)) nameGpuLane(article, view);
                 if (PaneKeys.extra(pane)) nameExtraLane(article, pane, view);
                 if ("phone".equals(pane)) namePhoneLane(article, view);
                 renderPane(article, view, PaneKeys.pc(pane)
@@ -2960,8 +2990,8 @@ public final class MainActivity extends Activity {
             PaneViews article = paneViews.get(pane);
             JSONObject answer = answerOf(snapshot, pane);
             String id = answer == null ? "" : answer.optString("id");
-            String shortLabel = "gpu".equals(pane) ? ComputerWords.title(ComputerWords.current()) : "phone".equals(pane)
-                    ? getString(R.string.phone_heading) : article.heading.getText().toString();
+            String shortLabel = "phone".equals(pane) ? getString(R.string.phone_heading)
+                    : article.heading.getText().toString();
             boolean included = latestRequestedPanes.isEmpty()
                     ? answer != null && !latestQuestion.isEmpty()
                     && latestQuestion.equals(answer.optString("question"))
@@ -4865,7 +4895,7 @@ public final class MainActivity extends Activity {
 
     private String modelLabel(String pane, JSONObject view) {
         if ("phone".equals(pane)) return getString(R.string.phone_heading);
-        if ("gpu".equals(pane)) return ComputerWords.title(ComputerWords.current());
+        if ("gpu".equals(pane)) return leadTitle(view);
         String label = ModelDisplay.firstNonBlank(textField(view, "label"),
                 textField(view, "model"));
         return label.isEmpty() ? pane.toUpperCase(Locale.US) : ModelDisplay.label(label);
