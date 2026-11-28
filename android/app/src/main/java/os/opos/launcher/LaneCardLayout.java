@@ -8,6 +8,8 @@ package os.opos.launcher;
  * live TypeConfig pick.
  */
 final class LaneCardLayout {
+    enum Part { KICKER, HEADING, ANSWER }
+
     /**
      * Walls stay quieter than the words: a hairline in a dark gray, well under the #fff text.
      * #5C5C5C on #000 is about 3.1:1, the minimum contrast for a UI boundary.
@@ -27,6 +29,11 @@ final class LaneCardLayout {
 
     static boolean wrapsToContent() {
         return true;
+    }
+
+    /** A queued lane keeps its identity visible before any answer arrives. */
+    static boolean waitingVisible(boolean waiting, Part part) {
+        return !waiting || part != Part.ANSWER;
     }
 
     static int bodySp(boolean cover, boolean compact) {

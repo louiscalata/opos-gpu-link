@@ -62,10 +62,11 @@ An already lower temperature or higher repeat penalty is retained.
 
 A second garble drains the remaining safe prefix as non-final text and sends
 the signed status `state="error", error="garbled"`. The app must map that status
-to its failed lane and **Garbled — Retry** label. Each lane retains its one-retry
-budget across reconnects for the same question lease; a manual retry with a new
-lease resets it. Phone-side mapping and new-lease behavior still need device
-verification. Set `OPOS_GPU_LINK_GUARD=0` to use the previous streaming behavior.
+to its failed lane and the **Could not read answer · Retry** label. Each lane
+retains its one-retry budget across reconnects for the same question lease;
+a manual retry with a new lease resets it. Phone-side mapping and new-lease
+behavior still need device verification. Set `OPOS_GPU_LINK_GUARD=0` to use the
+previous streaming behavior.
 
 The pure detector is `gpu_link_guard.py`. Its reason codes are `repeat_char`,
 `ngram_loop`, `non_text`, `encoding_junk`, and `runaway_length`; thresholds are
