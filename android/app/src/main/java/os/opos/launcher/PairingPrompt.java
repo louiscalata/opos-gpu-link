@@ -7,7 +7,9 @@ package os.opos.launcher;
  */
 final class PairingPrompt {
     static final int TIMEOUT_SECONDS = 60;
+    /** The six-digit code is a display number so it can be read at a glance. */
     static final int CODE_SP_INNER = 56;
+    /** The code is smaller on the cover so all six digits remain visible. */
     static final int CODE_SP_COVER = 36;
     static final int ALLOW_DP_INNER = 72;
     static final int ALLOW_DP_COVER = 52;

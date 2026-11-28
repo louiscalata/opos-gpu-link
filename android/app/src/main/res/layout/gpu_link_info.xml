@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/info_page"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:background="@color/newspaper_paper"
@@ -36,6 +37,7 @@
     </LinearLayout>
 
     <View
+        android:id="@+id/info_rule"
         android:layout_width="match_parent"
         android:layout_height="1dp"
         android:background="@color/newspaper_ink" />

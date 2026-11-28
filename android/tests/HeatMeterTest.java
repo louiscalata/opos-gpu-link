@@ -38,7 +38,9 @@ public final class HeatMeterTest {
         equal("● too hot", HeatMeter.label(5, true));
         equal("● warm", HeatMeter.label(2, true));
         equal("● cool", HeatMeter.label(0, true));
-        check(HeatMeter.TEXT_SP > 13 && HeatMeter.TEXT_SP_COMPACT >= 13, "meter reads bigger than status");
+        check(TypeConfig.body().size(false) > TypeConfig.subheader().size(false)
+                && TypeConfig.body().size(true) > TypeConfig.subheader().size(true),
+                "meter reads bigger than status");
         equal("", HeatMeter.label(-1, false));
         equal("", HeatMeter.label(9, true));
         equal("Phone is hot", HeatMeter.description(3));

@@ -18,9 +18,6 @@ final class LaneCardLayout {
     static final int CARD_PADDING_DP = Space.S;
     /** Intentional 6 dp exception: keep the newspaper card rhythm compact. */
     static final int CARD_GAP_DP = 6;
-    /** Recommended default (H5+S5+B5), 1.25 modular scale: 11 / 17 / 21. */
-    static final int BODY_SP_FULL = 17;
-    static final int LABEL_SP = 11;
     /** Minimum height so an empty or waiting lane still reads as a frame. */
     static final int MIN_LANE_DP = 96;
     /** Subtle card height animation while an answer streams, clears, or retries. */

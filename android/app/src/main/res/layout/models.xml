@@ -26,9 +26,7 @@
             android:layout_weight="1"
             android:accessibilityHeading="true"
             android:text="@string/app_name"
-            android:textColor="@color/newspaper_ink"
-            android:textSize="18sp"
-                    />
+            android:textColor="@color/newspaper_ink" />
 
         <Button
             android:id="@+id/info"
@@ -39,8 +37,7 @@
             android:contentDescription="@string/info_description"
             android:text="@string/info"
             android:textAllCaps="false"
-            android:textColor="@color/newspaper_ink"
-            android:textSize="16sp" />
+            android:textColor="@color/newspaper_ink" />
 
         <Button
             android:id="@+id/settings"
@@ -52,8 +49,7 @@
             android:contentDescription="@string/settings_description"
             android:text="@string/settings"
             android:textAllCaps="false"
-            android:textColor="@color/newspaper_ink"
-            android:textSize="16sp" />
+            android:textColor="@color/newspaper_ink" />
     </LinearLayout>
 
     <TextView
@@ -76,9 +72,7 @@
             android:layout_height="wrap_content"
             android:labelFor="@id/prompt"
             android:text="@string/question_label"
-            android:textColor="@color/newspaper_ink"
-            android:textSize="18sp"
-                    />
+            android:textColor="@color/newspaper_ink" />
 
         <LinearLayout
             android:id="@+id/input_row"
@@ -100,8 +94,7 @@
             android:minLines="2"
             android:padding="12dp"
             android:textColor="@color/newspaper_ink"
-            android:textColorHint="@color/newspaper_ink"
-            android:textSize="18sp" />
+            android:textColorHint="@color/newspaper_ink" />
 
         <Button
             android:id="@+id/ask"
@@ -111,9 +104,7 @@
             android:background="@drawable/newspaper_primary"
             android:text="@string/send"
             android:textAllCaps="false"
-            android:textColor="@color/newspaper_paper"
-            android:textSize="18sp"
-                    />
+            android:textColor="@color/newspaper_paper" />
 
         <Button
             android:id="@+id/stop"
@@ -124,7 +115,6 @@
             android:text="@string/stop"
             android:textAllCaps="false"
             android:textColor="@color/newspaper_ink"
-            android:textSize="18sp"
                     android:visibility="gone" />
 
         <Button
@@ -136,7 +126,6 @@
             android:text="@string/reconnect"
             android:textAllCaps="false"
             android:textColor="@color/newspaper_paper"
-            android:textSize="18sp"
                     android:visibility="gone" />
 
         <TextView
@@ -146,7 +135,6 @@
             android:layout_marginTop="@dimen/space_m"
             android:text="@string/reset_ask_copy"
             android:textColor="@color/newspaper_ink"
-            android:textSize="18sp"
             android:visibility="gone" />
 
         <Button
@@ -158,7 +146,6 @@
             android:text="@string/reset_ask"
             android:textAllCaps="false"
             android:textColor="@color/newspaper_ink"
-            android:textSize="18sp"
             android:visibility="gone" />
 
         </LinearLayout>
@@ -171,8 +158,7 @@
         android:accessibilityLiveRegion="polite"
         android:paddingStart="16dp"
         android:paddingEnd="16dp"
-        android:textColor="@color/newspaper_ink"
-        android:textSize="18sp" />
+        android:textColor="@color/newspaper_ink" />
 
     <FrameLayout
         android:id="@+id/results_stage"
@@ -208,8 +194,7 @@
                     android:layout_height="wrap_content"
                     android:accessibilityHeading="true"
                     android:text="@string/pairing_closed_title"
-                    android:textColor="@color/newspaper_ink"
-                    android:textSize="18sp" />
+                    android:textColor="@color/newspaper_ink" />
 
                 <TextView
                     android:id="@+id/pairing_closed_text"
@@ -217,8 +202,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:text="@string/pairing_closed"
-                    android:textColor="@color/newspaper_ink"
-                    android:textSize="18sp" />
+                    android:textColor="@color/newspaper_ink" />
 
                 <Button
                     android:id="@+id/reopen_pc"
@@ -228,8 +212,7 @@
                     android:background="@drawable/newspaper_primary"
                     android:text="@string/reopen_pc"
                     android:textAllCaps="false"
-                    android:textColor="@color/newspaper_paper"
-                    android:textSize="18sp" />
+                    android:textColor="@color/newspaper_paper" />
             </LinearLayout>
 
             <LinearLayout
@@ -258,16 +241,14 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/device_phone_kicker"
-                        android:textColor="@color/you_asked_label"
-                        android:textSize="11sp" />
+                        android:textColor="@color/you_asked_label" />
 
                     <TextView
                         android:id="@+id/device_phone_name"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/device_phone_name"
-                        android:textColor="@color/newspaper_ink"
-                        android:textSize="21sp" />
+                        android:textColor="@color/newspaper_ink" />
                 </LinearLayout>
 
                 <TextView
@@ -279,8 +260,7 @@
                     android:gravity="center"
                     android:importantForAccessibility="no"
                     android:text="@string/device_link_waiting"
-                    android:textColor="@color/newspaper_ink"
-                    android:textSize="11sp" />
+                    android:textColor="@color/newspaper_ink" />
 
                 <LinearLayout
                     android:id="@+id/device_computer"
@@ -298,16 +278,14 @@
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/device_computer_kicker"
-                        android:textColor="@color/you_asked_label"
-                        android:textSize="11sp" />
+                        android:textColor="@color/you_asked_label" />
 
                     <TextView
                         android:id="@+id/device_computer_name"
                         android:layout_width="match_parent"
                         android:layout_height="wrap_content"
                         android:text="@string/device_computer_name"
-                        android:textColor="@color/newspaper_ink"
-                        android:textSize="21sp" />
+                        android:textColor="@color/newspaper_ink" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -318,7 +296,6 @@
                 android:layout_marginTop="12dp"
                 android:accessibilityHeading="true"
                 android:textColor="@color/newspaper_ink"
-                android:textSize="18sp"
                     android:visibility="gone" />
 
             <LinearLayout
@@ -342,9 +319,7 @@
                         android:layout_height="wrap_content"
                         android:accessibilityHeading="true"
                         android:text="@string/phone_heading"
-                        android:textColor="@color/newspaper_ink"
-                        android:textSize="18sp"
-                    />
+                        android:textColor="@color/newspaper_ink" />
 
                     <TextView
                         android:id="@+id/phone_state"
@@ -352,9 +327,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
                         android:accessibilityLiveRegion="polite"
-                        android:textColor="@color/newspaper_ink"
-                        android:textSize="18sp"
-                    />
+                        android:textColor="@color/newspaper_ink" />
 
                     <TextView
                         android:id="@+id/phone_answer"
@@ -362,8 +335,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="@dimen/space_s"
                         android:textColor="@color/newspaper_ink"
-                        android:textIsSelectable="true"
-                        android:textSize="18sp" />
+                        android:textIsSelectable="true" />
                 </LinearLayout>
 
                 <LinearLayout
@@ -381,9 +353,7 @@
                         android:layout_height="wrap_content"
                         android:accessibilityHeading="true"
                         android:text="@string/gpu_heading_neutral"
-                        android:textColor="@color/newspaper_ink"
-                        android:textSize="18sp"
-                    />
+                        android:textColor="@color/newspaper_ink" />
 
                     <TextView
                         android:id="@+id/gpu_state"
@@ -391,9 +361,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="8dp"
                         android:accessibilityLiveRegion="polite"
-                        android:textColor="@color/newspaper_ink"
-                        android:textSize="18sp"
-                    />
+                        android:textColor="@color/newspaper_ink" />
 
                     <TextView
                         android:id="@+id/gpu_answer"
@@ -401,8 +369,7 @@
                         android:layout_height="wrap_content"
                         android:layout_marginTop="@dimen/space_s"
                         android:textColor="@color/newspaper_ink"
-                        android:textIsSelectable="true"
-                        android:textSize="18sp" />
+                        android:textIsSelectable="true" />
                 </LinearLayout>
             </LinearLayout>
 
@@ -415,7 +382,6 @@
                 android:text="@string/try_again"
                 android:textAllCaps="false"
                 android:textColor="@color/newspaper_ink"
-                android:textSize="18sp"
                 android:visibility="gone" />
         </LinearLayout>
     </ScrollView>
@@ -454,8 +420,7 @@
                     android:accessibilityHeading="true"
                     android:gravity="center_horizontal"
                     android:text="@string/pairing_title"
-                    android:textColor="@color/newspaper_ink"
-                    android:textSize="21sp" />
+                    android:textColor="@color/newspaper_ink" />
 
                 <TextView
                     android:id="@+id/pairing_text"
@@ -463,8 +428,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="12dp"
                     android:gravity="center_horizontal"
-                    android:textColor="@color/newspaper_ink"
-                    android:textSize="18sp" />
+                    android:textColor="@color/newspaper_ink" />
 
                 <TextView
                     android:id="@+id/pairing_code_label"
@@ -473,8 +437,7 @@
                     android:layout_marginTop="24dp"
                     android:gravity="center_horizontal"
                     android:text="@string/pairing_code_label"
-                    android:textColor="@color/newspaper_ink"
-                    android:textSize="11sp" />
+                    android:textColor="@color/newspaper_ink" />
 
                 <TextView
                     android:id="@+id/pairing_code"
@@ -484,8 +447,7 @@
                     android:fontFeatureSettings="tnum"
                     android:gravity="center"
                     android:importantForAccessibility="yes"
-                    android:textColor="@color/newspaper_ink"
-                    android:textSize="56sp" />
+                    android:textColor="@color/newspaper_ink" />
 
                 <TextView
                     android:id="@+id/pairing_countdown"
@@ -493,8 +455,7 @@
                     android:layout_height="wrap_content"
                     android:layout_marginTop="8dp"
                     android:gravity="center"
-                    android:textColor="@color/newspaper_ink"
-                    android:textSize="18sp" />
+                    android:textColor="@color/newspaper_ink" />
 
                 <TextView
                     android:id="@+id/pairing_disclosure"
@@ -503,8 +464,7 @@
                     android:layout_marginTop="20dp"
                     android:gravity="center_horizontal"
                     android:text="@string/pairing_disclosure"
-                    android:textColor="@color/newspaper_ink"
-                    android:textSize="18sp" />
+                    android:textColor="@color/newspaper_ink" />
             </LinearLayout>
         </ScrollView>
 
@@ -526,8 +486,7 @@
                 android:background="@drawable/newspaper_primary"
                 android:text="@string/allow_pc"
                 android:textAllCaps="false"
-                android:textColor="@color/newspaper_paper"
-                android:textSize="21sp" />
+                android:textColor="@color/newspaper_paper" />
 
             <Button
                 android:id="@+id/deny_pc"
@@ -538,8 +497,7 @@
                 android:background="@drawable/newspaper_outline"
                 android:text="@string/not_now"
                 android:textAllCaps="false"
-                android:textColor="@color/newspaper_ink"
-                android:textSize="16sp" />
+                android:textColor="@color/newspaper_ink" />
         </LinearLayout>
     </LinearLayout>
 </FrameLayout>
