@@ -248,6 +248,85 @@
                     android:textSize="18sp" />
             </LinearLayout>
 
+            <LinearLayout
+                android:id="@+id/device_band"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginTop="6dp"
+                android:accessibilityLiveRegion="polite"
+                android:importantForAccessibility="yes"
+                android:screenReaderFocusable="true"
+                android:orientation="horizontal">
+
+                <LinearLayout
+                    android:id="@+id/device_phone"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1.1"
+                    android:background="@drawable/newspaper_panel"
+                    android:importantForAccessibility="noHideDescendants"
+                    android:minHeight="64dp"
+                    android:orientation="vertical"
+                    android:padding="8dp">
+
+                    <TextView
+                        android:id="@+id/device_phone_kicker"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="PHONE"
+                        android:textColor="@color/you_asked_label"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:id="@+id/device_phone_name"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Phone"
+                        android:textColor="@color/newspaper_ink"
+                        android:textSize="21sp" />
+                </LinearLayout>
+
+                <TextView
+                    android:id="@+id/device_link"
+                    android:layout_width="0dp"
+                    android:layout_height="wrap_content"
+                    android:layout_gravity="center_vertical"
+                    android:layout_weight="0.9"
+                    android:gravity="center"
+                    android:importantForAccessibility="no"
+                    android:text="USB-C\nWaiting"
+                    android:textColor="@color/newspaper_ink"
+                    android:textSize="11sp" />
+
+                <LinearLayout
+                    android:id="@+id/device_computer"
+                    android:layout_width="0dp"
+                    android:layout_height="match_parent"
+                    android:layout_weight="1.4"
+                    android:background="@drawable/newspaper_panel"
+                    android:importantForAccessibility="noHideDescendants"
+                    android:minHeight="64dp"
+                    android:orientation="vertical"
+                    android:padding="8dp">
+
+                    <TextView
+                        android:id="@+id/device_computer_kicker"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="COMPUTER"
+                        android:textColor="@color/you_asked_label"
+                        android:textSize="11sp" />
+
+                    <TextView
+                        android:id="@+id/device_computer_name"
+                        android:layout_width="match_parent"
+                        android:layout_height="wrap_content"
+                        android:text="Computer"
+                        android:textColor="@color/newspaper_ink"
+                        android:textSize="21sp" />
+                </LinearLayout>
+            </LinearLayout>
+
             <TextView
                 android:id="@+id/question"
                 android:layout_width="match_parent"

@@ -57,31 +57,41 @@ public final class CoverScreenPolicyTest {
     }
 
     private static void selection() {
-        // Nothing asked yet: the first three in newspaper order, one phone and one PC guaranteed.
+        eq(1, CoverScreenPolicy.MAX_PANES);
+        // Nothing asked yet: the first three in newspaper order, one phone and one computer guaranteed.
         eq(Arrays.asList("phone", "gpu", "m1"), CoverScreenPolicy.visiblePanes(
                 ORDER, states(), new ArrayList<>(), 3));
-        // Busy phone models would crowd out the PC pane; the PC pane still stays.
+        // Busy phone models would crowd out the computer pane; it still stays.
         Map<String, String> busy = states("phone", "answering", "m1", "answering",
                 "m2", "answering", "m3", "answering", "gpu", "done");
         eq(Arrays.asList("phone", "gpu", "m1"), CoverScreenPolicy.visiblePanes(
                 ORDER, busy, new ArrayList<>(), 3));
-        // Cable pulled: three PC panes frozen, phone panes live. Best of each side plus one more.
+        // Cable pulled: three computer panes frozen, phone panes live. Best of each side plus one more.
         Map<String, String> pulled = states("phone", "answering", "m1", "answering",
                 "gpu", "paused", "g1", "paused", "g2", "paused");
         eq(Arrays.asList("phone", "gpu", "m1"), CoverScreenPolicy.visiblePanes(
                 ORDER, pulled, new ArrayList<>(), 3));
-        // An extra PC lane that is live beats a finished lane for the third slot.
+        // An extra computer lane that is live beats a finished lane for the third slot.
         Map<String, String> mix = states("phone", "done", "gpu", "done", "m1", "done",
                 "g2", "answering");
         eq(Arrays.asList("phone", "gpu", "g2"), CoverScreenPolicy.visiblePanes(
                 ORDER, mix, new ArrayList<>(), 3));
-        // Only phone lanes exist: no PC pane to keep, three phone panes.
+        // Only phone lanes exist: no computer pane to keep, three phone panes.
         eq(Arrays.asList("phone", "m1", "m2"), CoverScreenPolicy.visiblePanes(
                 Arrays.asList("phone", "m1", "m2", "m3"), states("m2", "answering"),
                 new ArrayList<>(), 3));
-        // max of one keeps only the best phone pane.
+        // One cover card shows the most active answer from either device.
         eq(Arrays.asList("m2"), CoverScreenPolicy.visiblePanes(
                 ORDER, states("m2", "answering"), new ArrayList<>(), 1));
+        eq(Arrays.asList("gpu"), CoverScreenPolicy.visiblePanes(
+                ORDER, states("phone", "done", "gpu", "answering"),
+                new ArrayList<>(), CoverScreenPolicy.MAX_PANES));
+        eq(Arrays.asList("gpu"), CoverScreenPolicy.visiblePanes(
+                ORDER, states("phone", "answering", "gpu", "answering"),
+                Arrays.asList("phone"), CoverScreenPolicy.MAX_PANES));
+        eq(Arrays.asList("phone"), CoverScreenPolicy.visiblePanes(
+                ORDER, states("phone", "answering", "gpu", "waiting"),
+                Arrays.asList("phone"), CoverScreenPolicy.MAX_PANES));
         eq(Arrays.asList("phone", "gpu"), CoverScreenPolicy.visiblePanes(
                 Arrays.asList("phone", "gpu"), states(), new ArrayList<>(), 3));
         try {
