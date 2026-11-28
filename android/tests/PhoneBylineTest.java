@@ -36,6 +36,8 @@ public final class PhoneBylineTest {
         // A shown answer wins even if phone.model reports the running route.
         equal("NVIDIA · on this phone",
                 PhoneByline.forCard("Meta Llama 3.2 3B", "NVIDIA AceInstruct 1.5B", true, true, "on this phone"));
+        equal("NVIDIA Nemotron Mini 4B", PhoneByline.cardModel(
+                "Qwen3.5-2B", "NVIDIA Nemotron Mini 4B", true, true));
         // A hidden answer with no model leaves the running route.
         equal("Meta · on this phone",
                 PhoneByline.forCard("Meta Llama 3.2 3B", "", true, false, "on this phone"));
@@ -52,6 +54,17 @@ public final class PhoneBylineTest {
         equal("Qwen (Alibaba)", PhoneByline.maker("Qwen3.5-2B"));
         equal("LFM2 1.2B (baseline)", PhoneByline.modelName("Liquid AI LFM2 1.2B"));
         equal("IBM · on this phone", PhoneByline.text("Granite 4.1 3B", null));
+        PhoneByline.ArchiveName missingAnswerModel = PhoneByline.archived(
+                "", "NVIDIA Nemotron Mini 4B", "This phone");
+        equal("Nemotron Mini 4B", missingAnswerModel.title);
+        equal("NVIDIA", missingAnswerModel.maker);
+        PhoneByline.ArchiveName answeredModel = PhoneByline.archived(
+                "Liquid AI LFM2 1.2B", "NVIDIA Nemotron Mini 4B", "This phone");
+        equal("LFM2 1.2B (baseline)", answeredModel.title);
+        equal("Liquid AI", answeredModel.maker);
+        PhoneByline.ArchiveName unknownModel = PhoneByline.archived("", "", "This phone");
+        equal("This phone", unknownModel.title);
+        equal("", unknownModel.maker);
         System.out.println("PhoneBylineTest: OK");
     }
 

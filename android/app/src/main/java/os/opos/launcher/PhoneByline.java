@@ -37,12 +37,28 @@ final class PhoneByline {
         return ModelMaker.details(modelName(model), maker(model), "");
     }
 
+    static final class ArchiveName {
+        final String title;
+        final String maker;
+
+        ArchiveName(String title, String maker) {
+            this.title = title;
+            this.maker = maker;
+        }
+    }
+
+    /** A saved card names the answer's model, or the phone's reported model when absent. */
+    static ArchiveName archived(String answerModel, String reportedModel, String fallback) {
+        String model = ModelDisplay.firstNonBlank(answerModel, reportedModel);
+        return new ArchiveName(model.isEmpty() ? fallback : modelName(model), maker(model));
+    }
+
     /**
      * The phone card byline. {@code reported} is the service's phone.model; while the card hides an
      * older answer, that value is the hidden answer's model, so only the place is shown.
      */
-    private static String cardModel(String reported, String answered, boolean hasAnswer,
-                                    boolean shown) {
+    static String cardModel(String reported, String answered, boolean hasAnswer,
+                            boolean shown) {
         String model = reported == null ? "" : reported.trim();
         String own = answered == null ? "" : answered.trim();
         if (hasAnswer && shown && !own.isEmpty()) model = own;        // the answer's own model
