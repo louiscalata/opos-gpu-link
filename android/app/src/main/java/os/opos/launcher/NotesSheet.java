@@ -2,8 +2,8 @@ package os.opos.launcher;
 
 /**
  * Host-testable rules for the Notes folder tab and pull-up sheet.
- * The tab sits directly above the pinned Summary bar; both appear on the
- * inner screen and the cover.
+ * The tab sits above the pinned Summary bar except in wide layout, where it
+ * shares the Summary row.
  */
 final class NotesSheet {
     enum State { COLLAPSED, HALF, FULL }
@@ -18,8 +18,8 @@ final class NotesSheet {
     static final int SUMMARY_MAX_COVER_DP = 72;
     /** Inner cap keeps the dock compact without hiding a short report. */
     static final int SUMMARY_MAX_INNER_DP = 140;
-    /** In a short wide window, only the Summary heading peeks above the bottom edge. */
-    static final int SUMMARY_WIDE_DP = 40;
+    /** One touch-height row for Summary and Notes in a short wide window. */
+    static final int SUMMARY_WIDE_DP = 48;
     /** Fallback bottom padding (tab + summary) when the dock has not been measured. */
     static final int CONTENT_BOTTOM_PAD_DP = TAB_TOUCH_DP + SUMMARY_MIN_DP;
     static final int FLING_PX_S = 600;
@@ -54,8 +54,16 @@ final class NotesSheet {
         return wide ? SUMMARY_WIDE_DP : summaryMaxDp(coverMode);
     }
 
+    static int summaryMaxDp(boolean coverMode, boolean wide, boolean expanded) {
+        return wide && expanded ? SUMMARY_MAX_INNER_DP : summaryMaxDp(coverMode, wide);
+    }
+
     static int summaryMinDp(boolean wide) {
         return wide ? SUMMARY_WIDE_DP : SUMMARY_MIN_DP;
+    }
+
+    static int collapsedTabHeightDp(boolean wide) {
+        return wide ? 0 : TAB_TOUCH_DP;
     }
 
     static int summaryHeight(int measuredPx, int minPx, int maxPx) {
