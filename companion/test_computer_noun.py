@@ -106,15 +106,20 @@ class ComputerNounTest(unittest.TestCase):
 
 class ScreenWordsTest(unittest.TestCase):
     def test_ready_banner_names_the_mac(self):
-        lanes = [{"label": "Nemotron 3.5 Bolt"}, {"label": "LFM2 (comparison baseline)"}]
+        lanes = [{"label": "Nemotron 3.5 Bolt"}, {"label": "LFM2 1.2B (baseline)"}]
         lines = setup.ready_lines("Apple M5 Pro", lanes, "MacBook")
-        self.assertIn("MacBook GPU: Apple M5 Pro.", lines)
-        self.assertIn("Models ready: Nemotron 3.5 Bolt, LFM2 (comparison baseline).", lines)
+        self.assertIn("MacBook hardware: Apple M5 Pro.", lines)
+        self.assertIn("Computer models: Nemotron 3.5 Bolt, LFM2 1.2B (baseline).", lines)
+        self.assertIn("If a pairing code appears, compare it on both screens and tap Allow on the phone.", lines)
+        self.assertIn("Wait for 'Ready for questions on the phone.' before asking.", lines)
+        self.assertNotIn("Ask a question on the phone.", lines)
+        self.assertIn("Unplug to pause. Replug while GPU Link is running to reconnect.", lines)
         self.assertIn("Wireless: coming later.", lines)
         self.assertFalse([line for line in lines if "PC" in line.split()])
 
     def test_ready_banner_on_a_pc_still_says_pc(self):
-        self.assertIn("PC GPU: RTX 5080.", setup.ready_lines("RTX 5080", [], "PC"))
+        self.assertIn("PC hardware: RTX 5080.", setup.ready_lines("RTX 5080", [], "PC"))
+        self.assertIn("Mac hardware: CPU only.", setup.ready_lines("CPU only", [], "Mac"))
 
     def test_wire_label_names_a_mac_as_a_mac(self):
         self.assertEqual(setup.safe_label({"name": "Apple M5 Pro"}, "Darwin", "MacBook Pro"), "M5 Pro MacBook Pro")
