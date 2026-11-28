@@ -5698,29 +5698,15 @@ public final class MainActivity extends Activity {
         LinearLayout themeList = new LinearLayout(this);
         themeList.setOrientation(LinearLayout.VERTICAL);
         page.addView(themeList);
-        TextView typeHeading = newspaperText(getString(R.string.settings_typography),
-                typography.headingSp(), true, true);
-        typography.headline(typeHeading, typography.headingSp());
-        typeHeading.setPadding(0, dp(coverMode ? 8 : 8), 0, dp(coverMode ? 4 : 8));
-        page.addView(typeHeading);
-        LinearLayout typeList = new LinearLayout(this);
-        typeList.setOrientation(LinearLayout.VERTICAL);
-        page.addView(typeList);
         TextView labHeading = newspaperText(getString(R.string.settings_design_lab),
                 typography.headingSp(), true, true);
         typography.headline(labHeading, typography.headingSp());
-        labHeading.setPadding(0, dp(8), 0, dp(4));
+        labHeading.setPadding(0, dp(16), 0, dp(4));
         TextView labNote = newspaperText(getString(R.string.settings_design_lab_note),
                 typography.labelSp(), false, false);
         labNote.setTextColor(themeColor(R.color.you_asked_label));
         LinearLayout labList = new LinearLayout(this);
         labList.setOrientation(LinearLayout.VERTICAL);
-        LinearLayout preview = box();
-        LinearLayout.LayoutParams previewParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        previewParams.topMargin = dp(coverMode ? 6 : 10);
-        previewParams.bottomMargin = dp(coverMode ? 8 : 16);
-        page.addView(preview, previewParams);
         if (!coverMode) {
             page.addView(labHeading);
             page.addView(labNote);
@@ -5732,7 +5718,7 @@ public final class MainActivity extends Activity {
         // Keep the Settings title below the status bar (same as the Info sheet).
         padForSystemBars(scroll);
         dialog.setContentView(scroll);
-        bindSettingsLists(typeList, preview, themeList);
+        bindSettingsLists(themeList);
         applyPaletteToDialog(dialog);
         Window window = dialog.getWindow();
         if (window != null) window.setWindowAnimations(0);
@@ -5743,36 +5729,20 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private void bindSettingsLists(LinearLayout typeList, LinearLayout preview, LinearLayout themeList) {
-        typeList.removeAllViews();
-        String currentType = uiSettings.typography().id;
-        for (String id : TypeChoice.OPTIONS) {
-            boolean selected = id.equals(currentType);
-            LinearLayout row = optionRow(id, TypeChoice.caption(id), selected);
-            final String choice = id;
-            row.setOnClickListener(view -> {
-                if (!uiSettings.setTypography(choice)) return;
-                typography.useChoice(uiSettings.typography());
-                applyUi();
-                bindSettingsLists(typeList, preview, themeList);
-            });
-            LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-            params.topMargin = dp(coverMode ? 4 : 6);
-            typeList.addView(row, params);
-        }
-        fillTypePreview(preview);
-        if (settingsLabList != null) bindDesignLabList(settingsLabList);
+    private void bindSettingsLists(LinearLayout themeList) {
         themeList.removeAllViews();
         String currentTheme = uiSettings.themePreference();
-        for (String id : new String[]{UiSettings.THEME_DARK, UiSettings.THEME_LIGHT, UiSettings.THEME_SYSTEM}) {
+        String[] themes = {UiSettings.THEME_DARK, UiSettings.THEME_LIGHT, UiSettings.THEME_SYSTEM};
+        for (String id : themes) {
             boolean selected = id.equals(currentTheme);
             LinearLayout row = optionRow(UiSettings.themeCaption(id), "", selected);
             final String choice = id;
             row.setOnClickListener(view -> {
                 if (!uiSettings.setTheme(choice)) return;
                 applyUi();
-                bindSettingsLists(typeList, preview, themeList);
+                updateOptionRows(themeList, themes, choice);
+                view.sendAccessibilityEvent(
+                        android.view.accessibility.AccessibilityEvent.TYPE_VIEW_SELECTED);
             });
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -5790,7 +5760,9 @@ public final class MainActivity extends Activity {
             row.setOnClickListener(view -> {
                 if (!uiSettings.setDesignLab(choice)) return;
                 arrangeArticles();
-                bindDesignLabList(labList);
+                updateOptionRows(labList, DesignLab.MODES.toArray(new String[0]), choice);
+                view.sendAccessibilityEvent(
+                        android.view.accessibility.AccessibilityEvent.TYPE_VIEW_SELECTED);
             });
             LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
@@ -5804,18 +5776,14 @@ public final class MainActivity extends Activity {
         row.setOrientation(LinearLayout.VERTICAL);
         int pad = dp(coverMode ? 6 : 10);
         row.setPadding(pad, pad, pad, pad);
-        row.setBackground(panelDrawable(selected ? palette.ink() : palette.stroke()));
         TextView heading = newspaperText(title, typography.labelSp() + 2, true, false);
         heading.setTextColor(themeColor(R.color.newspaper_ink));
         row.addView(heading);
-        String detail = selected ? getString(R.string.settings_selected)
-                + (caption.isEmpty() ? "" : " · " + caption) : caption;
-        if (!detail.isEmpty()) {
-            TextView sub = newspaperText(detail, typography.labelSp(), false, false);
-            sub.setTextColor(themeColor(R.color.you_asked_label));
-            sub.setPadding(0, dp(2), 0, 0);
-            row.addView(sub);
-        }
+        TextView sub = newspaperText("", typography.labelSp(), false, false);
+        sub.setTextColor(themeColor(R.color.you_asked_label));
+        sub.setPadding(0, dp(2), 0, 0);
+        row.addView(sub);
+        setOptionSelected(row, caption, selected);
         row.setClickable(true);
         row.setFocusable(true);
         // TalkBack reads each choice as a radio button, checked or not checked.
@@ -5825,29 +5793,26 @@ public final class MainActivity extends Activity {
                 super.onInitializeAccessibilityNodeInfo(host, info);
                 info.setClassName(RadioButton.class.getName());
                 info.setCheckable(true);
-                info.setChecked(selected);
+                info.setChecked(host.isSelected());
             }
         });
         return row;
     }
 
-    private void fillTypePreview(LinearLayout preview) {
-        preview.removeAllViews();
-        TypeChoice choice = uiSettings.typography();
-        typography.useChoice(choice);
-        TextView kicker = newspaperText(getString(R.string.settings_preview_kicker),
-                choice.subheader().size(coverMode), true, false);
-        typography.kicker(kicker);
-        TextView heading = newspaperText(getString(R.string.settings_preview_heading),
-                choice.header().size(coverMode), true, true);
-        typography.headline(heading, choice.header().size(coverMode));
-        TextView body = newspaperText(getString(R.string.settings_preview_body),
-                choice.body().size(coverMode), false, true);
-        typography.body(body, choice.body().size(coverMode));
-        preview.addView(kicker);
-        preview.addView(heading);
-        preview.addView(body);
-        preview.setBackground(panelDrawable(palette.stroke()));
+    private void setOptionSelected(LinearLayout row, String caption, boolean selected) {
+        row.setSelected(selected);
+        row.setBackground(panelDrawable(selected ? palette.ink() : palette.stroke()));
+        TextView sub = (TextView) row.getChildAt(1);
+        String detail = selected ? getString(R.string.settings_selected)
+                + (caption.isEmpty() ? "" : " · " + caption) : caption;
+        setIfChanged(sub, detail);
+        sub.setVisibility(detail.isEmpty() ? View.GONE : View.VISIBLE);
+    }
+
+    private void updateOptionRows(LinearLayout list, String[] ids, String selected) {
+        for (int i = 0; i < ids.length && i < list.getChildCount(); i++) {
+            setOptionSelected((LinearLayout) list.getChildAt(i), "", ids[i].equals(selected));
+        }
     }
 
     /** Reserve the Notes tab height at the bottom of the results so Summary is not covered. */
