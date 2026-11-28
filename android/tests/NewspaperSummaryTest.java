@@ -11,7 +11,7 @@ public final class NewspaperSummaryTest {
         equal("4.8 s", NewspaperSummary.seconds(4800));
         equal("PC 4.8 s · Phone 1.6 s", NewspaperSummary.timing(4800L, 1600L));
         equal("PC … · Phone 1.6 s", NewspaperSummary.timing(null, 1600L));
-        equal("PC · 2 words · Streaming…",
+        equal("PC · 2 words · Working...",
                 NewspaperSummary.line("PC", "hello world", "Streaming…"));
         equal("Phone · 1 word · Done · 1.6 s",
                 NewspaperSummary.line("Phone", "hello", "Done · 1.6 s"));
@@ -45,6 +45,7 @@ public final class NewspaperSummaryTest {
         contains(report, "Phone finished first by 3.2 s");
         String partial = NewspaperSummary.report(Arrays.asList(
                 lanes.get(0), new NewspaperSummary.Lane("Phone", "one", "Streaming…", null)));
+        contains(partial, "Phone · 1 word · Working...");
         contains(partial, "Fastest so far: PC");
         check(!partial.contains("finished first by"));
         String othersWaiting = NewspaperSummary.report(Arrays.asList(
@@ -200,15 +201,15 @@ public final class NewspaperSummaryTest {
         check(NewspaperSummary.totalFromFinishes(Arrays.asList(
                 new NewspaperSummary.Lane("PC", "a", "Done", 7000L, 7000L, true)), 0) == null);
         // A lane with no time yet names its live state, matching its card.
-        equal("streaming", NewspaperSummary.pendingWord("Streaming…"));
-        equal("thinking", NewspaperSummary.pendingWord("Thinking…"));
+        equal("working", NewspaperSummary.pendingWord("Streaming…"));
+        equal("working", NewspaperSummary.pendingWord("Thinking…"));
         equal("paused", NewspaperSummary.pendingWord("Paused — will continue when the MacBook is back"));
         equal("queued", NewspaperSummary.pendingWord("Waiting for its turn…"));
         equal("retrying", NewspaperSummary.pendingWord("Retrying… (2/3)"));
         equal("queued", NewspaperSummary.pendingWord("Queued"));
         equal("waiting", NewspaperSummary.pendingWord("Loading… 45%"));
         equal("waiting", NewspaperSummary.pendingWord(null));
-        equal("MacBook\u00a028.4\u00a0s\nPhone\u00a0streaming\nNemotron Mini 4B\u00a0queued",
+        equal("MacBook\u00a028.4\u00a0s\nPhone\u00a0working\nNemotron Mini 4B\u00a0queued",
                 NewspaperSummary.timing(Arrays.asList(
                         new NewspaperSummary.Lane("MacBook", "a", "Done · 28.4 s", 28400L),
                         new NewspaperSummary.Lane("Phone", "b c", "Streaming…", null),
