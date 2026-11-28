@@ -150,7 +150,6 @@ const get=id=>{
   return find(nodes.get('phone-extra'),id)||find(nodes.get('pc-extra'),id);
  if(!nodes.has(id))nodes.set(id,new El(id));return nodes.get(id)};
 get('list').appendChild(get('ai-title'));get('list').appendChild(get('controls'));
-get('list').appendChild(get('announcement'));
 get('list').appendChild(get('phone-pane'));get('list').appendChild(get('phone-extra'));
 get('thumb').appendChild(get('gpu-pane'));get('thumb').appendChild(get('pc-extra'));
 const homeParent=new El('home-parent');homeParent.appendChild(get('home'));
@@ -170,6 +169,7 @@ for(let i=0;i<snapshots.length;i++){
  const cards=root=>get(root+'-extra').children.map(c=>({id:c.dataset.pane,title:get(c.dataset.pane+'-title').text,
   sectionName:c.attrs['aria-labelledby'],aria:get(c.dataset.pane+'-answer').attrs['aria-label'],
   speedClass:get(c.dataset.pane+'-speed').className,speedRole:get(c.dataset.pane+'-speed').attrs.role,
+  speedLive:get(c.dataset.pane+'-speed').attrs['aria-live'],
   stop:get(c.dataset.pane+'-stop').text,stopHidden:get(c.dataset.pane+'-stop').hidden,
   model:get(c.dataset.pane+'-model').text}));
  out.push({title:get('gpu-title').text,disclosure:get('gpu-disclosure').text,aria:get('gpu-answer').attrs['aria-label'],
@@ -178,8 +178,7 @@ for(let i=0;i<snapshots.length;i++){
   askQueued:vm.runInContext('askQueued',ctx),
   targets:Array.from(vm.runInContext('targets()',ctx)),queued:vm.runInContext('queue.length',ctx),
   phoneCards:cards('phone'),pcCards:cards('pc'),phoneRootHidden:get('phone-extra').hidden,
-  pcRootHidden:get('pc-extra').hidden,listHidden:get('list').hidden,thumbHidden:get('thumb').hidden,
-  announcementParent:get('announcement').parentNode.id});
+  pcRootHidden:get('pc-extra').hidden,listHidden:get('list').hidden,thumbHidden:get('thumb').hidden});
 }
 process.stdout.write(JSON.stringify(out));
 """
@@ -262,7 +261,6 @@ class PageScriptTest(NoNetwork):
         self.assertIn("Computer requests are closed.", self.run_page([snap])[0]["speed"])
         shown = self.run_page([_snapshot(_pc("M5 Pro MacBook Pro"))], "?pane=gpu")[0]
         self.assertEqual(shown["ask"], "Ask MacBook GPU model")
-        self.assertEqual(shown["announcementParent"], "thumb")
 
     def test_extra_cards_follow_the_visible_pane_and_ask_targets(self):
         phone_answer = {"id": "a1", "state": "answering", "text": "A live answer", "model": "Nemotron Mini 4B"}
@@ -347,7 +345,7 @@ class PageScriptTest(NoNetwork):
         self.assertIn("#phone-extra{grid-column:1 / 4;grid-row:13}", css)
         self.assertIn("#pc-extra{grid-column:1 / 4;grid-row:14}", css)
 
-    def test_extra_cards_have_named_regions_and_non_live_speed_styles(self):
+    def test_extra_cards_have_named_regions_and_non_live_speed(self):
         snap = _snapshot(_pc("M5 Pro MacBook Pro"))
         snap["models"] = [_model("m1", "phone", "Nemotron Mini 4B"),
                           _model("g1", "pc", "Granite 4.1 3B", maker="IBM")]
@@ -356,6 +354,7 @@ class PageScriptTest(NoNetwork):
             self.assertEqual(card["sectionName"], card["id"] + "-title")
             self.assertEqual(card["speedClass"], "speed")
             self.assertIsNone(card.get("speedRole"))
+            self.assertEqual(card["speedLive"], "off")
 
     def test_a_saved_answer_names_the_computer_that_wrote_it(self):
         snap = _snapshot(_pc("M5 Pro MacBook Pro"))
