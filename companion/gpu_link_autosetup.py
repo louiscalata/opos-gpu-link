@@ -3089,9 +3089,10 @@ def setup_error_message(error: Exception, stage: str = "plan", log_dir: Path | N
         return "Error: A download failed its safety check. Try again."
     if "downloads are disabled" in message:
         return "Error: A model or tool is missing. Add it before running offline."
-    if message.startswith("llama-server did not become ready"):
+    if message.startswith(("llama-server did not become ready",
+                           "llama-server (CPU fallback) did not become ready")):
         if log_dir is not None:
-            return f"Error: Model server did not start. Check logs in {str(log_dir)!r}, then retry."
+            return f"Error: Model server did not start. Check logs in {log_dir}, then retry."
         return "Error: Model server did not start. Check its log, then retry."
     if stage == "model":
         return "Error: Model setup stopped. Check the model server log, then retry."

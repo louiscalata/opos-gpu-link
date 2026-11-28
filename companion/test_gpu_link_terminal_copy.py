@@ -54,27 +54,32 @@ class TerminalCopyTests(unittest.TestCase):
         ])
 
     def test_server_start_failure_names_the_configured_log_folder(self):
-        output = io.StringIO()
         args = SimpleNamespace(detect_only=False, prefetch=False, no_phone=False,
-                               log_dir=Path("/safe/model-logs"))
+                               log_dir=Path("model-logs"))
         info = {"gpu": {"note": ""}}
-        with contextlib.redirect_stdout(output), \
-                patch.object(setup, "install_term_handler"), \
-                patch.object(setup, "plan", return_value=info), \
-                patch.object(setup, "start_runtime", side_effect=RuntimeError(
-                    "llama-server did not become ready; see /private/unknown.log")):
-            self.assertEqual(setup.run(args), 2)
-        self.assertEqual(output.getvalue().splitlines(), [
-            "GPU Link: Error: Model server did not start. Check logs in '/safe/model-logs', then retry."])
+        for reason in ("llama-server did not become ready; see /private/unknown.log",
+                       "llama-server (CPU fallback) did not become ready; see /private/unknown.log"):
+            with self.subTest(reason=reason):
+                output = io.StringIO()
+                with contextlib.redirect_stdout(output), \
+                        patch.object(setup, "install_term_handler"), \
+                        patch.object(setup, "plan", return_value=info), \
+                        patch.object(setup, "start_runtime", side_effect=RuntimeError(reason)):
+                    self.assertEqual(setup.run(args), 2)
+                self.assertEqual(output.getvalue().splitlines(), [
+                    f"GPU Link: Error: Model server did not start. Check logs in {args.log_dir}, then retry."])
 
     def test_companion_expected_failures_have_a_next_action(self):
         for reason in ("More than one authorized USB phone is present; pass --serial",
+                       "No authorized USB phone is present",
                        "GPU Link is already running for this phone, or its lock is unavailable",
                        "adb is unavailable"):
             line = link.presenter_error(link.CompanionError(reason))
             self.assertTrue(line.startswith("Error: "))
             self.assertIn(".", line)
-            self.assertTrue(any(action in line for action in ("Unplug", "Stop", "Install")))
+            self.assertTrue(any(action in line for action in ("Unplug", "Connect", "Stop", "Install")))
+        self.assertEqual(link.presenter_error(link.CompanionError("No authorized USB phone is present")),
+                         "Error: No USB phone is ready. Connect and allow the phone by USB, then retry.")
 
     def test_pairing_file_errors_do_not_print_a_path_or_blame_the_phone(self):
         for reason in (PermissionError(13, "Permission denied", "/private/pairing/lock"),
@@ -113,6 +118,28 @@ class TerminalCopyTests(unittest.TestCase):
                                 "--server", "http://127.0.0.1:9/v1/chat/completions"])
         self.assertEqual(result, 0)
         self.assertTrue(companion_type.call_args.kwargs["headless"])
+        window.destroy.assert_called_once_with()
+        self.assertEqual(output.getvalue().splitlines(),
+                         ["GPU Link: Window unavailable. Continuing in the terminal."])
+
+    def test_widget_creation_failure_uses_terminal_without_traceback(self):
+        class WindowError(Exception):
+            pass
+
+        window = Mock()
+        terminal = Mock(cleanup_ok=True)
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(output), \
+                patch.dict(sys.modules, {"tkinter": SimpleNamespace(Tk=lambda: window,
+                                                              TclError=WindowError)}), \
+                patch.object(link, "computer_noun", return_value="MacBook"), \
+                patch.object(link, "resolve_launch_adb", return_value="fake-adb"), \
+                patch.object(link, "Companion", side_effect=[WindowError("widget failed"), terminal]) as companion_type:
+            result = link.main(["--model", "local", "--serial", "PHONE", "--key-dir", directory,
+                                "--server", "http://127.0.0.1:9/v1/chat/completions"])
+        self.assertEqual(result, 0)
+        self.assertEqual([call.kwargs["headless"] for call in companion_type.call_args_list],
+                         [False, True])
         window.destroy.assert_called_once_with()
         self.assertEqual(output.getvalue().splitlines(),
                          ["GPU Link: Window unavailable. Continuing in the terminal."])

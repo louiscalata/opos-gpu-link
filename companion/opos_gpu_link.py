@@ -1015,6 +1015,8 @@ def presenter_error(error: Exception) -> str:
         return "Error: GPU Link is already running for this phone. Stop the other copy, then retry."
     if "More than one authorized USB phone" in message:
         return "Error: More than one USB phone is ready. Unplug the extra phone, then retry."
+    if "No authorized USB phone is present" in message:
+        return "Error: No USB phone is ready. Connect and allow the phone by USB, then retry."
     if "adb is unavailable" in message or "adb not found" in message:
         return "Error: USB tools are missing. Install Android platform tools, then retry."
     if "adb" in message or "forward" in message:
@@ -2039,7 +2041,20 @@ def main(argv=None, runtime=None, data_dir=None, models_dir=None) -> int:
                 root, tk = None, None
                 headless = True
                 print("GPU Link: Window unavailable. Continuing in the terminal.", flush=True)
-        app = Companion(args, root, tk, headless=headless)
+        if headless:
+            app = Companion(args, None, None, headless=True)
+        else:
+            try:
+                app = Companion(args, root, tk, headless=False)
+            except tk.TclError:
+                try:
+                    root.destroy()
+                except Exception:
+                    pass
+                root, tk = None, None
+                headless = True
+                print("GPU Link: Window unavailable. Continuing in the terminal.", flush=True)
+                app = Companion(args, root, tk, headless=True)
         old_handlers = {}
         if headless:
             for sig in (signal.SIGINT, signal.SIGTERM):

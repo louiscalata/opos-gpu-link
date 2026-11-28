@@ -58,7 +58,8 @@ def devices(output: str) -> list[tuple[str, str, bool]]:
 
 def usb_serial(serial: str) -> bool:
     """Exclude wireless adb and emulator transports, even if they claim USB metadata."""
-    return not (serial.startswith("emulator-") or "._tcp" in serial or re.search(r":\d+$", serial))
+    return not (re.search(r"\s", serial) or serial.startswith("emulator-") or
+                "._tcp" in serial or re.search(r":\d+\Z", serial))
 
 
 def flag(output: str, names: Sequence[str]) -> Optional[bool]:
@@ -135,7 +136,11 @@ def run_preflight(adb: str, serial: Optional[str],
         matches = [item for item in ready if item[0] == serial]
         chosen = matches[0] if len(matches) == 1 else None
     if chosen is None:
-        states = ", ".join(f"{name} ({state})" for name, state, _usb in found) or "none"
+        states = ", ".join(
+            f"{name} ({state})" +
+            (" (not a USB phone)" if state == "device" and not usb_serial(name) else
+             " (USB connection not shown)" if state == "device" and not usb else "")
+            for name, state, usb in found) or "none"
         emit(f"FAIL device: {states}")
         emit("Fix: connect and allow a USB phone; use --serial if several are ready.")
         return 1

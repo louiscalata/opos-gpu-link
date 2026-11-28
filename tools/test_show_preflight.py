@@ -108,6 +108,8 @@ class ShowPreflightTests(unittest.TestCase):
         self.assertTrue(lines[0].startswith("FAIL device:"))
 
     def test_network_and_emulator_cannot_pass_a_usb_check(self):
+        self.assertFalse(preflight.usb_serial("192.0.2.5:5555\n"))
+        self.assertFalse(preflight.usb_serial("demo-123\n"))
         for transport in ("192.0.2.5:5555 device model:Flip\n",
                           "emulator-5554 device usb:1-1 model:Flip\n",
                           "adb-Flip._adb-tls-connect._tcp device usb:1-1 model:Flip\n"):
@@ -117,6 +119,7 @@ class ShowPreflightTests(unittest.TestCase):
                     code, lines, calls = self.run_check({("devices", "-l"): listing}, args)
                     self.assertEqual(code, 1)
                     self.assertTrue(lines[0].startswith("FAIL device:"))
+                    self.assertIn("(not a USB phone)", lines[0])
                     self.assertEqual(calls, [("adb", "devices", "-l")])
 
         listing = LISTING + "192.0.2.5:5555 device model:Other\n"
