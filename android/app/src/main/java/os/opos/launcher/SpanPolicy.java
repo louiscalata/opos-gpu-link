@@ -27,6 +27,16 @@ final class SpanPolicy {
         return Mode.NONE;
     }
 
+    /**
+     * The width the page layout should be built for. When spanned it is the left (chat) pane only, so
+     * the layout family (inner, compact, cover) is the same as on one screen and spanning never
+     * triggers a recreate.
+     */
+    static int contentWidthDp(SpanGeometry g, int densityDpi, int windowWidthDp) {
+        if (resolve(g, densityDpi) != Mode.SIDE_BY_SIDE) return windowWidthDp;
+        return pxToDp(g.hingeLeft, densityDpi);
+    }
+
     /** A hinge inside a real window that runs the full height with room on both sides. */
     static boolean verticalHinge(SpanGeometry g) {
         return g != null && g.windowW > 0 && g.windowH > 0 && g.hasHinge()
