@@ -192,6 +192,7 @@
     <string name="notes_tab_close">Close Notes</string>
     <string name="summary_open">Open Summary</string>
     <string name="summary_close">Close Summary</string>
+    <string name="summary_title">Summary</string>
     <string name="notes_saved">Saved to Notes</string>
 </resources>
 

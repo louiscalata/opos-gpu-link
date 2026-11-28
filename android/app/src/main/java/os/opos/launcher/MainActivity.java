@@ -240,7 +240,8 @@ public final class MainActivity extends Activity {
     private float lastCollapseFraction = -1f;
     private JSONObject snapshot;
     private Dialog infoDialog;
-    private Dialog modelSelectionDialog, historyDialog, backIssueDialog;
+    private Dialog modelSelectionDialog, historyDialog, backIssueDialog, summaryDialog;
+    private TextView fullSummaryText;
     private Dialog quitProgressDialog;
     private PopupWindow menuPopup;
     private LaneSelection laneSelection;
@@ -1027,10 +1028,12 @@ public final class MainActivity extends Activity {
         notesCard.setOnDragListener(notesTargetListener());
         applyNotesCompact();
         summaryCard = box();
-        summaryHeading = newspaperText("SUMMARY", 18, true, true);
+        summaryHeading = newspaperText("SUMMARY", typography.headingSp(), true, true);
+        typography.headline(summaryHeading, typography.headingSp());
         summaryCard.addView(summaryHeading);
-        summaryText = newspaperText("Ask the models to compare their answers.", 16, false, true);
-        typography.body(summaryText, 16);
+        summaryText = newspaperText("Ask the models to compare their answers.",
+                typography.bodySp(), false, true);
+        typography.body(summaryText, typography.bodySp());
         summaryCard.addView(summaryText, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         resultsScroll.post(() -> {
@@ -1676,6 +1679,7 @@ public final class MainActivity extends Activity {
         if (modelSelectionDialog != null) modelSelectionDialog.dismiss();
         if (historyDialog != null) historyDialog.dismiss();
         if (backIssueDialog != null) backIssueDialog.dismiss();
+        if (summaryDialog != null) summaryDialog.dismiss();
         if (infoDialog != null) {
             infoDialog.dismiss();
             infoDialog = null;
@@ -2802,7 +2806,7 @@ public final class MainActivity extends Activity {
             setPlainAnswer(article.answer, "");
             updateExpanded(article);
         }
-        setIfChanged(summaryText, "");
+        setSummaryReport("");
         setTonightTiming("");
         setIfChanged(tonightCount, "—");
         setIfChanged(tonightProvenance, "");
@@ -3689,20 +3693,53 @@ public final class MainActivity extends Activity {
     }
 
     private void setSummaryReport(String report) {
-        if (summaryText == null) return;
-        typography.body(summaryText, 16);
+        paintSummaryReport(summaryText, report);
+        paintSummaryReport(fullSummaryText, report);
+    }
+
+    private void paintSummaryReport(TextView view, String report) {
+        if (view == null) return;
+        typography.body(view, typography.bodySp());
         SpannableStringBuilder styled = new SpannableStringBuilder(report);
         int ink = themeColor(R.color.newspaper_ink);
         int error = parseHex(palette.error());
-        styled.setSpan(new ForegroundColorSpan(ink), 0, styled.length(),
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        if (styled.length() > 0) {
+            styled.setSpan(new ForegroundColorSpan(ink), 0, styled.length(),
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
         for (ErrorCopy.Range range : ErrorCopy.lineRanges(report)) {
             if (!range.error) continue;
             styled.setSpan(new ForegroundColorSpan(error), range.start, range.end,
                     Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
-        summaryText.setTextColor(ink);
-        summaryText.setText(styled);
+        view.setTextColor(ink);
+        view.setText(styled);
+    }
+
+    /** The pinned preview can clip a five-model report; this page shows every line. */
+    private void showSummaryPage() {
+        if (summaryDialog != null && summaryDialog.isShowing()) return;
+        Dialog dialog = new Dialog(this, R.style.NewspaperDialogTheme);
+        summaryDialog = dialog;
+        dialog.setOnDismissListener(ignored -> {
+            if (summaryDialog == dialog) {
+                summaryDialog = null;
+                fullSummaryText = null;
+            }
+        });
+        LinearLayout root = pageRoot();
+        root.addView(pageBar(getString(R.string.summary_title), getString(R.string.close),
+                view -> dialog.dismiss()));
+        ScrollView scroll = new ScrollView(this);
+        fullSummaryText = newspaperText("", typography.bodySp(), false, true);
+        fullSummaryText.setTextIsSelectable(true);
+        fullSummaryText.setPadding(0, dp(12), 0, dp(16));
+        scroll.addView(fullSummaryText);
+        root.addView(scroll, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
+        paintSummaryReport(fullSummaryText, summaryText.getText().toString());
+        showFullPage(dialog, root);
+        applyPaletteToDialog(dialog);
     }
 
     /** A string resource with "PC" replaced by the paired computer's noun (MacBook, Mac or PC). */
@@ -6166,6 +6203,11 @@ public final class MainActivity extends Activity {
             summaryHeading.setContentDescription(getString(summaryExpanded
                     ? R.string.summary_close : R.string.summary_open));
             summaryScroll.setVisibility(summaryExpanded ? View.VISIBLE : View.GONE);
+        } else if (NotesSheet.summaryOpensFullPage(landscapeLayout)) {
+            summaryCard.setClickable(true);
+            summaryCard.setFocusable(true);
+            summaryCard.setContentDescription(getString(R.string.summary_open));
+            summaryCard.setOnClickListener(view -> showSummaryPage());
         }
         if (summaryText != null) {
             if (landscapeLayout) {

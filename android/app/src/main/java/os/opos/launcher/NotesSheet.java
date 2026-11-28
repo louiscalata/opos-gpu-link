@@ -58,6 +58,11 @@ final class NotesSheet {
         return wide && expanded ? SUMMARY_MAX_INNER_DP : summaryMaxDp(coverMode, wide);
     }
 
+    /** Wide layout expands in place; a short portrait or cover preview opens the full report. */
+    static boolean summaryOpensFullPage(boolean wide) {
+        return !wide;
+    }
+
     static int summaryMinDp(boolean wide) {
         return wide ? SUMMARY_WIDE_DP : SUMMARY_MIN_DP;
     }

@@ -47,6 +47,8 @@ public final class NotesSheetTest {
         equal(48, NotesSheet.summaryMaxDp(false, true, false));
         equal(140, NotesSheet.summaryMaxDp(false, true, true));
         equal(72, NotesSheet.summaryMaxDp(true, false, true));
+        check(NotesSheet.summaryOpensFullPage(false));
+        check(!NotesSheet.summaryOpensFullPage(true));
         equal(48, NotesSheet.summaryMinDp(true));
         equal(0, NotesSheet.collapsedTabHeightDp(true));
         equal(48, NotesSheet.collapsedTabHeightDp(false));
