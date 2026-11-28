@@ -458,10 +458,21 @@ public final class MainActivity extends Activity {
                 insetLeft = bars.left;
                 insetTop = bars.top;
                 insetRight = bars.right;
+                int previousInsetBottom = insetBottom;
                 insetBottom = NotesSheet.dockInset(bars.bottom, gestures.bottom, keyboard.bottom);
-                applyScreenBottomReserve();
-                if (compactLayout) setCompactKeyboardMode(
-                        windowInsets.isVisible(WindowInsets.Type.ime()));
+                boolean imeVisible = windowInsets.isVisible(WindowInsets.Type.ime());
+                boolean collapseSummary = landscapeLayout && imeVisible && summaryExpanded;
+                if (collapseSummary) {
+                    summaryExpanded = false;
+                    pinSummaryBar();
+                } else {
+                    applyScreenBottomReserve();
+                }
+                if (landscapeLayout && notesSheetState != NotesSheet.State.COLLAPSED
+                        && (collapseSummary || insetBottom != previousInsetBottom)) {
+                    setNotesSheetState(notesSheetState, false);
+                }
+                if (compactLayout) setCompactKeyboardMode(imeVisible);
                 return windowInsets;
             });
             screen.requestApplyInsets();
@@ -6127,6 +6138,9 @@ public final class MainActivity extends Activity {
                 summaryHeading.setFocusable(true);
                 summaryHeading.setAccessibilityDelegate(mastheadButtonRole());
                 summaryHeading.setOnClickListener(view -> {
+                    if (!summaryExpanded && notesSheetState != NotesSheet.State.COLLAPSED) {
+                        setNotesSheetState(NotesSheet.State.COLLAPSED, false);
+                    }
                     summaryExpanded = !summaryExpanded;
                     pinSummaryBar();
                     setNotesSheetState(notesSheetState, false);
@@ -6138,12 +6152,15 @@ public final class MainActivity extends Activity {
                 notesTab.setMinimumWidth(dp(48));
                 summaryRow.addView(notesTab, new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.WRAP_CONTENT, dp(NotesSheet.SUMMARY_WIDE_DP)));
+                notes.setAccessibilityTraversalAfter(notesTab.getId());
             }
             String cue = summaryExpanded ? " · Close" : " · Open";
             SpannableStringBuilder heading = new SpannableStringBuilder("SUMMARY" + cue);
             heading.setSpan(new TypefaceSpan(typography.interMedium), 7, heading.length(),
                     Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            heading.setSpan(new AbsoluteSizeSpan(typography.labelSp(), true), 7,
+            int cuePx = Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP,
+                    typography.labelSp(), getResources().getDisplayMetrics()));
+            heading.setSpan(new AbsoluteSizeSpan(cuePx, false), 7,
                     heading.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
             summaryHeading.setText(heading);
             summaryHeading.setContentDescription(getString(summaryExpanded
@@ -6190,6 +6207,7 @@ public final class MainActivity extends Activity {
             notesTab.setPadding(dp(18), dp(8), dp(18), dp(6));
             notesTab.setClickable(true);
             notesTab.setFocusable(true);
+            notesTab.setId(View.generateViewId());
             notesTab.setAccessibilityDelegate(mastheadButtonRole());
             notesTab.setOnClickListener(view -> setNotesSheetState(
                     NotesSheet.onTabTap(notesSheetState), true));
@@ -6435,6 +6453,10 @@ public final class MainActivity extends Activity {
     }
 
     private void setNotesSheetState(NotesSheet.State state, boolean animate, float velocityPxPerSec) {
+        if (landscapeLayout && state != NotesSheet.State.COLLAPSED && summaryExpanded) {
+            summaryExpanded = false;
+            pinSummaryBar();
+        }
         notesSheetState = state;
         int target = NotesSheet.height(state, notesCollapsedH(), notesHalfH(), notesFullH());
         cancelNotesSheetMotion();
@@ -6524,7 +6546,7 @@ public final class MainActivity extends Activity {
                     boolean dragged = notesSheetDragging;
                     notesSheetDragging = false;
                     if (!dragged && event.getActionMasked() == MotionEvent.ACTION_UP) {
-                        setNotesSheetState(NotesSheet.onTabTap(notesSheetState), true);
+                        view.performClick();
                     } else {
                         NotesSheet.State next = NotesSheet.snap(currentNotesSheetHeight(),
                                 notesCollapsedH(), notesHalfH(), notesFullH(), velocity);
