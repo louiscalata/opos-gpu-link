@@ -773,6 +773,7 @@ h1,h2,.speed{font-family:Newsreader,serif}
 .pane{min-width:0;margin-top:16px}
 .pane p{margin:0 0 8px}
 .speed{font-size:32px;line-height:1.15}
+.sr-only{position:absolute;width:1px;height:1px;padding:0;margin:-1px;overflow:hidden;clip:rect(0,0,0,0);white-space:nowrap;border:0}
 .answer{white-space:pre-wrap;overflow-wrap:anywhere;height:30vh;max-height:30vh;overflow-y:auto;box-sizing:border-box;border:1px solid var(--fg);padding:12px}
 #err:not(:empty){border:3px double var(--fg);padding:8px}
 #question{width:100%;min-height:48px;background:var(--bg);color:var(--fg);border:1px solid var(--fg);font:inherit}
@@ -825,12 +826,13 @@ _LIST = """
 <label for="question">Question</label><input id="question" type="text" autocomplete="off">
 <button id="ask" type="button" class="main">Ask both models</button>
 <div id="presets" aria-label="Preset questions"></div>
-<p id="err" role="status"></p>
+<p id="err"></p>
 </div>
+<p id="announcement" class="sr-only" role="status"></p>
 <section id="phone-pane" class="pane" aria-labelledby="phone-title">
 <h2 id="phone-title">Phone</h2>
 <p id="phone-model" class="model" hidden></p>
-<p id="phone-speed" class="speed" role="status">Waiting for a snapshot</p>
+<p id="phone-speed" class="speed">Waiting for a snapshot</p>
 <p id="phone-state" class="details" hidden></p>
 <div id="phone-answer" class="answer" tabindex="0" role="region" aria-label="Phone answer"></div>
 <button id="phone-stop" class="stop" type="button" hidden>Stop phone answer</button>
@@ -841,9 +843,9 @@ _THUMB = """
 <section id="gpu-pane" class="pane" aria-labelledby="gpu-title">
 <h2 id="gpu-title">Computer GPU</h2>
 <p id="gpu-model" class="model" hidden></p>
-<p id="gpu-speed" class="speed" role="status">Waiting for a snapshot</p>
+<p id="gpu-speed" class="speed">Waiting for a snapshot</p>
 <p id="gpu-state" class="details" hidden></p>
-<p id="gpu-cable" role="status" hidden></p>
+<p id="gpu-cable" hidden></p>
 <p id="gpu-disclosure">This computer can see what you ask here.</p>
 <div id="gpu-answer" class="answer" tabindex="0" role="region" aria-label="Computer GPU answer"></div>
 <button id="gpu-stop" class="stop" type="button" hidden>Stop GPU answer</button>
@@ -879,11 +881,13 @@ if(pane){document.documentElement.setAttribute('data-pane',pane);G(pane==='phone
 if(pane==='gpu'){
  G('thumb').insertBefore(G('controls'),G('gpu-pane'));
  G('thumb').insertBefore(G('ai-title'),G('controls'));
+ G('thumb').insertBefore(G('announcement'),G('gpu-pane'));
 }
 if(pane==='phone')G('list').appendChild(G('home').parentNode);
 var token=document.querySelector('meta[name=opos-token]').content;
 var stale=false;
 var boot=null,rev=-1,current=null,timer=null,busy=false,askQueued=false,queue=[],last=-Infinity,open=false,pendingCode=null,presetKey=null;
+var lastAnswerState={},announcements=[],clearAnnouncement=false,noticeTicket=0;
 var OPEN=['queued','waiting','loading','answering','paused'];
 var ERRORS={no_model:'No model is available on this phone.',stream_error:'The phone model could not finish the answer.',
  too_long:'The answer reached the storage limit.',restart:'The phone restarted before the answer finished.',
@@ -947,6 +951,20 @@ function cableWords(p){
  if(stuck)return 'Connected. Safe to unplug: the answer is saved.';
  return 'Connected. Safe to unplug: the answer is saved and continues when the '+noun()+' is ready again.';
 }
+function notice(value,repeat){
+ var ticket=++noticeTicket;
+ if(repeat&&value&&G('announcement').textContent===value){
+  text('announcement','');
+  setTimeout(function(){if(ticket===noticeTicket)text('announcement',value)},50);
+ }else text('announcement',value);
+}
+function noteState(id,label,a,state){
+ var key=a?a.id+':'+a.state:'';
+ if(lastAnswerState[id]===key)return;
+ lastAnswerState[id]=key;
+ if(a&&['done','cancelled','failed'].indexOf(a.state)>=0)announcements.push(label+': '+state);
+ else clearAnnouncement=true;
+}
 function drawPane(name,p){
  var off=name==='gpu'&&!p.link,a=off?null:p.answer,isOpen=!!(a&&OPEN.indexOf(a.state)>=0);
  var pc=name==='gpu'&&p.link&&p.link.pc;
@@ -957,6 +975,7 @@ function drawPane(name,p){
  var state=off?'GPU Link is off.':words(name,p);
  if(pc&&pc.state==='copying'&&pc.total>0&&pc.copied!=null&&state==='Copying the model')
   state+=': '+Math.min(100,Math.floor(pc.copied*100/pc.total))+'%';
+ if(pane===null||pane===name)noteState(name,name==='gpu'?Noun()+' GPU':'Phone',a,state);
  var speed=a&&a.tps!=null;
  var live=name==='phone'&&a&&a.state==='answering'&&p.live_speed!=null&&!speed;
  text(name+'-speed',speed?a.tps+' tokens per second · this run':live?'about '+p.live_speed+' pieces per second · this run':state);
@@ -988,7 +1007,7 @@ function drawPCModels(s){
    [['h2','title'],['p','model'],['p','speed'],['p','state'],['div','answer'],['button','stop']].forEach(function(pair){
     var e=document.createElement(pair[0]);e.id=id+'-'+pair[1];
     if(pair[1]==='answer'){e.className='answer';e.tabIndex=0;e.setAttribute('role','region')}
-    if(pair[1]==='speed'){e.className='speed';e.setAttribute('role','status')}
+    if(pair[1]==='speed')e.className='speed';
     if(pair[1]==='stop'){e.className='stop';e.type='button'}
     card.appendChild(e)});
   }
@@ -1007,6 +1026,7 @@ function drawPCModels(s){
   }else if(m.ready)state='Ready';
   if(!a&&!m.ready&&m.kind==='phone')state='No model is available on this phone.';
   var title=a&&a.model||m.label||m.model||'Model';
+  noteState(id,title,a,state);
   text(id+'-title',title);text(id+'-model',[a&&a.model&&a.model!==(m.label||m.model)?'':m.maker,whereWords(m.where)].filter(Boolean).join(' · '));
   G(id+'-answer').setAttribute('aria-label',title+' answer');
   text(id+'-stop','Stop '+title+' answer');
@@ -1043,6 +1063,7 @@ function buttons(){
 }
 function draw(s){
  if(s.locked){current=null;open=false;askQueued=false;G('controls').hidden=true;G('enrol').hidden=true;
+  lastAnswerState={};notice('Unlock the phone to use AI mode.');
   ['phone','gpu'].forEach(function(n){text(n+'-answer','');line(n+'-state','');
    line(n+'-model','');text(n+'-speed','Unlock the phone to use AI mode.');G(n+'-stop').hidden=true});
   G('phone-extra').textContent='';G('phone-extra').hidden=true;
@@ -1055,8 +1076,11 @@ function draw(s){
  boot=s.boot;rev=s.rev;current=s;G('controls').hidden=false;G('allow').hidden=false;
  document.documentElement.setAttribute('data-fanout',String((s.models||[]).some(function(m){return m.kind==='pc'})));
  // Every field is drawn synchronously from s; the browser paints after this task.
+ announcements=[];clearAnnouncement=false;
  drawPane('phone',s.phone);drawPane('gpu',s.gpu);
  drawPCModels(s);
+ if(announcements.length)notice(announcements.join(' '),true);
+ else if(clearAnnouncement)notice('');
  open=[s.phone,s.gpu].concat(s.models||[]).some(function(p){return p.answer&&OPEN.indexOf(p.answer.state)>=0});
  var link=s.gpu.link,pc=link&&link.pc,pending=link&&link.pending;
  G('enrol').hidden=!pending;G('reopen').hidden=!(link&&link.enrol==='closed');G('forget').hidden=!pc;
@@ -1096,19 +1120,21 @@ function request(){
  Promise.race([response,deadline]).then(function(result){
    var r=result,s=result.snapshot;
    if(r.status===403&&s&&s.error==='forbidden'){
-    stale=true;queue=[];askQueued=false;buttons();text('err','This page is out of date. Reload it, then try again.');return}
+    stale=true;queue=[];askQueued=false;buttons();showError('This page is out of date. Reload it, then try again.');return}
    if(r.status===403&&s&&s.error==='locked'){queue=[];askQueued=false;text('err','');draw({locked:true});return}
-   if(r.status!==200){text('err',s.error||'AI mode could not update.');return}
-   text('err','');draw(s);
-  }).catch(function(){text('err',timedOut?'The phone did not answer.':'AI mode could not update.');
+   if(r.status!==200){showError(s.error||'AI mode could not update.');return}
+   if(G('err').textContent){text('err','');notice('')}
+   draw(s);
+  }).catch(function(){showError(timedOut?'The phone did not answer.':'AI mode could not update.');
  }).finally(function(){clearTimeout(timeout);busy=false;if(body&&body.action==='ask'){askQueued=false;buttons()}schedule()});
 }
 function send(body){if(document.hidden)return;queue.push(body);schedule()}
+function showError(message){text('err',message);notice(message)}
 function ask(){
  if(document.hidden||stale||!current||!targets().length)return;
  if(askQueued)return;
- if(answering()){text('err','Wait for this answer, or stop it.');return}
- if(noticeStands()){text('err',current.gpu.link.storage_notice);return}
+ if(answering()){showError('Wait for this answer, or stop it.');return}
+ if(noticeStands()){showError(current.gpu.link.storage_notice);return}
  askQueued=true;buttons();
  send({action:'ask',question:G('question').value,panes:targets()});
 }

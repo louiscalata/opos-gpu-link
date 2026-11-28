@@ -14,23 +14,28 @@ NODE_HARNESS = r"""
 const fs=require('node:fs'),vm=require('node:vm');
 const input=JSON.parse(fs.readFileSync(0,'utf8'));
 const nodes=new Map();
+const statusWrites=[];
+const noticeTimers=[];
 class El{
  constructor(id){this.id=id;this.text='';this.hidden=false;this.dataset={};this.attrs={};
   this.children=[];this.value='';this.style={};this.scrollHeight=0;this.clientHeight=0;
   this.scrollTop=0;this.classList={toggle(){},add(){},remove(){}}}
- set textContent(v){this.text=String(v);this.children=[]} get textContent(){return this.text}
+ set textContent(v){this.text=String(v);this.children=[];
+  if(this.id==='announcement')statusWrites.push(this.text)} get textContent(){return this.text}
  appendChild(c){this.children.push(c);c.parentNode=this;return c} insertBefore(c){return this.appendChild(c)}
  setAttribute(k,v){this.attrs[k]=String(v)} getAttribute(k){return this.attrs[k]}
  remove(){} focus(){} addEventListener(){}
 }
 const get=id=>{if(!nodes.has(id))nodes.set(id,new El(id));return nodes.get(id)};
+get('home-parent').appendChild(get('home'));
 const document={hidden:false,documentElement:new El('html'),getElementById:get,
  createElement:()=>new El(''),activeElement:null,
  querySelector:()=>({content:'fixture-token'}),addEventListener(){}};
 const refuse=name=>function(){throw new Error(name+' is not allowed in tests')};
-const ctx=vm.createContext({document,location:{search:''},URLSearchParams,AbortController,
+const ctx=vm.createContext({document,location:{search:input.search||''},URLSearchParams,AbortController,
  WebSocket:refuse('WebSocket'),EventSource:refuse('EventSource'),XMLHttpRequest:refuse('XMLHttpRequest'),
- performance:{now:()=>0},setTimeout:()=>0,clearTimeout(){},console,
+ performance:{now:()=>0},setTimeout:(fn,delay)=>{if(delay===50)noticeTimers.push(fn);return 0},
+ clearTimeout(){},console,
  fetch:()=>{if(input.duringRequest)vm.runInContext(input.duringRequest,ctx);
   return input.reply?Promise.resolve({status:input.reply.status,
    json:()=>Promise.resolve(input.reply.body)}):new Promise(()=>{})}});
@@ -43,9 +48,11 @@ const ctx=vm.createContext({document,location:{search:''},URLSearchParams,AbortC
   phoneRootHidden:get('phone-extra').hidden,pcRootHidden:get('pc-extra').hidden};
  if(input.after)vm.runInContext('draw('+JSON.stringify(input.after)+')',ctx);
  if(input.afterAction)vm.runInContext(input.afterAction,ctx);
+ while(noticeTimers.length)noticeTimers.shift()();
  process.stdout.write(JSON.stringify({phoneSpeed:get('phone-speed').text,
   gpuSpeed:get('gpu-speed').text,m1Speed:get('m1-speed').text,g1Speed:get('g1-speed').text,
   phoneState:get('phone-state').text,m1State:get('m1-state').text,g1State:get('g1-state').text,
+  announcement:get('announcement').text,statusWrites,
   error:get('err').text,controlsHidden:get('controls').hidden,
   askDisabled:get('ask').disabled,askQueued:vm.runInContext('askQueued',ctx),
   queued:vm.runInContext('queue.length',ctx),responseState}));
@@ -66,15 +73,66 @@ def _model(pane, kind, answer, *, live_speed=None):
 
 @unittest.skipIf(shutil.which("node") is None, "needs node to run the page script")
 class PageStatusTest(NoNetwork):
-    def run_page(self, snapshot, reply=None, *, during_request=None, after=None, after_action=None):
+    def run_page(self, snapshot, reply=None, *, during_request=None, after=None, after_action=None,
+                 search=""):
         script = _constants(PAGE, "_SCRIPT")[0][1]
         done = subprocess.run(["node", "-e", NODE_HARNESS],
                               input=json.dumps({"script": script, "snapshot": snapshot, "reply": reply,
                                                 "duringRequest": during_request, "after": after,
-                                                "afterAction": after_action}),
+                                                "afterAction": after_action, "search": search}),
                               capture_output=True, text=True, timeout=30, check=False)
         self.assertEqual(done.returncode, 0, done.stderr[-2000:])
         return json.loads(done.stdout)
+
+    def test_one_live_region_announces_completion_once_without_reading_live_speeds(self):
+        markup = _constants(PAGE, "_LIST")[0][1] + _constants(PAGE, "_THUMB")[0][1]
+        script = _constants(PAGE, "_SCRIPT")[0][1]
+        self.assertEqual(markup.count('role="status"'), 1)
+        self.assertNotIn("setAttribute('role','status')", script)
+
+        snap = _snapshot()
+        snap["models"] = [_model("m1", "phone", _answer("m", "answering"), live_speed=7)]
+        changed_speed = json.loads(json.dumps(snap))
+        changed_speed["rev"] = 2
+        changed_speed["models"][0]["live_speed"] = 12
+        done = json.loads(json.dumps(changed_speed))
+        done["rev"] = 3
+        done["models"][0]["answer"]["state"] = "done"
+        shown = self.run_page(snap, after=changed_speed,
+                              after_action=f"draw({json.dumps(done)});draw({json.dumps(done)})")
+        self.assertEqual(shown["statusWrites"], ["Nemotron Mini 4B: Done"])
+        self.assertEqual(shown["announcement"], "Nemotron Mini 4B: Done")
+
+    def test_stopped_and_failed_answers_are_announced_once(self):
+        for state, error, expected in (("cancelled", None, "Stopped"),
+                                       ("failed", "stream_error", "The phone model could not finish the answer.")):
+            with self.subTest(state=state):
+                snap = _snapshot()
+                snap["models"] = [_model("m1", "phone", _answer("m", "answering"), live_speed=7)]
+                finished = json.loads(json.dumps(snap))
+                finished["rev"] = 2
+                finished["models"][0]["answer"].update(state=state, error=error)
+                shown = self.run_page(snap, after=finished,
+                                      after_action=f"draw({json.dumps(finished)})")
+                self.assertEqual(shown["statusWrites"], [f"Nemotron Mini 4B: {expected}"])
+
+    def test_two_fast_answers_with_the_same_done_words_both_announce(self):
+        first = _snapshot()
+        first["models"] = [_model("m1", "phone", _answer("first", "done"))]
+        second = json.loads(json.dumps(first))
+        second["rev"] = 2
+        second["models"][0]["answer"]["id"] = "second"
+        shown = self.run_page(first, after=second)
+        self.assertEqual(shown["statusWrites"], ["Nemotron Mini 4B: Done", "",
+                                                 "Nemotron Mini 4B: Done"])
+
+    def test_single_pane_does_not_announce_an_answer_hidden_on_the_other_pane(self):
+        for visible, hidden in (("phone", "gpu"), ("gpu", "phone")):
+            with self.subTest(visible=visible):
+                snap = _snapshot()
+                snap[hidden]["answer"] = _answer("hidden", "done")
+                shown = self.run_page(snap, search="?pane=" + visible)
+                self.assertEqual(shown["statusWrites"], [])
 
     def test_live_speed_names_the_measured_unit_and_this_run(self):
         snap = _snapshot()
@@ -127,6 +185,7 @@ class PageStatusTest(NoNetwork):
         self.assertEqual(shown["phoneSpeed"], "Unlock the phone to use AI mode.")
         self.assertEqual(shown["gpuSpeed"], "Unlock the phone to use AI mode.")
         self.assertEqual(shown["error"], "")
+        self.assertEqual(shown["announcement"], "Unlock the phone to use AI mode.")
 
     def test_locked_response_discards_queued_ask_and_ask_works_after_unlock(self):
         snap = _snapshot()
@@ -149,6 +208,7 @@ class PageStatusTest(NoNetwork):
         self.assertFalse(shown["askQueued"])
         self.assertEqual(shown["queued"], 0)
         self.assertEqual(shown["error"], "This page is out of date. Reload it, then try again.")
+        self.assertEqual(shown["announcement"], shown["error"])
 
 
 if __name__ == "__main__":
