@@ -1025,7 +1025,7 @@ def presenter_error(error: Exception) -> str:
         return "Error: Pairing could not continue. Check the phone, then retry."
     if message.startswith("Phone enrolment reply"):
         return "Error: Phone did not reply. Check the cable and phone, then retry."
-    return f"Error: {message.rstrip('.')}. Check setup, then retry."
+    return "Error: GPU Link stopped. Check setup, then retry."
 
 
 class InstanceGuard:
@@ -1767,8 +1767,8 @@ class Companion:
             return
         try:
             removed = remove_model_copies(self.args.data_dir, models_dir)
-        except (OSError, RuntimeError, ValueError) as error:
-            message = str(error) or "Model copies could not be removed from the companion cache"
+        except (OSError, RuntimeError, ValueError):
+            message = "Error: Could not finish removing model copies. Check the model folder before retrying."
             self.status.set(message)
             print("GPU Link: " + message, flush=True)
             return
@@ -1957,7 +1957,7 @@ def resolve_launch_adb(adb: str, runner=subprocess.run, system=None) -> str:
         return str(setup.ensure_adb(Path("."), explicit=adb, allow_download=False,
                                     runner=runner, system=system))
     except RuntimeError as error:
-        raise CompanionError(str(error)) from error
+        raise CompanionError("adb is unavailable; install or select Android platform tools") from error
 
 
 def main(argv=None, runtime=None, data_dir=None, models_dir=None) -> int:
@@ -2030,13 +2030,15 @@ def main(argv=None, runtime=None, data_dir=None, models_dir=None) -> int:
                 import tkinter as tk
                 root = tk.Tk()
                 root.title("OPOS GPU Link")
-            except (ImportError, RuntimeError):
+            except Exception:
+                if root is not None:
+                    try:
+                        root.destroy()
+                    except Exception:
+                        pass
+                root, tk = None, None
                 headless = True
-            except Exception as error:
-                if tk is not None and isinstance(error, tk.TclError):
-                    headless = True
-                else:
-                    raise
+                print("GPU Link: Window unavailable. Continuing in the terminal.", flush=True)
         app = Companion(args, root, tk, headless=headless)
         old_handlers = {}
         if headless:

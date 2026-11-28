@@ -3,6 +3,8 @@
 
 import contextlib
 import io
+import sys
+import tempfile
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
@@ -51,6 +53,20 @@ class TerminalCopyTests(unittest.TestCase):
             "GPU Link: Error: Model ports are busy. Stop a model server using them, then retry."
         ])
 
+    def test_server_start_failure_names_the_configured_log_folder(self):
+        output = io.StringIO()
+        args = SimpleNamespace(detect_only=False, prefetch=False, no_phone=False,
+                               log_dir=Path("/safe/model-logs"))
+        info = {"gpu": {"note": ""}}
+        with contextlib.redirect_stdout(output), \
+                patch.object(setup, "install_term_handler"), \
+                patch.object(setup, "plan", return_value=info), \
+                patch.object(setup, "start_runtime", side_effect=RuntimeError(
+                    "llama-server did not become ready; see /private/unknown.log")):
+            self.assertEqual(setup.run(args), 2)
+        self.assertEqual(output.getvalue().splitlines(), [
+            "GPU Link: Error: Model server did not start. Check logs in '/safe/model-logs', then retry."])
+
     def test_companion_expected_failures_have_a_next_action(self):
         for reason in ("More than one authorized USB phone is present; pass --serial",
                        "GPU Link is already running for this phone, or its lock is unavailable",
@@ -72,7 +88,34 @@ class TerminalCopyTests(unittest.TestCase):
         self.assertEqual(link.presenter_error(link.CompanionError("")),
                          "Error: GPU Link stopped. Restart it, then retry.")
         self.assertEqual(link.presenter_error(link.CompanionError("Phone model setting invalid")),
-                         "Error: Phone model setting invalid. Check setup, then retry.")
+                         "Error: GPU Link stopped. Check setup, then retry.")
+        self.assertEqual(link.presenter_error(link.CompanionError("Unexpected reply at /private/setup")),
+                         "Error: GPU Link stopped. Check setup, then retry.")
+
+    def test_usb_tool_error_does_not_expose_its_path(self):
+        with patch.object(setup, "ensure_adb", side_effect=RuntimeError("failed at /private/usb")):
+            with self.assertRaises(link.CompanionError) as caught:
+                link.resolve_launch_adb("fake-adb")
+        self.assertEqual(link.presenter_error(caught.exception),
+                         "Error: USB tools are missing. Install Android platform tools, then retry.")
+
+    def test_optional_window_failure_uses_terminal_without_traceback(self):
+        window = Mock()
+        window.title.side_effect = OSError("private window path /private/window")
+        output = io.StringIO()
+        with tempfile.TemporaryDirectory() as directory, contextlib.redirect_stdout(output), \
+                patch.dict(sys.modules, {"tkinter": SimpleNamespace(Tk=lambda: window)}), \
+                patch.object(link, "computer_noun", return_value="MacBook"), \
+                patch.object(link, "resolve_launch_adb", return_value="fake-adb"), \
+                patch.object(link, "Companion") as companion_type:
+            companion_type.return_value.cleanup_ok = True
+            result = link.main(["--model", "local", "--serial", "PHONE", "--key-dir", directory,
+                                "--server", "http://127.0.0.1:9/v1/chat/completions"])
+        self.assertEqual(result, 0)
+        self.assertTrue(companion_type.call_args.kwargs["headless"])
+        window.destroy.assert_called_once_with()
+        self.assertEqual(output.getvalue().splitlines(),
+                         ["GPU Link: Window unavailable. Continuing in the terminal."])
 
     def test_setup_error_names_the_step_without_printing_a_path(self):
         for stage, error, expected in (

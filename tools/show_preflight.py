@@ -45,15 +45,20 @@ def read_adb(argv: Sequence[str], adb: str, serial: Optional[str],
     return result.stdout if result.returncode == 0 else None
 
 
-def devices(output: str) -> list[tuple[str, str]]:
+def devices(output: str) -> list[tuple[str, str, bool]]:
     found = []
     for line in output.splitlines():
         if line.startswith("List of devices attached") or line.startswith("*"):
             continue
         parts = line.split()
         if len(parts) >= 2:
-            found.append((parts[0], parts[1]))
+            found.append((parts[0], parts[1], any(part.startswith("usb:") for part in parts[2:])))
     return found
+
+
+def usb_serial(serial: str) -> bool:
+    """Exclude wireless adb and emulator transports, even if they claim USB metadata."""
+    return not (serial.startswith("emulator-") or "._tcp" in serial or re.search(r":\d+$", serial))
 
 
 def flag(output: str, names: Sequence[str]) -> Optional[bool]:
@@ -123,15 +128,16 @@ def run_preflight(adb: str, serial: Optional[str],
         return 1
 
     found = devices(listing)
+    ready = [item for item in found if item[1] == "device" and item[2] and usb_serial(item[0])]
     if serial is None:
-        chosen = found[0] if len(found) == 1 else None
+        chosen = ready[0] if len(ready) == 1 else None
     else:
-        matches = [item for item in found if item[0] == serial]
+        matches = [item for item in ready if item[0] == serial]
         chosen = matches[0] if len(matches) == 1 else None
-    if chosen is None or chosen[1] != "device":
-        states = ", ".join(f"{name} ({state})" for name, state in found) or "none"
+    if chosen is None:
+        states = ", ".join(f"{name} ({state})" for name, state, _usb in found) or "none"
         emit(f"FAIL device: {states}")
-        emit("Fix: connect and authorize the device; use --serial if several are listed.")
+        emit("Fix: connect and allow a USB phone; use --serial if several are ready.")
         return 1
 
     serial = chosen[0]
@@ -184,7 +190,7 @@ def run_preflight(adb: str, serial: Optional[str],
     screen_text = state_text(screen, legacy_screen, "on", "off")
     lock_text = state_text(locked, legacy_locked, "locked", "unlocked")
     grade = "PASS" if screen is True and locked is False else "WARN"
-    emit(f"{grade} screen: {screen_text}; keyguard {lock_text}")
+    emit(f"{grade} screen: {screen_text}; screen lock {lock_text}")
     return int(failed)
 
 
