@@ -4,7 +4,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 
-/** A per-lane opt-in stored locally, with ready lanes on by default. */
+/** A per-lane choice stored locally; defaults apply until the first saved choice. */
 final class LaneSelection {
     interface Store {
         boolean contains(String key);
@@ -24,18 +24,27 @@ final class LaneSelection {
         return PREFIX + pane;
     }
 
+    private boolean hasSavedSelection() {
+        // Include lanes missing from the current snapshot. A saved choice for a
+        // disappeared model must still keep a newly ready model off.
+        for (String pane : PaneKeys.knownPanes()) {
+            if (store.contains(key(pane))) return true;
+        }
+        return false;
+    }
+
     List<String> selected(List<String> available, Map<String, Boolean> ready) {
         List<String> result = new ArrayList<>();
+        boolean firstChoicePending = !hasSavedSelection();
         for (String pane : available) {
             if (!PaneKeys.valid(pane) || result.contains(pane)) continue;
             String key = key(pane);
             boolean enabled = store.contains(key)
-                    ? store.get(key, false) : "phone".equals(pane) || "gpu".equals(pane)
-                    || Boolean.TRUE.equals(ready.get(pane));
+                    ? store.get(key, false) : firstChoicePending
+                    && ("phone".equals(pane) || "gpu".equals(pane)
+                    || Boolean.TRUE.equals(ready.get(pane)));
             if (enabled) result.add(pane);
         }
-        // A chosen model can disappear from the next snapshot. Respect saved OFF choices;
-        // never silently run another model in its place.
         return result;
     }
 
@@ -49,6 +58,13 @@ final class LaneSelection {
         if (!available.contains(pane) || !PaneKeys.valid(pane)) return false;
         List<String> current = selected(available, ready);
         if (!enabled && current.contains(pane) && current.size() == 1) return false;
+        if (!hasSavedSelection()) {
+            // The first toggle freezes all choices currently shown, so saving
+            // one change does not unexpectedly turn the other defaults off.
+            for (String shown : available) {
+                if (PaneKeys.valid(shown)) store.put(key(shown), current.contains(shown));
+            }
+        }
         store.put(key(pane), enabled);
         return true;
     }

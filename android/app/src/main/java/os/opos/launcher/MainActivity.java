@@ -167,7 +167,10 @@ public final class MainActivity extends Activity {
 
     private View screen, pairing, pairingClosed;
     private ScrollView resultsScroll, summaryScroll;
-    private LinearLayout header, answers, leftColumn, rightColumn, summaryCard, summaryRow;
+    private LinearLayout header, answers, leftColumn, rightColumn, summaryCard, summaryRow,
+            noSelectionCard;
+    private TextView noSelectionMessage;
+    private Button noSelectionButton;
     private TextView bigMasthead;
     private LinearLayout mastheadBlock;
     private int expandedMastheadHeightPx;
@@ -1010,6 +1013,19 @@ public final class MainActivity extends Activity {
         leftColumn.setOrientation(LinearLayout.VERTICAL);
         rightColumn = new LinearLayout(this);
         rightColumn.setOrientation(LinearLayout.VERTICAL);
+        noSelectionCard = box();
+        noSelectionMessage = newspaperText(getString(R.string.turn_on_model_to_send),
+                typography.bodySp(), false, true);
+        typography.body(noSelectionMessage, typography.bodySp());
+        noSelectionMessage.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        noSelectionCard.addView(noSelectionMessage);
+        noSelectionButton = outlineButton(MenuState.MODEL_SELECTION);
+        typography.body(noSelectionButton, typography.bodySp());
+        noSelectionButton.setOnClickListener(view -> showModelSelection());
+        LinearLayout.LayoutParams chooseModelParams = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+        chooseModelParams.topMargin = dp(8);
+        noSelectionCard.addView(noSelectionButton, chooseModelParams);
         timingCard = box();
         TextView tonightKicker = newspaperText(getString(R.string.tonight_label), 12, true, false);
         typography.kicker(tonightKicker);
@@ -1138,7 +1154,7 @@ public final class MainActivity extends Activity {
                 if (menuPopup != null) menuPopup.dismiss();
                 if (choice == null) return;
                 switch (choice) {
-                    case "Model Selection": showModelSelection(); break;
+                    case MenuState.MODEL_SELECTION: showModelSelection(); break;
                     case "History": showHistory(); break;
                     case "Settings": showSettings(); break;
                     case "Quit": confirmQuit(); break;
@@ -1420,7 +1436,23 @@ public final class MainActivity extends Activity {
             }
             pinSummaryBar();
         }
+        updateNoSelectionCard();
         resultsScroll.post(() -> revealVisible(!initialRevealDone));
+    }
+
+    private void updateNoSelectionCard() {
+        if (answers == null || noSelectionCard == null) return;
+        boolean noModelSelected = snapshot != null && laneSelection.selected(
+                paneNames(snapshot), readyPanes(snapshot)).isEmpty();
+        if (!noModelSelected) {
+            detach(noSelectionCard);
+        } else if (noSelectionCard.getParent() != answers) {
+            detach(noSelectionCard);
+            answers.addView(noSelectionCard, 0, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT));
+            resultsScroll.post(() -> revealVisible(false));
+        }
     }
 
     private List<String> orderedDevicePanes() {
@@ -1712,6 +1744,7 @@ public final class MainActivity extends Activity {
         // after a flip, cover switch, or brief background. elapsedRealtime
         // survives process death until reboot; it is persisted in saveLatestRequest.
         snapshot = null;
+        updateNoSelectionCard();
         stopWaitingForId = false;
         reachable = false;
         offline = false;
@@ -1934,6 +1967,7 @@ public final class MainActivity extends Activity {
 
     private void showOffline(Exception failure) {
         offline = true;
+        updateNoSelectionCard();
         stopWaitingForId = false;
         boolean pcPaused = Boolean.FALSE.equals(cableConnected) && hasVisiblePcWork();
         setMainStatus(getString(R.string.phone_unreachable));
@@ -1978,6 +2012,7 @@ public final class MainActivity extends Activity {
         awaitingReplugSnapshot = false;
         if (data.optBoolean("locked")) {
             snapshot = null;
+            updateNoSelectionCard();
             stopWaitingForId = false;
             updateModelSelectionRows();
             latestQuestion = "";
@@ -2199,6 +2234,7 @@ public final class MainActivity extends Activity {
             nameExtraLane(view, pane, model);
         }
         updateCompactLaneStatus();
+        updateNoSelectionCard();
     }
 
     private String leadReportedModel(JSONObject gpu) {
@@ -5077,7 +5113,7 @@ public final class MainActivity extends Activity {
             }
         });
         LinearLayout root = pageRoot();
-        root.addView(pageBar("Model Selection", "Close", view -> dialog.dismiss()));
+        root.addView(pageBar(MenuState.MODEL_SELECTION, "Close", view -> dialog.dismiss()));
         View rule = new View(this);
         rule.setBackgroundColor(themeColor(R.color.newspaper_stroke));
         LinearLayout.LayoutParams ruleParams = new LinearLayout.LayoutParams(
@@ -5980,6 +6016,10 @@ public final class MainActivity extends Activity {
         styleNotesDock();
         syncErrorVisibility();
         if (timingCard != null) timingCard.setBackground(panelDrawable(palette.stroke()));
+        if (noSelectionCard != null) {
+            noSelectionCard.setBackground(panelDrawable(palette.stroke()));
+            recolorChrome(noSelectionCard, paper, ink, label);
+        }
         if (summaryCard != null) summaryCard.setBackground(panelDrawable(palette.stroke()));
         if (bottomDock != null) {
             recolorChrome(bottomDock,
@@ -6141,6 +6181,8 @@ public final class MainActivity extends Activity {
             fillTonightRows(tonightRows, tonightTiming.getText().toString(), tonightLanes);
         }
         if (notes != null) typography.body(notes, typography.bodySp());
+        if (noSelectionMessage != null) typography.body(noSelectionMessage, typography.bodySp());
+        if (noSelectionButton != null) typography.body(noSelectionButton, typography.bodySp());
         if (settingsDialog != null && settingsDialog.isShowing()) {
             typography.defaults(settingsDialog.getWindow().getDecorView());
         }
