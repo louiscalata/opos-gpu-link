@@ -2,7 +2,7 @@ package os.opos.launcher;
 
 public final class HeatMeterTest {
     public static void main(String[] args) {
-        check(HeatMeter.cool(0) && HeatMeter.cool(1), "0 and 1 are cool (ink)");
+        check(HeatMeter.cool(0) && HeatMeter.cool(1), "0 and 1 are cool");
         check(!HeatMeter.cool(2) && !HeatMeter.hot(2), "warm stays neutral");
         for (int s = 3; s <= 6; s++) {
             check(!HeatMeter.cool(s), "hot is not cool: " + s);
@@ -12,6 +12,22 @@ public final class HeatMeterTest {
             check(!HeatMeter.hot(s), "only 3 through 6 are hot: " + s);
         }
         check(!HeatMeter.cool(-1) && !HeatMeter.known(-1) && !HeatMeter.known(7), "unknown hidden");
+        for (UiPalette.Theme theme : UiPalette.Theme.values()) {
+            UiPalette palette = new UiPalette(theme);
+            for (int status = 0; status <= 1; status++) {
+                equal(UiPalette.Tone.OK, HeatMeter.tone(status));
+                equal(palette.ok(), palette.colorForTone(HeatMeter.tone(status)));
+            }
+            equal(UiPalette.Tone.NEUTRAL, HeatMeter.tone(2));
+            equal(palette.ink(), palette.colorForTone(HeatMeter.tone(2)));
+            for (int status = 3; status <= 6; status++) {
+                equal(UiPalette.Tone.ERROR, HeatMeter.tone(status));
+                equal(palette.error(), palette.colorForTone(HeatMeter.tone(status)));
+            }
+            for (int status : new int[] {-1, 7}) {
+                equal(UiPalette.Tone.NEUTRAL, HeatMeter.tone(status));
+            }
+        }
         equal("● Phone cool", HeatMeter.label(0, false));
         equal("● Phone cool", HeatMeter.label(1, false));
         equal("● Phone warm", HeatMeter.label(2, false));

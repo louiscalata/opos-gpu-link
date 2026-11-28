@@ -3377,7 +3377,7 @@ public final class MainActivity extends Activity {
         }
     }
 
-    /** Ink while cool or warm, red only when hot; hidden for an unknown status. */
+    /** Green while cool, ink while warm, red while hot; hidden for an unknown status. */
     private void showHeat(int status) {
         heatStatus = status;
         if (heatMeter == null) return;
@@ -3390,7 +3390,7 @@ public final class MainActivity extends Activity {
         heatMeter.setTextSize(TypedValue.COMPLEX_UNIT_SP,
                 compactHeat ? HeatMeter.TEXT_SP_COMPACT : HeatMeter.TEXT_SP);
         setIfChanged(heatMeter, HeatMeter.label(status, compactHeat));
-        heatMeter.setTextColor(parseHex(HeatMeter.hot(status) ? palette.error() : palette.ink()));
+        heatMeter.setTextColor(parseHex(palette.colorForTone(HeatMeter.tone(status))));
         heatMeter.setContentDescription(HeatMeter.description(status));
         heatMeter.setVisibility(View.VISIBLE);
     }
@@ -5586,7 +5586,7 @@ public final class MainActivity extends Activity {
         applyPaletteToPage();
         applyTypographyToPage();
         applyErrorView();
-        showHeat(heatStatus); // the meter's green or red follows the new theme
+        showHeat(heatStatus); // the meter's heat color follows the new theme
         JSONObject gpu = snapshot == null ? null : snapshot.optJSONObject("gpu");
         renderLinkBanner(pcConnection(gpu) == Connection.CONNECTED, hasVisiblePcWork());
     }
