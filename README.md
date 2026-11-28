@@ -9,7 +9,7 @@ Ask on your Android phone. A model on your computer and models on your phone can
 - An Android phone, a computer with a GPU, and a USB-C data cable. The Dec 10, 2026 show uses a Galaxy Z Flip6 and an M5 Pro MacBook Pro.
 - The phone app from [Releases](https://github.com/louiscalata/opos-gpu-link/releases), or an APK built with `android/scripts/build-debug-apk.sh`. The phone-side service is described in [phone-service/README.md](phone-service/README.md).
 - [Android SDK Platform-Tools](https://developer.android.com/tools/releases/platform-tools) on the computer, with USB debugging enabled on the phone.
-- A local model file and a local `llama-server` runtime on the computer before you start offline. See [computer setup](companion/SETUP.md). Offline startup stops if a needed file is missing.
+- A local model file and a local `llama-server` program on the computer before you start offline. See [computer setup](companion/SETUP.md). Offline startup cannot download missing files.
 
 ## Quick start
 
@@ -18,17 +18,17 @@ Ask on your Android phone. A model on your computer and models on your phone can
 3. On the computer, start the companion from this checkout. Replace the model path with a file already on your computer:
 
    ```sh
-   python3 -B companion/gpu_link_autosetup.py --offline --strict-ports --own-server --port 38400 --model-path /path/to/model.gguf
+   python3 companion/gpu_link_autosetup.py --offline --strict-ports --own-server --port 38400 --model-path /path/to/model.gguf
    ```
 
 4. Compare the six-digit code on the phone and computer. If the codes match, tap **Allow** on the phone. The phone remembers that computer for later plugs.
 5. Ask a question on the phone. Watch each ready model's answer appear on its own card.
 
-The companion runs a local model server for the computer model. `--offline` prevents downloads; `--strict-ports` and `--own-server` keep this run on its own server. The command uses port 38400. The [computer companion guide](companion/README.md) covers other systems and setups.
+The companion starts a local model server for the computer model. `--offline` prevents downloads, `--own-server` starts this run's server, and `--strict-ports` keeps it from checking other model apps. The number 38400 is the first local connection number it tries for its server. `--model-path` names the file to prefer; if that file is missing, the companion may choose another local file. Check the model name it shows at startup. The [computer companion guide](companion/README.md) covers other systems and setups.
 
 ## What you will see
 
-The Dec 10 show is a newspaper-style front page: one card for each model answer, with text appearing live. These are the planned card names. The public stand-alone phone service does not load the phone pool models `m1` and `m4`; those cards need the larger phone host app and its local models.
+The Dec 10 show is a newspaper-style front page: one card for each model answer, with text appearing live. These are the planned card names. The phone service in this repo can show one phone answer from a local model server. It does not load the planned `m1` and `m4` models; those cards need the full OPOS phone app and its local model files.
 
 | Card | Model | Maker | Role |
 | --- | --- | --- | --- |
@@ -47,16 +47,16 @@ If you unplug the cable, the computer answer pauses and keeps the text already s
 
 - **Phone not found:** use a data cable, unlock the phone, and allow its USB debugging prompt. See [computer setup](companion/SETUP.md) if more than one phone is connected.
 - **Codes differ:** do not tap Allow. Check that you are comparing the same phone and computer, then start pairing again.
-- **Model will not start:** check that the local model file and runtime are present. Offline mode will not download them. See [computer setup](companion/SETUP.md).
+- **Model will not start:** check that the local model file and server program are present. Offline mode will not download them. See [computer setup](companion/SETUP.md).
 - **Answer stays paused after replug:** leave the companion running and check the cable and USB debugging approval. See [unplugging and troubleshooting](companion/SETUP.md#unplugging-and-troubleshooting).
 
 ## Privacy
 
 Questions and answers are visible to your phone and your own computer. The computer model runs locally. With the offline quick start above, the companion does not download files or send your questions to a cloud service. The phone app talks to its own local service; the computer is reached through the USB cable. Requests after pairing are signed.
 
-## Recorded model files (previous lineup)
+## Recorded model files (27 Nov 2026)
 
-This is a file inventory recorded on the demo MacBook on 27 Nov 2026 (America/Los_Angeles), not the current phone-card lineup. Sizes and recorded SHA-256 values were computed with `shasum -a 256` from those files. The AceInstruct and Nemotron Mini phone files were part of the previous lineup. The current Qwen3.5-2B and Granite 4.1 3B files have no recorded size or SHA-256 here.
+These file details were recorded on the demo MacBook on 27 Nov 2026 (America/Los_Angeles). Sizes and recorded SHA-256 values were computed with `shasum -a 256` from those files. The AceInstruct and Nemotron Mini phone rows belong to the previous lineup; the LFM2 phone row records its earlier placement. The current Qwen3.5-2B and Granite 4.1 3B files have no recorded size or SHA-256 here.
 
 | Where | Model | File | Size | SHA-256 | License |
 | --- | --- | --- | --- | --- | --- |
@@ -68,7 +68,7 @@ This is a file inventory recorded on the demo MacBook on 27 Nov 2026 (America/Lo
 
 In the previous lineup, LFM2 was shown as "LFM2 1.2B (baseline)"; Gemma was a measured baseline and rollback. Gemma's SHA-256 was not recorded while LM Studio was serving it.
 
-Nemotron 3.5 Bolt E4B is post-trained by NVIDIA from Google's Gemma 4 E4B, so Gemma's terms also apply. On a MacBook, Bolt runs on Apple's GPU through Metal, not on an NVIDIA GPU. Any other local GGUF works too; the companion picks one that fits your GPU.
+Nemotron 3.5 Bolt is post-trained by NVIDIA from Google's Gemma 4 E4B, so Gemma's terms also apply. On a MacBook, Bolt runs on Apple's GPU through Metal, not on an NVIDIA GPU.
 
 ## Supported platforms
 
@@ -84,8 +84,7 @@ Nemotron 3.5 Bolt E4B is post-trained by NVIDIA from Google's Gemma 4 E4B, so Ge
 Early demo build. USB is the only link today. Wireless: coming later.
 
 - The APK is a debug build signed with a throwaway key. It is not on Google Play.
-- The phone side runs on its own with `phone-service/run_link.py`, including the `/api/ai` endpoint the app reads. The phone lane needs a local OpenAI-compatible server on the phone, such as `llama-server`; without one, questions go to the computer.
-- The macOS apps are ad-hoc signed, not notarized, so macOS asks before the first run.
+- The phone side runs on its own with `phone-service/run_link.py`, including the `/api/ai` endpoint the app reads. To give a phone answer, it needs a local model server on the phone, such as `llama-server`. Without one, questions go to the computer.
 
 OPOS GPU Link is part of the early Old Phone OS project, coming soon.
 

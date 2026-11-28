@@ -14,7 +14,7 @@ class DemoModelReadmeTest(unittest.TestCase):
     def setUpClass(cls):
         readme = README.read_text(encoding="utf-8")
         cls.current = readme.split("## What you will see\n", 1)[1].split("\n## ", 1)[0]
-        cls.section = readme.split("## Recorded model files (previous lineup)\n", 1)[1].split("\n## ", 1)[0]
+        cls.section = readme.split("## Recorded model files (27 Nov 2026)\n", 1)[1].split("\n## ", 1)[0]
         lines = [line for line in cls.section.splitlines() if line.startswith("| ")]
         cls.header = lines[0].strip("| ").split(" | ")
         cls.rows = {
@@ -37,7 +37,9 @@ class DemoModelReadmeTest(unittest.TestCase):
         })
         self.assertNotIn("AceInstruct", self.current)
         self.assertNotIn("Nemotron Mini", self.current)
-        self.assertNotIn("SHA-256 |", self.current)
+        for line in lines[2:]:
+            with self.subTest(card=line):
+                self.assertNotRegex(line, r"(?i)\.gguf|\b\d+(?:\.\d+)?\s*(?:GB|bytes)\b|\b[0-9a-f]{64}\b")
 
     def test_recorded_files_match_supplied_on_disk_values(self):
         self.assertEqual(self.header, ["Where", "Model", "File", "Size", "SHA-256", "License"])
