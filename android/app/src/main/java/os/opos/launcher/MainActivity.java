@@ -864,6 +864,7 @@ public final class MainActivity extends Activity {
         bigMasthead.setOnClickListener(view -> toggleMenu());
         bigMasthead.setAccessibilityDelegate(mastheadButtonRole());
         bigMasthead.setGravity(Gravity.CENTER_VERTICAL);
+        bigMasthead.setMinHeight(dp(48));
         mastheadBlock = new LinearLayout(this);
         mastheadBlock.setOrientation(LinearLayout.VERTICAL);
         mastheadBlock.setPadding(dp(12), 0, dp(12), 0);
@@ -1087,7 +1088,12 @@ public final class MainActivity extends Activity {
             }
             expandArticle(pane);
         };
+        // The heading is the one TalkBack action. Touch can open the card elsewhere too.
         card.setOnClickListener(open);
+        card.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+        heading.setMinHeight(dp(48));
+        heading.setGravity(Gravity.CENTER_VERTICAL);
+        heading.setFocusable(true);
         heading.setOnClickListener(open);
         answerView.setOnClickListener(open);
         enableSmoothGrowth(card);
@@ -2352,7 +2358,8 @@ public final class MainActivity extends Activity {
             // The pending computer may not be the one already paired: name it by its own label.
             String pendingNoun = ComputerWords.noun(named);
             String label = named.isEmpty() ? "the " + pendingNoun : named;
-            setIfChanged(findViewById(R.id.pairing_header),
+            TextView pairingHeader = findViewById(R.id.pairing_header);
+            setIfChanged(pairingHeader,
                     ComputerWords.apply(getString(R.string.pairing_title), pendingNoun));
             if (allow != null) {
                 setIfChanged(allow, ComputerWords.apply(getString(R.string.allow_pc), pendingNoun));
@@ -2412,6 +2419,13 @@ public final class MainActivity extends Activity {
                 pairingCountdown.setVisibility(countdown.isEmpty() ? View.GONE : View.VISIBLE);
                 applyPairingCountdownTone();
             }
+            if (pairingHeader != null) {
+                String description = pairingHeader.getText().toString();
+                if (validCode) description += " " + pairingCode.getContentDescription();
+                if (!TextUtils.equals(pairingHeader.getContentDescription(), description)) {
+                    pairingHeader.setContentDescription(description);
+                }
+            }
         } else if (closed) {
             pairingSeconds = -1;
             setIfChanged(findViewById(R.id.pairing_closed_header),
@@ -2439,20 +2453,11 @@ public final class MainActivity extends Activity {
         if (becamePending) {
             hideKeyboard();
             applyPairingTypography();
-            if (pairingCode != null) {
-                pairingCode.sendAccessibilityEvent(
-                        android.view.accessibility.AccessibilityEvent.TYPE_VIEW_FOCUSED);
+            TextView pairingHeader = findViewById(R.id.pairing_header);
+            if (pairingHeader != null) {
+                pairingHeader.post(() -> pairingHeader.performAccessibilityAction(
+                        AccessibilityNodeInfo.ACTION_ACCESSIBILITY_FOCUS, null));
             }
-            String announcement = (findViewById(R.id.pairing_header) instanceof TextView)
-                    ? ((TextView) findViewById(R.id.pairing_header)).getText().toString()
-                    : pcWords(R.string.pairing_title);
-            if (pairingCode != null && pairingCode.getVisibility() == View.VISIBLE) {
-                announcement += " " + pairingCode.getContentDescription();
-            }
-            if (pairingCountdown != null && pairingCountdown.getVisibility() == View.VISIBLE) {
-                announcement += " " + pairingCountdown.getText();
-            }
-            pairing.announceForAccessibility(announcement);
         }
         if (screen != null) {
             screen.setImportantForAccessibility(showModal
@@ -2468,7 +2473,10 @@ public final class MainActivity extends Activity {
     private void applyPairingTypography() {
         if (pairing == null) return;
         TextView header = findViewById(R.id.pairing_header);
-        if (header != null) typography.headline(header, typography.headingSp());
+        if (header != null) {
+            typography.headline(header, typography.headingSp());
+            header.setFocusable(true);
+        }
         if (pairingText != null) typography.body(pairingText, typography.bodySp());
         TextView codeLabel = findViewById(R.id.pairing_code_label);
         if (codeLabel != null) typography.kicker(codeLabel);
@@ -4008,8 +4016,6 @@ public final class MainActivity extends Activity {
     private void addLaneRetryButton(String pane, LinearLayout card) {
         Button button = outlineButton(getString(R.string.lane_retry)); // 0.5dp dark-gray frame
         typography.retry(button);
-        button.setMinHeight(dp(coverMode ? 36 : 44));
-        button.setMinimumHeight(dp(coverMode ? 36 : 44));
         button.setPadding(dp(14), 0, dp(14), 0);
         button.setVisibility(View.GONE);
         button.setContentDescription(getString(R.string.lane_retry_description));
@@ -4647,6 +4653,8 @@ public final class MainActivity extends Activity {
         button.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
         button.setTypeface(typography.interSemibold);
         button.setBackground(panelDrawable(palette.stroke()));
+        button.setMinHeight(dp(48));
+        button.setMinimumHeight(dp(48));
         return button;
     }
 
@@ -4787,6 +4795,21 @@ public final class MainActivity extends Activity {
         TextView toggle = newspaperText("", 14, true, false);
         toggle.setGravity(Gravity.CENTER);
         toggle.setFocusable(true);
+        toggle.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+            @Override public void onInitializeAccessibilityNodeInfo(View host,
+                    AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                info.setClassName(android.widget.Switch.class.getName());
+                info.setCheckable(true);
+                info.setChecked(Boolean.TRUE.equals(host.getTag(R.id.model_toggle_selected)));
+            }
+            @Override public void onInitializeAccessibilityEvent(View host,
+                    android.view.accessibility.AccessibilityEvent event) {
+                super.onInitializeAccessibilityEvent(host, event);
+                event.setClassName(android.widget.Switch.class.getName());
+                event.setChecked(Boolean.TRUE.equals(host.getTag(R.id.model_toggle_selected)));
+            }
+        });
         toggle.setOnClickListener(tapped -> {
             List<String> available = paneNames(snapshot);
             Map<String, Boolean> readyNow = readyPanes(snapshot);
@@ -4850,7 +4873,8 @@ public final class MainActivity extends Activity {
             toggle.setTextColor(on ? themeColor(R.color.newspaper_paper) : themeColor(R.color.newspaper_ink));
             toggle.setBackgroundResource(on ? R.drawable.newspaper_primary
                     : R.drawable.newspaper_outline);
-            toggle.setContentDescription(modelLabel(pane, view) + (on ? ", on" : ", off"));
+            toggle.setTag(R.id.model_toggle_selected, on);
+            toggle.setContentDescription(modelLabel(pane, view));
         }
     }
 
@@ -4923,7 +4947,12 @@ public final class MainActivity extends Activity {
             row.setPadding(dp(8), dp(16), dp(8), dp(16));
             row.setFocusable(true);
             row.setClickable(true);
-            row.setContentDescription(getString(R.string.history_open));
+            String savedHeadline = mapped.headline == null ? "" : mapped.headline.trim();
+            row.setContentDescription(savedHeadline.isEmpty()
+                    ? getString(R.string.history_open_untitled_description,
+                            issueDate(issue.askedAtMs))
+                    : getString(R.string.history_open_description,
+                            savedHeadline, issueDate(issue.askedAtMs)));
             TextView date = newspaperText(issueDate(issue.askedAtMs), 13, true, false);
             typography.tabular(date);
             row.addView(date);
@@ -5776,6 +5805,8 @@ public final class MainActivity extends Activity {
         row.setOrientation(LinearLayout.VERTICAL);
         int pad = dp(coverMode ? 6 : 10);
         row.setPadding(pad, pad, pad, pad);
+        row.setMinimumHeight(dp(48));
+        row.setGravity(Gravity.CENTER_VERTICAL);
         TextView heading = newspaperText(title, typography.labelSp() + 2, true, false);
         heading.setTextColor(themeColor(R.color.newspaper_ink));
         row.addView(heading);
@@ -6261,13 +6292,14 @@ public final class MainActivity extends Activity {
 
     private void wireNotesDrag(PaneViews article) {
         View.OnTouchListener listener = notesDragTouchListener(article.pane);
-        View.AccessibilityDelegate delegate = notesAccessibility(article.pane);
         View[] views = {article.card, article.kicker, article.heading, article.byline,
                 article.state, article.speed, article.answer};
         for (View view : views) {
             if (view == null) continue;
             view.setOnTouchListener(listener);
-            view.setAccessibilityDelegate(delegate);
+        }
+        if (article.heading != null) {
+            article.heading.setAccessibilityDelegate(notesAccessibility(article));
         }
     }
 
@@ -6414,11 +6446,15 @@ public final class MainActivity extends Activity {
         return NotesDrop.format(model, questionText, article.rawAnswer, time);
     }
 
-    private View.AccessibilityDelegate notesAccessibility(String pane) {
+    private View.AccessibilityDelegate notesAccessibility(PaneViews article) {
         return new View.AccessibilityDelegate() {
             @Override public void onInitializeAccessibilityNodeInfo(View host,
                     AccessibilityNodeInfo info) {
                 super.onInitializeAccessibilityNodeInfo(host, info);
+                info.setClassName(Button.class.getName());
+                info.setContentDescription(getString(R.string.open_answer_description,
+                        AnswerActionLabel.target(article.heading == null
+                                ? null : article.heading.getText())));
                 if (NotesDrop.available(notesVisible())) {
                     info.addAction(new AccessibilityNodeInfo.AccessibilityAction(
                             AccessibilityNodeInfo.ACTION_LONG_CLICK,
@@ -6429,7 +6465,7 @@ public final class MainActivity extends Activity {
             @Override public boolean performAccessibilityAction(View host, int action, Bundle args) {
                 if (NotesDrop.available(notesVisible())
                         && action == AccessibilityNodeInfo.ACTION_LONG_CLICK) {
-                    saveCardToNotes(pane);
+                    saveCardToNotes(article.pane);
                     return true;
                 }
                 return super.performAccessibilityAction(host, action, args);

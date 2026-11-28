@@ -30,7 +30,7 @@ final class HeatMeter {
 
     /**
      * Words first, readable from a stage: "● Phone warm"; compact (cover screen) "● warm".
-     * Android's raw status number stays in the TalkBack description. Unknown: "".
+     * TalkBack reads the same plain heat word. Unknown: "".
      */
     static String label(int status, boolean compact) {
         if (!known(status)) return "";
@@ -41,8 +41,8 @@ final class HeatMeter {
     static final int TEXT_SP = 16;
     static final int TEXT_SP_COMPACT = 14;
 
-    /** For TalkBack: "Phone heat 2, warm". Unknown: "". */
+    /** For TalkBack: "Phone is warm". Unknown: "". */
     static String description(int status) {
-        return known(status) ? "Phone heat " + status + ", " + word(status) : "";
+        return known(status) ? "Phone is " + word(status) : "";
     }
 }
