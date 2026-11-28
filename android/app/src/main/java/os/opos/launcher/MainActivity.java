@@ -2119,9 +2119,6 @@ public final class MainActivity extends Activity {
             JSONObject model = paneOf(data, pane);
             PaneViews view = paneViews.get(pane);
             nameExtraLane(view, pane, model);
-            Object speed = model == null ? null : model.opt("live_speed");
-            setIfChanged(view.speed, speed == null || speed == JSONObject.NULL
-                    ? "" : speed + " tokens/s");
         }
         updateCompactLaneStatus();
     }
@@ -2679,6 +2676,8 @@ public final class MainActivity extends Activity {
                 if ("phone".equals(pane)) namePhoneLane(article, view);
                 renderPane(article, view, PaneKeys.pc(pane)
                         ? gpu.optJSONObject("link") : null);
+            } else if (article != null && PaneKeys.extra(pane)) {
+                setIfChanged(article.speed, "");
             }
         }
         updateSummary();
@@ -2832,6 +2831,11 @@ public final class MainActivity extends Activity {
         boolean extra = PaneKeys.extra(paneName);
         TextView stateView = article.state;
         JSONObject answer = pane.optJSONObject("answer");
+        if (extra) {
+            setIfChanged(article.speed, LiveSpeedLabel.text(pane.opt("live_speed"),
+                    answer == null ? "" : answer.optString("state"),
+                    answerShown(paneName, answer)));
+        }
         if (!latestRequestedPanes.isEmpty()) {
             if (!latestRequestedPanes.contains(paneName)) {
                 setWaitingLayout(article, false);
