@@ -3,14 +3,20 @@ package os.opos.launcher;
 import java.util.Arrays;
 import java.util.Collections;
 import java.util.HashMap;
+import java.nio.file.Path;
+import javax.xml.parsers.DocumentBuilderFactory;
+import org.w3c.dom.Document;
+import org.w3c.dom.Element;
+import org.w3c.dom.NodeList;
 
 public final class DeviceLayoutPolicyTest {
-    public static void main(String[] args) {
+    public static void main(String[] args) throws Exception {
         eq(1, DeviceLayoutPolicy.columns(360, false, 4));
         eq(1, DeviceLayoutPolicy.columns(374, true, 4));
         eq(1, DeviceLayoutPolicy.columns(880, false, 1));
         eq(2, DeviceLayoutPolicy.columns(600, false, 2));
         eq(2, DeviceLayoutPolicy.columns(880, false, 4));
+        eq(2, DeviceLayoutPolicy.columns(880, false, 2));
         eq(DeviceLayoutPolicy.Side.PHONE, DeviceLayoutPolicy.side("phone", ""));
         eq(DeviceLayoutPolicy.Side.PHONE, DeviceLayoutPolicy.side("m1", "phone"));
         eq(DeviceLayoutPolicy.Side.PHONE, DeviceLayoutPolicy.side("m4", ""));
@@ -47,7 +53,30 @@ public final class DeviceLayoutPolicyTest {
                 DeviceLayoutPolicy.linkState(null, true, false, false));
         eq("Phone connected to MacBook Pro by USB-C",
                 DeviceLayoutPolicy.description("MacBook Pro", DeviceLayoutPolicy.LinkState.CONNECTED));
+        eq("Galaxy Z Flip 6", DeviceLayoutPolicy.phoneName(" Galaxy Z Flip 6 ", "SM-F741U"));
+        eq("Galaxy Z Flip 6", DeviceLayoutPolicy.phoneName("", "SM-F741U"));
+        eq("Pixel", DeviceLayoutPolicy.phoneName("", "Pixel"));
+        eq("Phone", DeviceLayoutPolicy.phoneName(null, null));
+        eq("Galaxy Z Flip 6 connected to MacBook Pro by USB-C",
+                DeviceLayoutPolicy.description("Galaxy Z Flip 6", "MacBook Pro",
+                        DeviceLayoutPolicy.LinkState.CONNECTED));
+        Document layout = DocumentBuilderFactory.newInstance().newDocumentBuilder().parse(
+                Path.of("app/src/main/res/layout/models.xml").toFile());
+        eq("wrap_content", height(layout, "device_band"));
+        eq("wrap_content", height(layout, "device_phone"));
+        eq("wrap_content", height(layout, "device_computer"));
         System.out.println("DeviceLayoutPolicyTest: OK");
+    }
+
+    private static String height(Document layout, String id) {
+        NodeList nodes = layout.getElementsByTagName("LinearLayout");
+        for (int i = 0; i < nodes.getLength(); i++) {
+            Element element = (Element) nodes.item(i);
+            if (("@+id/" + id).equals(element.getAttribute("android:id"))) {
+                return element.getAttribute("android:layout_height");
+            }
+        }
+        throw new AssertionError("Missing layout id: " + id);
     }
 
     private static void eq(Object expected, Object actual) {

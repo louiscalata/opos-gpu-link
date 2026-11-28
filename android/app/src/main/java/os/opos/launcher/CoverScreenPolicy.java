@@ -11,7 +11,7 @@ import java.util.Map;
  * 374x360 dp). Nothing here touches Android classes.
  */
 final class CoverScreenPolicy {
-    enum Mode { FULL, COMPACT, COVER }
+    enum Mode { FULL, COMPACT, COVER, WIDE }
 
     /** One full answer at a time; the rest are summarised as "+N more". */
     static final int MAX_PANES = 1;
@@ -31,8 +31,8 @@ final class CoverScreenPolicy {
 
     /**
      * Cover on a small non-default display (at most 600 dp on both sides), or on the default display
-     * when both sides are at most 400 dp. Undefined (zero) sizes never select the cover. Compact for
-     * other narrow or short windows, full otherwise.
+     * when both sides are at most 400 dp. A wide inner window keeps its own short-screen layout
+     * instead of being treated like the cover. Undefined (zero) sizes never select the cover.
      */
     static Mode select(int widthDp, int heightDp, int displayId) {
         if (widthDp > 0 && heightDp > 0) {
@@ -42,6 +42,10 @@ final class CoverScreenPolicy {
             // half (for example 360x440 dp) stays on the compact page.
             if (displayId != 0 && longSide <= 600) return Mode.COVER;
             if (displayId == 0 && widthDp <= 400 && heightDp <= 400) return Mode.COVER;
+            if (widthDp >= DeviceLayoutPolicy.TWO_COLUMN_MIN_WIDTH_DP
+                    && widthDp > heightDp && heightDp < 700) {
+                return Mode.WIDE;
+            }
         }
         return NewspaperLayoutDecision.compact(widthDp, heightDp) ? Mode.COMPACT : Mode.FULL;
     }

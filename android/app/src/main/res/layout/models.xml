@@ -261,7 +261,7 @@
                 <LinearLayout
                     android:id="@+id/device_phone"
                     android:layout_width="0dp"
-                    android:layout_height="match_parent"
+                    android:layout_height="wrap_content"
                     android:layout_weight="1.1"
                     android:background="@drawable/newspaper_panel"
                     android:importantForAccessibility="noHideDescendants"
@@ -301,7 +301,7 @@
                 <LinearLayout
                     android:id="@+id/device_computer"
                     android:layout_width="0dp"
-                    android:layout_height="match_parent"
+                    android:layout_height="wrap_content"
                     android:layout_weight="1.4"
                     android:background="@drawable/newspaper_panel"
                     android:importantForAccessibility="noHideDescendants"

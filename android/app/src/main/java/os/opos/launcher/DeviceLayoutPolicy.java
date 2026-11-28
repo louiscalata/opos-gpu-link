@@ -67,13 +67,30 @@ final class DeviceLayoutPolicy {
     }
 
     static String description(String computer, LinkState state) {
+        return description("Phone", computer, state);
+    }
+
+    static String phoneName(String configured, String model) {
+        // Samsung's SM-F741 family is the Galaxy Z Flip6 used for the demo.
+        if (model != null && model.trim().regionMatches(true, 0, "SM-F741", 0, 7)) {
+            return "Galaxy Z Flip 6";
+        }
+        if (configured != null && !configured.trim().isEmpty()
+                && !"null".equalsIgnoreCase(configured.trim())) return configured.trim();
+        if (model != null && !model.trim().isEmpty()
+                && !"null".equalsIgnoreCase(model.trim())) return model.trim();
+        return "Phone";
+    }
+
+    static String description(String phone, String computer, LinkState state) {
+        String device = phoneName(phone, null);
         String name = computer == null || computer.trim().isEmpty() ? "computer" : computer.trim();
         switch (state) {
-            case CONNECTED: return "Phone connected to " + name + " by USB-C";
-            case CABLE_OUT: return "Phone and " + name + ": cable out";
-            case PAUSED: return "Phone and " + name + ": connection paused";
-            case ERROR: return "Phone and " + name + ": connection error";
-            default: return "Phone waiting for " + name + " over USB-C";
+            case CONNECTED: return device + " connected to " + name + " by USB-C";
+            case CABLE_OUT: return device + " and " + name + ": cable out";
+            case PAUSED: return device + " and " + name + ": connection paused";
+            case ERROR: return device + " and " + name + ": connection error";
+            default: return device + " waiting for " + name + " over USB-C";
         }
     }
 }

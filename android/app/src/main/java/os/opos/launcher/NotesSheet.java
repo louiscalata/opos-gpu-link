@@ -18,6 +18,8 @@ final class NotesSheet {
     static final int SUMMARY_MAX_COVER_DP = 72;
     /** Inner cap keeps the dock compact without hiding a short report. */
     static final int SUMMARY_MAX_INNER_DP = 140;
+    /** In a short wide window, only the Summary heading peeks above the bottom edge. */
+    static final int SUMMARY_WIDE_DP = 40;
     /** Fallback bottom padding (tab + summary) when the dock has not been measured. */
     static final int CONTENT_BOTTOM_PAD_DP = TAB_TOUCH_DP + SUMMARY_MIN_DP;
     static final int FLING_PX_S = 600;
@@ -46,6 +48,14 @@ final class NotesSheet {
 
     static int summaryMaxDp(boolean coverMode) {
         return coverMode ? SUMMARY_MAX_COVER_DP : SUMMARY_MAX_INNER_DP;
+    }
+
+    static int summaryMaxDp(boolean coverMode, boolean wide) {
+        return wide ? SUMMARY_WIDE_DP : summaryMaxDp(coverMode);
+    }
+
+    static int summaryMinDp(boolean wide) {
+        return wide ? SUMMARY_WIDE_DP : SUMMARY_MIN_DP;
     }
 
     static int summaryHeight(int measuredPx, int minPx, int maxPx) {
