@@ -19,7 +19,7 @@ Run the commands from `companion/` and replace `MODEL_ID` with the ID your serve
 
 The launchers pass `--headless --always-allow`. Linux runs directly in the terminal without systemd or sudo. All three accept `--key-dir DIRECTORY`, `--serial SERIAL` and `--adb PATH`. Use `--serial` if multiple authorized USB phones are attached. Windows accepts the full path to `adb.exe` and the other platforms accept the path to `adb`. Linux checks `PATH`, then `~/Android/Sdk/platform-tools/adb`, then `/usr/bin/adb`. The `OPOS_GPU_LINK_PYTHON` environment variable overrides the launcher's Python executable.
 
-Use `--lm-url http://127.0.0.1:8000/v1` to pin a backend, or pass the full chat-completions route with `--server`. If both are omitted, the companion uses the single discovered backend when it is on an unprotected port. In other cases it keeps the existing 1235 default. Continue to pass `--model` or set `OPOS_GPU_LINK_MODEL`.
+Use `--lm-url http://127.0.0.1:8000/v1` to choose a model server, or pass the full chat-completions route with `--server`. If neither is set, the companion uses a model server it finds only when there is exactly one on an allowed port. Otherwise it keeps the existing 1235 default. Continue to pass `--model` or set `OPOS_GPU_LINK_MODEL`.
 
 On first pairing, compare the six-digit codes and tap **Allow** on the phone. The launcher keeps its running trust grant across replug. Press Ctrl-C to stop the launcher and let it remove its own forward.
 
@@ -33,7 +33,7 @@ python3 gpu_link_login_agent.py install --model-path /path/to/model.gguf --seria
 
 It writes `~/Library/LaunchAgents/os.opos.gpulink.companion.plist`, which runs `gpu_link_autosetup.py --offline --strict-ports --own-server --port 38400` from this checkout at login, restarts it after a crash (not after a clean exit), and logs to `~/Library/Logs/OPOS GPU Link/`. No admin rights are needed. `status` shows whether it is loaded, `print` shows the plist without installing it, and `uninstall` stops and removes it. The phone still asks once before it uses a new computer.
 
-## Discover backends
+## Find local model servers
 
 Append `--discover` to any launcher. For example:
 
@@ -41,24 +41,23 @@ Append `--discover` to any launcher. For example:
 ./run-linux.sh --discover --probe-url http://127.0.0.1:9001/v1 --json
 ```
 
-Discovery checks each explicit `--probe-url`, a loopback `OPENAI_BASE_URL`, and the built-in loopback ports 1235 and 8000. It sends only `GET /v1/models` with a two-second timeout per candidate. Each result includes the backend origin, a best-effort server kind and model IDs. A generic result is common when a backend omits identifying metadata. The same report shows whether `lms`, `llama-server` and `ollama` are on `PATH` and where they were found. The binaries are never executed.
+This search checks each explicit `--probe-url`, a loopback `OPENAI_BASE_URL`, and the built-in loopback ports 1235 and 8000. It sends only `GET /v1/models` with a two-second timeout per address. Each result includes the server address, a best-effort server kind and model IDs. A generic result is common when a server omits identifying details. The same report shows whether `lms`, `llama-server` and `ollama` are on `PATH` and where they were found. The programs are never run.
 
-Ports 1234, 1236, 8080, 8081, 8765, 8767, 11434, 11435 and 4173 require both an exact `--probe-url URL` and `--allow-protected-port`. To start against such a backend intentionally, also pass that same URL to `--lm-url` or `--server`. Automatic selection always skips protected ports.
+Ports 1234, 1236, 8080, 8081, 8765, 8767, 11434, 11435 and 4173 require both an exact `--probe-url URL` and `--allow-protected-port`. To use a model server on one of these ports, also pass that same URL to `--lm-url` or `--server`. Automatic selection always skips protected ports.
 
 ## Models and memory
 
-Keep the lead computer model in `--model`. Add up to three more models from the same OpenAI-compatible chat endpoint with repeatable `--extra-model ID:LABEL:MAKER` flags. Quote an entry when its label or maker contains spaces. Model IDs may contain slashes. All three launchers forward the flags unchanged:
+Keep the lead computer model in `--model`. Add up to three more models from the same OpenAI-compatible chat endpoint with repeatable `--extra-model ID:LABEL:MAKER` flags. Replace the placeholders below with IDs, labels, and makers from your local server. Quote an entry when its label or maker contains spaces. Model IDs may contain slashes. All three launchers forward the flags unchanged:
 
 ```sh
-./run-linux.sh --model main-model \
-  --extra-model 'qwen/qwen3-4b:Qwen 3 4B:Qwen' \
-  --extra-model 'lfm3-1.7b:LFM 3:Liquid AI'
+./run-linux.sh --model MODEL_ID \
+  --extra-model 'EXTRA_ID:EXTRA_LABEL:EXTRA_MAKER'
 ```
 
-On macOS use `./run-mac.sh` with the same arguments. On Windows PowerShell use `.\run-windows.ps1 --model main-model --extra-model 'qwen/qwen3-4b:Qwen 3 4B:Qwen'`. Use `--models-file models.json` instead of the flags to load an ordered JSON object:
+On macOS use `./run-mac.sh` with the same arguments. On Windows PowerShell use `.\run-windows.ps1 --model MODEL_ID --extra-model 'EXTRA_ID:EXTRA_LABEL:EXTRA_MAKER'`. Use `--models-file models.json` instead of the flags to load an ordered JSON object:
 
 ```json
-{"models":[{"id":"qwen/qwen3-4b","label":"Qwen 3 4B","maker":"Qwen"},{"id":"lfm3-1.7b","label":"LFM 3","maker":"Liquid AI"}]}
+{"models":[{"id":"EXTRA_ID","label":"EXTRA_LABEL","maker":"EXTRA_MAKER"}]}
 ```
 
 The optional `gpu` field on each JSON model can describe its computer GPU with `name` (up to 64 printable characters), `memory_mb` (nonnegative integer), and `driver` (up to 32 printable characters). The list is limited to three unique IDs, distinct from the lead model ID, and a 2,048-byte JSON file. The phone shows these models as `g1`–`g3` next to the lead `gpu` lane. A single question can start the lead, all ready extra computer lanes, and the phone lanes together. Each computer lane owns its stream and saved byte offset; the companion sends at most one text post per second per lane when fan-out is enabled, keeping the phone's existing four-posts-per-second limit.
@@ -84,24 +83,25 @@ When USB disconnects, every open computer lane changes to **paused** after the l
 
 - **Waiting for a phone** — check the cable and USB debugging approval. If multiple devices are authorized, use the intended USB serial explicitly.
 - **Cannot verify a forward** — check that `lsof` is on `PATH` on macOS/Linux, or that Windows PowerShell can inspect local listener owners. Use the same adb executable that owns the listener.
-- **No backend found** — confirm the running server's bind address and port and add its URL with `--probe-url`. Discovery expects an unauthenticated OpenAI-compatible models response. Check the port restrictions above.
-- **Warming model** — compare the reported ID with `--model`. Check whether the backend can serve streaming chat and has memory to load the model.
-- **Replug doesn't continue the answer** — confirm that the companion is still running and that the phone retained the paused turn. See [companion pairing and recovery](README.md#run) for pairing rejection.
+- **No model server found** — confirm the running server's address and port and add its URL with `--probe-url`. The search expects an unauthenticated OpenAI-compatible models response. Check the port restrictions above.
+- **Warming model** — compare the reported ID with `--model`. Check whether the model server can stream answers and has memory to load the model.
+- **Replug doesn't continue the answer** — confirm that the companion is still running and that the phone retained the paused turn. See [companion pairing and recovery](README.md#start-the-companion) for pairing rejection.
 
 ## Verification for this delivery
 
-Host tests and the public unit suites are documented in this repository (`companion/README.md` Isolated tests, and `android/scripts/run-host-tests.sh`). The fake LM Studio HTTP test binds an ephemeral loopback port when the host permits it. The Windows test run, USB unplug/replug, real LM Studio loading, and device rendering remain operator checks.
+Host tests and the public unit suites are documented in this repository ([companion tests](README.md#tests) and `android/scripts/run-host-tests.sh`). The fake LM Studio HTTP test binds an ephemeral loopback port when the host permits it. The Windows test run, USB unplug/replug, real LM Studio loading, and device rendering remain operator checks.
 
 ## LM Studio note: preload extra computer models
-LM Studio's just-in-time loading keeps only one auto-loaded model at a time. If two extra models (for example `qwen/qwen3-4b` and `lfm3-1.7b`) are both cold when a question arrives, loading one can evict the other and one lane fails. Before a demo load them explicitly (`lms load qwen/qwen3-4b`, `lms load lfm3-1.7b`); explicitly loaded models stay resident next to the lead model. Check with `lms ps`.
 
-## Show-day guards
+LM Studio's just-in-time loading keeps only one auto-loaded model at a time. If two extra models are both cold when a question arrives, loading one can evict the other and one lane fails. Before a demo, load each extra model explicitly with `lms load EXTRA_ID`. Explicitly loaded models stay resident next to the lead model. Check with `lms ps`.
+
+## Demo guards
 
 These guards reduce garbage and hallucination risk; they do not eliminate either.
 `OPOS_GPU_LINK_GUARD=0` disables streamed-garbage checks and their one safer retry.
 `OPOS_GPU_LINK_WATCHDOG=0` disables recovery of servers launched by this autosetup process.
 `OPOS_GPU_LINK_SYSTEM_PROMPT=0` disables the default concise, grounded `demo_system_prompt.txt` instruction.
-Recovery uses only owned server slots; a smaller-model fallback is limited to one swap per lane per show.
+Recovery uses only owned server slots; a smaller-model fallback is limited to one swap per lane per demo.
 Run these from `companion/` with your local paths; review answers and verify real phone/recovery behavior separately.
 `python3 -B gpu_link_health.py preflight --offline --backend metal --binary /path/to/llama-server --model-path /path/to/model.gguf --port 38400 --receipt /tmp/gpu-link-preflight.json`
 `python3 -B gpu_link_validate.py --own-server --strict-ports --llama-server /path/to/llama-server --model-file /path/to/model.gguf --model preshow-candidate --backend metal --report /tmp/gpu-link-validator.json`

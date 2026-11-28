@@ -1,38 +1,40 @@
-# Computer companion
+# OPOS GPU Link computer companion
 
-This per-user companion watches one authorized adb phone, creates a checked loopback forward on this computer to phone port 8767, performs first pairing with the phone's six-digit compare/Allow flow, and runs the existing signed GPU Link worker. A saved phone key is reused on replug; rejection stops without automatic re-enrolment. The local model server and model must already be running. Before reporting ready for requests, the companion sends a one-token streaming request to the exact `--server` route with the exact `--model`. A valid choice finish (`stop` or `length`) followed by `[DONE]` passes even if the one-token answer has no text. That preflight checks the route and stream, but does not prove GPU hardware execution or continuation after a cable loss.
+This companion waits for one authorized USB phone. It pairs with a six-digit code, then signs requests between the phone and computer. A saved pairing is reused after replug; a rejected pairing stops. For the commands below, start a local model server and load a model first.
+
+Before it says it is ready, the companion asks the selected server and model for a one-token streamed answer. A completed stream passes even if it has no text. This checks the server route. It does not prove which GPU ran the model or whether an answer will continue after unplugging.
 
 ## Setup
 
 See the [cross-platform setup guide](SETUP.md) for the macOS, Windows and Linux launchers,
-USB debugging, backend discovery, model sizing and troubleshooting.
+USB debugging, finding local model servers, model sizing and troubleshooting.
 
-## Run
+## Start the companion
 
-Set `OPOS_GPU_LINK_MODEL` to the name at your local chat-completions server, or pass `--model NAME`. Then start one of these commands on the computer (MacBook, Mac or PC):
+Set `OPOS_GPU_LINK_MODEL` to the ID at your local model server, or pass `--model MODEL_ID`. Then start one of these commands on your Mac, Windows computer, or Linux computer:
 
 ```sh
-OPOS_GPU_LINK_MODEL=YOUR_MODEL ./run-mac.sh
+OPOS_GPU_LINK_MODEL=MODEL_ID ./run-mac.sh
 ```
 
 ```powershell
-$env:OPOS_GPU_LINK_MODEL = "YOUR_MODEL"
+$env:OPOS_GPU_LINK_MODEL = "MODEL_ID"
 .\run-windows.ps1
 ```
 
-The scripts wait and check every two seconds when no authorized phone is present, then select the only authorized USB adb serial automatically. Wireless, IP, emulator, unauthorized, offline, and malformed rows are excluded before counting USB phones. Pass `--serial SERIAL` if more than one valid USB phone is authorized. With no explicit server, startup uses a single discovered backend on an unprotected port and otherwise keeps `http://127.0.0.1:1235/v1/chat/completions`. Use `--lm-url URL` for a backend base URL or `--server URL` for a full chat-completions route. Pass `--adb PATH` if platform tools are not on `PATH`. No port scan, installation, model download, server startup, login item, or firewall change is performed.
+The scripts wait for an authorized USB phone. They check every two seconds and select it when only one is connected. Network connections, emulators, and unauthorized USB phones are excluded. Wireless: coming later. Pass `--serial SERIAL` if more than one authorized USB phone is connected. With no explicit server, startup uses a local model server it finds only when there is exactly one on an allowed port; otherwise it keeps `http://127.0.0.1:1235/v1/chat/completions`. Use `--lm-url URL` for a server base URL or `--server URL` for a full chat-completions route. Pass `--adb PATH` if platform tools are not on `PATH`. No port scan, installation, model download, server startup, login item, or firewall change is performed.
 
 The companion says **Warming model** while a cold model prepares its first response. TCP connect has a two-second limit; response headers and first stream event can take up to 90 seconds total, followed by up to 10 seconds for the finish and `[DONE]`. Stop or phone detach cancels that wait. Only one preflight is in flight. A failed check retries after 3, 6, 12, 24, then 30 seconds while the same phone attachment keeps its checked forward and avoids another app launch. Detach or a lost forward begins a new attachment session.
 
-The scripts explicitly opt into `--headless --always-allow`. Headless prints a six-digit compare code for first pairing and waits up to 60 seconds for **Allow** on the phone (the button names this computer, for example **Allow this MacBook**); it never prints the key or question/answer text. On later plugs it uses the saved per-phone key without a prompt on the computer. Starting the process grants use for that process; Ctrl-C or SIGTERM stops the worker and removes its own forward. Without `--always-allow`, a headless grant expires after 120 seconds unplugged and requires a restart. The Tk window remains available by running `python3 -B opos_gpu_link.py --model NAME` without `--headless` when Tk is installed.
+The scripts explicitly opt into `--headless --always-allow`. Headless prints a six-digit compare code for first pairing and waits up to 60 seconds for **Allow** on the phone (the button names this computer, for example **Allow this MacBook**); it never prints the key or question/answer text. On later plugs it uses the saved per-phone key without a prompt on the computer. Starting the process grants use for that process; Ctrl-C or SIGTERM stops the worker and removes its own forward. Without `--always-allow`, a headless grant expires after 120 seconds unplugged and requires a restart. The Tk window remains available by running `python3 -B opos_gpu_link.py --model MODEL_ID` without `--headless` when Tk is installed.
 
 The saved key is written only after signed proof of phone Allow. Windows uses current-user DPAPI; macOS and Linux use a user-owned mode-0600 key file. A per-phone lock prevents two companion processes using the same key directory from claiming the same forward. Pairing and grant retention are separate: Stop ends the running grant but does not delete the key. Signed companion requests already carry a stable 16-hex-character, non-secret key fingerprint in `X-Link-Pc`.
 
-For a deliberate computer change, or to show a changed computer label on the phone (for example a Mac now labeled `<chip> MacBook Pro` instead of `<chip> PC`), first use **Forget** in the phone's GPU Link Info (it names the saved computer, for example **Forget this MacBook**), then stop the old companion. On that computer, run `python3 -B opos_gpu_link.py --reset-pairing --serial SERIAL` from this directory (add its original `--key-dir DIRECTORY` if customized). This command requires the exact USB serial, does not call adb, and removes only that serial's saved key while its companion lock is free. It refuses to run while the companion holds the lock. Then start the companion and compare the new code on the phone. Resetting only the computer's key does not forget phone trust.
+For a deliberate computer change, or to correct the computer name shown on the phone, first use **Forget** in the phone's GPU Link Info (for example **Forget this MacBook**). Then stop the old companion. On that computer, run `python3 -B opos_gpu_link.py --reset-pairing --serial SERIAL` from this directory (add its original `--key-dir DIRECTORY` if customized). This command requires the exact USB serial, does not call adb, and removes only that serial's saved key while its companion lock is free. It refuses to run while the companion holds the lock. Then start the companion and compare the new code on the phone. Resetting only the computer's key does not forget phone trust.
 
 The staged phone backend omits the computer's key fingerprint from its `/api/ai` snapshot and accepts `forget` without a fingerprint precondition. Info displays that the fingerprint is unavailable on this phone build; its two confirmations still recheck the saved computer label, and will also compare a fingerprint if a future snapshot supplies `pc.id`. Same-label replacement cannot be guarded atomically until the phone backend includes the ID and checks it during `forget`. This is a backend integration gate, not a verified phone behavior.
 
-## Isolated tests
+## Tests
 
 From the checkout root:
 
@@ -88,13 +90,13 @@ on the CPU (`OPOS_GPU_LINK_SALAD_NGL=0`), so the answer model keeps the GPU.
 `OPOS_GPU_LINK_SALAD_MODEL` override the files, and setting them to an empty
 value keeps it off.
 
-## Show-day guards
+## Demo guards
 
 These guards reduce garbage and hallucination risk; they do not eliminate either.
 `OPOS_GPU_LINK_GUARD=0` disables streamed-garbage checks and their one safer retry.
 `OPOS_GPU_LINK_WATCHDOG=0` disables recovery of servers launched by this autosetup process.
 `OPOS_GPU_LINK_SYSTEM_PROMPT=0` disables the default concise, grounded `demo_system_prompt.txt` instruction.
-Recovery uses only owned server slots; a smaller-model fallback is limited to one swap per lane per show.
+Recovery uses only owned server slots; a smaller-model fallback is limited to one swap per lane per demo.
 Run these from `companion/` with your local paths; review answers and verify real phone/recovery behavior separately.
 `python3 -B gpu_link_health.py preflight --offline --backend metal --binary /path/to/llama-server --model-path /path/to/model.gguf --port 38400 --receipt /tmp/gpu-link-preflight.json`
 `python3 -B gpu_link_validate.py --own-server --strict-ports --llama-server /path/to/llama-server --model-file /path/to/model.gguf --model preshow-candidate --backend metal --report /tmp/gpu-link-validator.json`
