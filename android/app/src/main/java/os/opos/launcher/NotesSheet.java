@@ -67,8 +67,9 @@ final class NotesSheet {
         return wide ? SUMMARY_WIDE_DP : SUMMARY_MIN_DP;
     }
 
-    static int collapsedTabHeightDp(boolean wide) {
-        return wide ? 0 : TAB_TOUCH_DP;
+    /** Use the laid-out tab row when large text makes it taller than its touch floor. */
+    static int collapsedTabHeightPx(boolean wide, int measuredPx, int floorPx) {
+        return wide ? 0 : Math.max(Math.max(0, floorPx), measuredPx);
     }
 
     static int summaryHeight(int measuredPx, int minPx, int maxPx) {
