@@ -96,6 +96,7 @@ public final class DesignLabTest {
         check(DesignLab.beltFor("Streaming…") == DesignLab.Belt.MOVING);
         check(DesignLab.beltFor("Waiting for its turn…") == DesignLab.Belt.QUEUED);
         check(DesignLab.beltFor("Stopped") == DesignLab.Belt.STOPPED);
+        check(DesignLab.beltFor(" Stopped · 1.2 s ") == DesignLab.Belt.STOPPED);
         check(DesignLab.belt(0, "Phone", 12, DesignLab.Belt.STOPPED, 40).substring(11).startsWith("╳"));
         check(DesignLab.beltFor(null) == DesignLab.Belt.QUEUED);
         // Panel cases: nulls, an idle unplugged cable, short finished answers, newlines.

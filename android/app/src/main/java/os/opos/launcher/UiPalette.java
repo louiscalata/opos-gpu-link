@@ -83,12 +83,17 @@ final class UiPalette {
         if (text == null) return Tone.NEUTRAL;
         String lower = text.toString().trim().toLowerCase(Locale.US);
         if (lower.isEmpty()) return Tone.NEUTRAL;
+        // Ignore the planned cable event itself, but still inspect what follows it.
+        if (lower.startsWith("usb cable disconnected")) lower = lower.substring(22);
+        else if (lower.startsWith("usb disconnected")) lower = lower.substring(16);
+        else if (lower.startsWith("cable out")) lower = lower.substring(9);
+        // A user-requested Stop is a neutral end state, including its elapsed time.
+        if (lower.equals("stopped") || lower.startsWith("stopped ·")) return Tone.NEUTRAL;
         // Hard errors first, so "Paused — stuck" stays red; a plain pause is ink.
         if (containsAny(lower, "garbled", "stuck", "failed", "failure",
                 "disconnected", "unreachable", "not connected", "unavailable",
                 "validator", "invalid", "stale snapshot", "expired", "could not",
-                "stopped early", "not enough free memory")
-                || hasWord(lower, "stopped")) {
+                "stopped early", "not enough free memory") || hasWord(lower, "stopped")) {
             return Tone.ERROR;
         }
         if (lower.contains("error")) return Tone.ERROR;

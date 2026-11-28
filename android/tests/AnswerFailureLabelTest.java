@@ -29,10 +29,10 @@ public final class AnswerFailureLabelTest {
         equal("Stopped early. Here is what it wrote.", string(strings, "phone_failed_partial"));
         equal("Stopped early. Here is what it sent.", string(strings, "gpu_failed_partial"));
         equal("Could not finish on this phone. Try again.", string(strings, "phone_failed"));
-        equal("Could not finish on the PC. Try again.", string(strings, "gpu_failed"));
+        equal("Could not finish on the computer. Try again.", string(strings, "gpu_failed"));
         equal("Garbled — Retry", string(strings, "answer_garbled"));
-        // Shown through pcWords, so a paired MacBook is never called a PC on stage.
-        equal("Could not finish on the MacBook. Try again.",
+        // The fallback wording remains safe before the computer's name arrives.
+        equal("Could not finish on the computer. Try again.",
                 ComputerWords.apply(string(strings, "gpu_failed"), "MacBook"));
         equal("Connect the MacBook by USB-C, compare its 6-digit code, then tap Allow on the phone.",
                 ComputerWords.apply(string(strings, "info_replace_pc_steps"), "MacBook"));

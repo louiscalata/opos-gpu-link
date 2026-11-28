@@ -87,6 +87,8 @@ public final class NewspaperSummaryTest {
         contains(stopped, "Fastest: MacBook (9.4 s) · Slowest: Phone (108.1 s)");
         contains(stopped, "Longest answer: MacBook (3 words)");
         check(!stopped.contains("so far"));
+        check(!NewspaperSummary.stillGoing(new NewspaperSummary.Lane(
+                "MacBook", "answer", "Stopped · 1.2 s", null)));
         String failed = NewspaperSummary.report(Arrays.asList(
                 new NewspaperSummary.Lane("MacBook", "one two", "Done · 10.1 s", 10100L),
                 new NewspaperSummary.Lane("Qwen", "", "Could not finish on this phone. Try again.", null)));
