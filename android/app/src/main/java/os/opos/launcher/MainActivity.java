@@ -23,6 +23,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.graphics.Color;
 import android.graphics.Insets;
 import android.graphics.Rect;
+import android.os.BatteryManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.os.Handler;
@@ -119,6 +120,7 @@ public final class MainActivity extends Activity {
     // Per-lane Retry: stall detection, one button per card, and a rebind after an uncertain POST.
     private final LaneHealth laneHealth = new LaneHealth();
     private final Map<String, Button> laneRetryButtons = new HashMap<>();
+    private final Map<String, Boolean> laneRetryReady = new HashMap<>();
     private final Map<String, String> laneRetryRebind = new HashMap<>();
     private final Map<View, NewspaperLayoutDecision.RevealOnce> revealStates = new IdentityHashMap<>();
     private final List<String> paneOrder = new ArrayList<>();
@@ -149,6 +151,7 @@ public final class MainActivity extends Activity {
             }
             renderStatus();
             renderAnswers();
+            updateButtons();
             schedule(0);
         }
     };
@@ -171,7 +174,12 @@ public final class MainActivity extends Activity {
     private final Runnable workingTicker = this::tickWorking;
     private long workingTick;
     private boolean workingScheduled;
-    private TextView heatMeter;
+    private TextView heatMeter, batteryNotice;
+    private final BroadcastReceiver batteryReceiver = new BroadcastReceiver() {
+        @Override public void onReceive(Context context, Intent intent) {
+            showBattery(intent);
+        }
+    };
     private TextView linkLine, cableBannerTitle, cableBannerBody;
     private LinearLayout cableBanner;
     private PowerManager.OnThermalStatusChangedListener heatListener;
@@ -802,6 +810,13 @@ public final class MainActivity extends Activity {
         // Keep the heat reading on its own line: it must never steal the title's width.
         LinearLayout root = (LinearLayout) screen;
         root.addView(heatMeter, root.indexOfChild(header) + 1,
+                new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT));
+        batteryNotice = newspaperText("", TypeConfig.body().sizeSp, false, true);
+        batteryNotice.setPadding(dp(12), 0, dp(12), dp(4));
+        batteryNotice.setVisibility(View.GONE);
+        batteryNotice.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        root.addView(batteryNotice, root.indexOfChild(heatMeter) + 1,
                 new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT));
         info.setLayoutParams(new LinearLayout.LayoutParams(dp(52), dp(48)));
@@ -1462,6 +1477,12 @@ public final class MainActivity extends Activity {
             registerReceiver(cableReceiver, filter);
         }
         cableConnected = LinkWatcherService.cableConnected(this);
+        Intent battery = Build.VERSION.SDK_INT >= 33
+                ? registerReceiver(batteryReceiver,
+                        new IntentFilter(Intent.ACTION_BATTERY_CHANGED), Context.RECEIVER_NOT_EXPORTED)
+                : registerReceiver(batteryReceiver,
+                        new IntentFilter(Intent.ACTION_BATTERY_CHANGED));
+        showBattery(battery);
         awaitingReplugSnapshot = false;
         LinkWatcherService.start(this);
         showWaiting();
@@ -1500,6 +1521,7 @@ public final class MainActivity extends Activity {
         getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
         visible = false;
         unregisterReceiver(cableReceiver);
+        unregisterReceiver(batteryReceiver);
         handler.removeCallbacks(poll);
         // Keep measured start/duration so TONIGHT does not fall back to dashes
         // after a flip, cover switch, or brief background. elapsedRealtime
@@ -1723,7 +1745,7 @@ public final class MainActivity extends Activity {
     private void showOffline(Exception failure) {
         offline = true;
         boolean pcPaused = Boolean.FALSE.equals(cableConnected) && hasVisiblePcWork();
-        setMainStatus(getString(pcPaused ? R.string.paused_plug_cable : R.string.phone_unreachable));
+        setMainStatus(getString(R.string.phone_unreachable));
         updateModelSelectionRows();
         if (infoDialog != null && infoDialog.isShowing()) {
             setIfChanged(infoDialog.findViewById(R.id.info_pc_status),
@@ -1750,9 +1772,11 @@ public final class MainActivity extends Activity {
             }
         }
         updateCompactLaneStatus();
-        error.setText(failure instanceof AiClient.ApiException
+        setIfChanged(error, getString(failure instanceof AiClient.ApiException
                 && ((AiClient.ApiException) failure).status == 404
-                ? R.string.ai_unavailable : R.string.phone_unreachable_detail);
+                ? R.string.ai_unavailable : R.string.phone_unreachable_detail));
+        renderLinkBanner(false, hasVisiblePcWork());
+        applyErrorView();
         updateButtons();
     }
 
@@ -2930,6 +2954,8 @@ public final class MainActivity extends Activity {
             if (work != null && "answering".equals(work.optString("state"))) streaming = true;
         }
         Connection connection = pcConnection(gpu);
+        AnswerOutcome.Result outcome = AnswerOutcome.visible(
+                currentAnswerOutcome(), connection == Connection.CONNECTED);
         String line;
         if (Boolean.FALSE.equals(cableConnected)) {
             line = pcOpen || hasVisiblePcWork() ? getString(R.string.paused_plug_cable)
@@ -2950,6 +2976,12 @@ public final class MainActivity extends Activity {
             line = getString(R.string.streaming);
         } else if (open(phoneWork) || open(gpuWork) || extraOpen) {
             line = getString(R.string.thinking);
+        } else if (outcome == AnswerOutcome.Result.FAILED) {
+            line = getString(R.string.answers_failed);
+        } else if (outcome == AnswerOutcome.Result.STOPPED) {
+            line = getString(R.string.answer_stopped);
+        } else if (outcome == AnswerOutcome.Result.FINISHED) {
+            line = getString(R.string.answer_done);
         } else if (connection == Connection.CONNECTED) {
             line = getString(R.string.ready_to_ask);
         } else if (connection == Connection.PREPARING) {
@@ -2969,6 +3001,20 @@ public final class MainActivity extends Activity {
             updateInfoPcRows(infoDialog, gpu, connection);
         }
         applyErrorView();
+    }
+
+    private AnswerOutcome.Result currentAnswerOutcome() {
+        if (snapshot == null || latestRequestedPanes.isEmpty()) return AnswerOutcome.Result.NONE;
+        List<String> states = new ArrayList<>();
+        for (String pane : latestRequestedPanes) {
+            JSONObject work = answerOf(snapshot, pane);
+            String id = work == null ? "" : work.optString("id");
+            if (id.isEmpty() || !id.equals(latestRequestIds.get(pane))) {
+                return AnswerOutcome.Result.NONE;
+            }
+            states.add(work.optString("state"));
+        }
+        return AnswerOutcome.terminal(states);
     }
 
     /** The link line and cable-out banner sit under the masthead; the cover screen keeps its own chrome. */
@@ -3091,6 +3137,17 @@ public final class MainActivity extends Activity {
         heatMeter.setTextColor(parseHex(HeatMeter.hot(status) ? palette.error() : palette.ink()));
         heatMeter.setContentDescription(HeatMeter.description(status));
         heatMeter.setVisibility(View.VISIBLE);
+    }
+
+    private void showBattery(Intent battery) {
+        if (batteryNotice == null) return;
+        typography.body(batteryNotice, typography.bodySp());
+        boolean low = battery != null && BatteryNotice.show(
+                battery.getIntExtra(BatteryManager.EXTRA_LEVEL, -1),
+                battery.getIntExtra(BatteryManager.EXTRA_SCALE, 0),
+                battery.getIntExtra(BatteryManager.EXTRA_PLUGGED, 0) != 0);
+        batteryNotice.setVisibility(low ? View.VISIBLE : View.GONE);
+        setIfChanged(batteryNotice, low ? getString(R.string.battery_low) : "");
     }
 
     private String labMode() {
@@ -3752,14 +3809,20 @@ public final class MainActivity extends Activity {
             JSONObject view = paneOf(snapshot, pane);
             if (!retryablePane(pane, answerOf(snapshot, pane))) continue;
             retryable = true;
-            if ("gpu".equals(pane) ? gpuCanQueue(view)
+            if (PaneKeys.pc(pane) ? !Boolean.FALSE.equals(cableConnected)
+                    && ("gpu".equals(pane) ? gpuCanQueue(view)
+                    : view != null && view.optBoolean("ready"))
                     : view != null && view.optBoolean("ready")) retryReady = true;
         }
         retry.setVisibility(retryable ? View.VISIBLE : View.GONE);
         retry.setEnabled(reachable && !acting && !quitting && !running && retryReady);
         styleErrorButton(retry, retryable);
-        if (acting || quitting) {
-            for (Button laneRetry : laneRetryButtons.values()) laneRetry.setEnabled(false);
+        for (Map.Entry<String, Button> entry : laneRetryButtons.entrySet()) {
+            Button laneRetry = entry.getValue();
+            laneRetry.setEnabled(laneRetry.getVisibility() == View.VISIBLE
+                    && RetryControls.laneEnabled(entry.getKey(), cableConnected,
+                    Boolean.TRUE.equals(laneRetryReady.get(entry.getKey())),
+                    reachable, acting, quitting));
         }
         applyComposerState();
     }
@@ -3869,6 +3932,7 @@ public final class MainActivity extends Activity {
                     && id.equals(latestRequestIds.get(pane)));
             if (!tracked) {
                 laneHealth.observe(pane, "", "", null, 0, "", false, now);
+                laneRetryReady.remove(pane);
                 button.setVisibility(View.GONE);
                 continue;
             }
@@ -3876,6 +3940,7 @@ public final class MainActivity extends Activity {
             // need the lane actually ready, so a warmup is never read as a stall.
             boolean canQueue = Boolean.TRUE.equals(ready.get(pane));
             boolean laneReady = canQueue && (!"gpu".equals(pane) || gpuLaneReady(data));
+            laneRetryReady.put(pane, laneReady);
             String question = answer.optString("question");
             LaneHealth.Verdict verdict = laneHealth.observe(pane, id, answer.optString("state"),
                     answer.optString("error"), answer.optLong("bytes", answer.optString("text").length()),
@@ -3889,7 +3954,8 @@ public final class MainActivity extends Activity {
                     : verdict.status == LaneHealth.Status.STUCK
                     ? R.string.lane_retry_stuck : R.string.lane_retry));
             styleLaneRetry(button, verdict);
-            boolean enabled = reachable && !acting && !quitting && laneReady;
+            boolean enabled = RetryControls.laneEnabled(pane, cableConnected, laneReady,
+                    reachable, acting, quitting);
             button.setEnabled(enabled);
             if (verdict.autoRetryDue && enabled && autoPane == null
                     && !FollowUpPolicy.bareFollowUp(FollowUpPolicy.originalQuestion(

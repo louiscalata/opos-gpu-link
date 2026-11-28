@@ -6,6 +6,7 @@
     <string name="phone_unreachable">Phone unavailable</string>
     <string name="phone_unreachable_detail">Tap Reconnect. Setup help is in Info.</string>
     <string name="stale_snapshot">Showing the last answer</string>
+    <string name="battery_low">Phone battery low. Charge the phone.</string>
     <string name="ai_unavailable">Models unavailable. Tap Reconnect.</string>
     <string name="phone_locked">Unlock the phone to use models.</string>
     <string name="waiting_for_phone">Waiting for the phone</string>
@@ -59,11 +60,12 @@
     <string name="model_low_memory">Not enough free memory for this model right now.</string>
     <string name="model_start_failed">This model could not start.</string>
     <string name="lane_paused">Paused</string>
-    <string name="gpu_paused">Paused · resumes when the PC is back</string>
+    <string name="gpu_paused">Paused. Resumes when the computer is back.</string>
     <string name="gpu_resumed">GPU answer resumed</string>
     <string name="answer_done">Done</string>
+    <string name="answers_failed">Answer failed.</string>
     <string name="answer_stopped">Stopped</string>
-    <string name="gpu_failed">Could not finish on the PC. Try again.</string>
+    <string name="gpu_failed">Could not finish on the computer. Try again.</string>
     <string name="phone_failed">Could not finish on this phone. Try again.</string>
     <string name="gpu_failed_partial">Stopped early. Here is what it sent.</string>
     <string name="phone_failed_partial">Stopped early. Here is what it wrote.</string>
