@@ -22,6 +22,7 @@ import zlib
 
 ROOT = Path(__file__).resolve().parents[1]
 POLICY = ROOT / "android/app/src/main/java/os/opos/launcher/DeviceLayoutPolicy.java"
+HEAT_METER = ROOT / "android/app/src/main/java/os/opos/launcher/HeatMeter.java"
 MODELS_XML = ROOT / "android/app/src/main/res/layout/models.xml"
 FONTS = ROOT / "android/app/src/main/res/font"
 
@@ -70,6 +71,27 @@ def place_demo_lanes() -> dict[str, str]:
                        ("LFM2", "phone")):
         placed[name] = "left" if side == "phone" else "right"
     return placed
+
+
+def cool_heat_label(*, compact: bool) -> str:
+    """Read the cool word and both label prefixes from Android's HeatMeter."""
+    source = HEAT_METER.read_text(encoding="utf-8")
+    cool = re.search(r'case 0:\s*case 1:\s*return "([^"]+)";', source)
+    labels = re.search(
+        r'return compact \? "([^"]+)" \+ word\(status\)\s*'
+        r':\s*"([^"]+)" \+ word\(status\);', source)
+    if not cool or not labels:
+        raise RuntimeError("HeatMeter cool labels are missing")
+    return (labels.group(1) if compact else labels.group(2)) + cool.group(1)
+
+
+def heat_row(scene: "Scene", y: float, *, margin: float, scale: float,
+             compact: bool = False) -> float:
+    """Draw the cool phone reading on its own row, aligned like Android's heat view."""
+    size = (14 if compact else 16) * scale
+    scene.text(scene.width - margin, y, cool_heat_label(compact=compact),
+               size=size, color=WHITE, face="small", anchor="end")
+    return y + size
 
 
 def wrap_words(text: str, max_width: float, size: float) -> list[str]:
@@ -236,7 +258,9 @@ def inner_scene(width: int, height: int, *, landscape: bool) -> Scene:
                else "MOCK PREVIEW · INNER PORTRAIT", size=small, color=GRAY, face="small")
     scene.text(margin, 20 * scale, "GPU LINK",
                size=(28 if landscape else 34) * scale, face="head")
-    band_y = (52 if landscape else 65) * scale
+    heat_bottom = heat_row(scene, (52 if landscape else 65) * scale,
+                           margin=margin, scale=scale)
+    band_y = heat_bottom + 8 * scale
     bottom_band = device_band(scene, band_y, margin=margin, scale=scale)
     question_y = bottom_band + 10 * scale
     scene.text(margin, question_y, "YOUR QUESTION", size=small, color=GRAY,
@@ -287,8 +311,9 @@ def cover_scene() -> Scene:
     margin = 24
     scene.text(margin, 5, "MOCK PREVIEW · COVER", size=22, color=GRAY, face="small")
     scene.text(margin, 27, "GPU LINK", size=48, face="head")
+    heat_bottom = heat_row(scene, 80, margin=margin, scale=2, compact=True)
     # CoverScreenPolicy: a 52 dp composer row above the results at 2 px per dp.
-    prompt_x, composer_y, composer_h = margin, 88, 104
+    prompt_x, composer_y, composer_h = margin, heat_bottom + 10, 104
     button_w, button_gap = 168, 12  # 84 dp action and 6 dp margin.
     prompt_w = width - 2 * margin - button_w - button_gap
     scene.rect(prompt_x, composer_y, prompt_w, composer_h, stroke=STROKE)
@@ -299,9 +324,10 @@ def cover_scene() -> Scene:
     scene.text(button_x + button_w / 2, composer_y + 34, "Send", size=34,
                color=BLACK, face="head", anchor="middle")
 
-    device_band(scene, 202, margin=margin, scale=2, compact=True)
+    band_bottom = device_band(scene, composer_y + composer_h + 10,
+                              margin=margin, scale=2, compact=True)
     # One compact answer fits between the band and the pinned bottom dock.
-    article(scene, margin, 306, width - 2 * margin, scale=2,
+    article(scene, margin, band_bottom + 16, width - 2 * margin, scale=2,
             name="Nemotron 3.5 Bolt", maker="NVIDIA", where="MACBOOK GPU",
             paragraphs=1, body_text="Words arrive here.", live=True, cover=True)
 

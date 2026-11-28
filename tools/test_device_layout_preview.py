@@ -49,6 +49,26 @@ class DeviceLayoutPreviewTest(unittest.TestCase):
             self.assertLess(phone_x, machine_x)
             self.assertIn("MOCK PREVIEW", scene.svg())
 
+    def test_cool_heat_uses_android_copy_on_its_own_row(self):
+        self.assertEqual("● Phone cool", preview.cool_heat_label(compact=False))
+        self.assertEqual("● cool", preview.cool_heat_label(compact=True))
+        for scene, label in (
+            (preview.inner_scene(1080, 2640, landscape=False), "● Phone cool"),
+            (preview.inner_scene(2640, 1080, landscape=True), "● Phone cool"),
+            (preview.cover_scene(), "● cool"),
+        ):
+            texts = [op.args for op in scene.operations if op.kind == "text"]
+            title = next(args for args in texts if args[2] == "GPU LINK")
+            heat = next(args for args in texts if args[2] == label)
+            self.assertEqual(preview.WHITE, heat[4])
+            self.assertEqual("end", heat[6])
+            self.assertGreaterEqual(heat[1], title[1] + title[3])
+            heat_index = next(i for i, op in enumerate(scene.operations)
+                              if op.kind == "text" and op.args[2] == label)
+            next_box = next(op.args for op in scene.operations[heat_index + 1:]
+                            if op.kind == "rect")
+            self.assertLessEqual(heat[1] + heat[3], next_box[1])
+
     def test_landscape_card_columns_match_android_device_sides(self):
         source = preview.POLICY.read_text(encoding="utf-8")
         self.assertIn("if (side == Side.UNKNOWN)", source)
