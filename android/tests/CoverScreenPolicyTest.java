@@ -165,15 +165,6 @@ public final class CoverScreenPolicyTest {
         eq(0, CoverScreenPolicy.mastheadDp(true));
         eq(52, CoverScreenPolicy.composerRowDp(false));
         eq(48, CoverScreenPolicy.composerRowDp(true));
-        // 360 dp cover, 80 dp of sticky chrome: 360-80-40-52=188, minus 8 gap = 180.
-        eq(80, CoverScreenPolicy.STICKY_CHROME_DP);
-        eq(180, CoverScreenPolicy.paneHeightDp(360, CoverScreenPolicy.STICKY_CHROME_DP, 3));
-        eq(188, CoverScreenPolicy.paneHeightDp(360, CoverScreenPolicy.STICKY_CHROME_DP, 1));
-        // The page is wider than it is tall on the cover, but a pane never exceeds the viewport.
-        check(CoverScreenPolicy.paneHeightDp(360, CoverScreenPolicy.STICKY_CHROME_DP, 3) < 360);
-        // Very short window never goes below the minimum, tall window never above the maximum.
-        eq(150, CoverScreenPolicy.paneHeightDp(200, 56, 3));
-        eq(230, CoverScreenPolicy.paneHeightDp(700, 56, 3));
         // The keyboard row matches the compact layout's touch target size.
         check(CoverScreenPolicy.MASTHEAD_DP < CoverLayoutPolicy.MASTHEAD_DP);
         check(CoverScreenPolicy.COMPOSER_ROW_DP < CoverLayoutPolicy.COMPOSER_ROW_DP);

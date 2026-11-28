@@ -14,19 +14,12 @@ final class LaneCardLayout {
      * Walls stay quieter than the words: a hairline in a dark gray, well under the #fff text.
      * #5C5C5C on #000 is about 3.1:1, the minimum contrast for a UI boundary.
      */
-    static final String STROKE_HEX = UiPalette.STROKE;
-    static final String STROKE_COLOR = "newspaper_stroke";
-    static final String STROKE_WIDTH = "0.5dp";
     static final float STROKE_DP = 0.5f;
     static final int CARD_PADDING_DP = 8;
     static final int CARD_GAP_DP = 6;
     /** Recommended default (H5+S5+B5), 1.25 modular scale: 11 / 17 / 21. */
     static final int BODY_SP_FULL = 17;
-    static final int BODY_SP_COMPACT = 17;
-    static final float BODY_LINE_SPACING = 1.35f;
     static final int LABEL_SP = 11;
-    static final int RETRY_SP = 11;
-    static final int HEADING_SP = 21;
     /** Minimum height so an empty or waiting lane still reads as a frame. */
     static final int MIN_LANE_DP = 96;
     /** Subtle card height animation while an answer streams, clears, or retries. */

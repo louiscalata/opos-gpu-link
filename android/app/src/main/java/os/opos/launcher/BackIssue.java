@@ -26,14 +26,15 @@ final class BackIssue {
         boolean legacy = !issue.pauseProvenanceKnown;
         for (HistoryStore.Lane lane : issue.lanes) {
             if (lane.state.startsWith("Done") || !lane.text.trim().isEmpty()) {
-                answered.add(lane.label);
+                answered.add(HistoryDisplay.label(lane));
             }
             displayed.add(legacy ? lane.withState(
                     AnswerTimingPolicy.legacyDoneLabel(lane.state, lane.elapsedMs)) : lane);
         }
-        String timing = legacy && !issue.timing.isEmpty()
-                ? "Saved model times may include a cable pause\n" + issue.timing
-                : issue.timing;
+        String savedTiming = HistoryDisplay.timing(issue);
+        String timing = legacy && !savedTiming.isEmpty()
+                ? "Saved model times may include a cable pause\n" + savedTiming
+                : savedTiming;
         String elapsedLabel = legacy ? AnswerTimingPolicy.LEGACY_WALL
                 : AnswerTimingPolicy.overallLabel(issue.pauseObserved);
         return new BackIssue("You asked: " + issue.question, timing,
