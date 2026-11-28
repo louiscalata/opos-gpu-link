@@ -10,11 +10,13 @@ public final class WorkingIndicatorTest {
                 "Ready to ask", "Not asked this time", "streaming"}) {
             check(!WorkingIndicator.working(s), "not working: " + s);
         }
-        equal("● Working...", WorkingIndicator.line("Streaming…", 0));
-        equal("● Working...", WorkingIndicator.line("Thinking…", -4));
-        equal("● Working... · 1 word", WorkingIndicator.line("Streaming…", 1));
-        equal("● Working... · 312 words", WorkingIndicator.line("Streaming…", 312));
-        equal("", WorkingIndicator.line("Stopped", 12));
+        equal("● Working...", WorkingIndicator.line("Streaming…"));
+        equal("● Working...", WorkingIndicator.line("Thinking…"));
+        equal("", WorkingIndicator.line("Stopped"));
+        equal("", WorkingIndicator.count(0));
+        equal("", WorkingIndicator.count(-4));
+        equal(" · 1 word", WorkingIndicator.count(1));
+        equal(" · 312 words", WorkingIndicator.count(312));
         equal("Working...", WorkingIndicator.display("Streaming…"));
         equal("Working...", WorkingIndicator.display("Thinking…"));
         equal("Paused", WorkingIndicator.display("Paused"));
@@ -24,8 +26,8 @@ public final class WorkingIndicatorTest {
         equal("Working", WorkingIndicator.spoken("Thinking…", -4));
         equal("", WorkingIndicator.spoken(null, 5));
         equal("", WorkingIndicator.spoken("   ", 5));
-        equal("", WorkingIndicator.line(null, 5));
-        equal("", WorkingIndicator.line("   ", 5));
+        equal("", WorkingIndicator.line(null));
+        equal("", WorkingIndicator.line("   "));
         for (String s : new String[] {"Streaming paused", "Streaming failed", "Thinking stopped",
                 "Streaming… paused"}) {
             check(!WorkingIndicator.working(s), "qualified label is not live: " + s);

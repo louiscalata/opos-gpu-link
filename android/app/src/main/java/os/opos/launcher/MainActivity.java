@@ -233,7 +233,7 @@ public final class MainActivity extends Activity {
     private TextView phoneState, phoneAnswer, gpuHeading, gpuState, gpuAnswer;
     private LinearLayout tonightRows;
     private TextView tonightCount, tonightProvenance, tonightTiming, summaryHeading, summaryText,
-            expandedState, expandedAnswer,
+            expandedState, expandedWorkingCount, expandedAnswer,
             expandedStatus, expandedTitle, expandedByline;
     private final WorkingSpans expandedWorkingSpans = new WorkingSpans();
     private boolean expandedWorkingAnimated;
@@ -826,6 +826,8 @@ public final class MainActivity extends Activity {
         String lastRenderedState = "";
         /** Live line replacing the plain state while the lane streams or thinks. */
         TextView working;
+        TextView workingCount;
+        LinearLayout workingRow;
         final WorkingSpans workingSpans = new WorkingSpans();
 
         PaneViews(String pane, LinearLayout card, TextView kicker, TextView heading,
@@ -1147,6 +1149,7 @@ public final class MainActivity extends Activity {
         typography.headline(heading, typography.headingSp());
         typography.state(stateView);
         typography.tabular(stateView);
+        stateView.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         TextView kicker = newspaperText(PaneKeys.kicker(pane), typography.labelSp(), true, false);
         if (PaneKeys.pc(pane)) pcLabelled(kicker, PaneKeys.kicker(pane, ComputerWords.PC));
         typography.kicker(kicker);
@@ -1171,6 +1174,16 @@ public final class MainActivity extends Activity {
         PaneViews paneView = new PaneViews(pane, card, kicker, heading, byline,
                 stateView, speed, answerView, null);
         paneView.working = workingLine(stateView);
+        paneView.workingCount = workingCountLine();
+        paneView.workingRow = new LinearLayout(this);
+        paneView.workingRow.setOrientation(LinearLayout.HORIZONTAL);
+        paneView.workingRow.setGravity(Gravity.CENTER_VERTICAL);
+        paneView.workingRow.setVisibility(View.GONE);
+        paneView.workingRow.addView(paneView.working,
+                new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT));
+        paneView.workingRow.addView(paneView.workingCount,
+                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         int stateIndex = card.indexOfChild(stateView);
         ViewGroup.MarginLayoutParams stateMargins =
                 (ViewGroup.MarginLayoutParams) stateView.getLayoutParams();
@@ -1179,7 +1192,7 @@ public final class MainActivity extends Activity {
                 LinearLayout.LayoutParams.WRAP_CONTENT);
         workingMargins.setMargins(stateMargins.leftMargin, stateMargins.topMargin,
                 stateMargins.rightMargin, stateMargins.bottomMargin);
-        card.addView(paneView.working, stateIndex >= 0 ? stateIndex + 1 : card.getChildCount(),
+        card.addView(paneView.workingRow, stateIndex >= 0 ? stateIndex + 1 : card.getChildCount(),
                 workingMargins);
         card.addOnLayoutChangeListener((view, left, top, right, bottom,
                 oldLeft, oldTop, oldRight, oldBottom) -> syncWorkingAnimation());
@@ -1481,9 +1494,16 @@ public final class MainActivity extends Activity {
     private void expandArticle(String pane) {
         PaneViews article = paneViews.get(pane);
         if (article == null || articleDialog != null && articleDialog.isShowing()) return;
-        Dialog dialog = new Dialog(this, R.style.NewspaperDialogTheme);
+        Dialog dialog = new Dialog(this, R.style.NewspaperDialogTheme) {
+            @Override public void onWindowFocusChanged(boolean hasFocus) {
+                super.onWindowFocusChanged(hasFocus);
+                syncWorkingAnimation();
+            }
+        };
         articleDialog = dialog;
         expandedPane = pane;
+        // The spans belong to the previous dialog's TextView, even when its line is identical.
+        expandedWorkingSpans.line = "";
         expandedUserScrolled = false;
         expandedWasDone = false;
         expandedWasPaused = false;
@@ -1516,9 +1536,28 @@ public final class MainActivity extends Activity {
         expandedState = newspaperText("", 13, true, false);
         typography.state(expandedState);
         typography.tabular(expandedState);
+        expandedState.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        expandedState.setAccessibilityDelegate(new View.AccessibilityDelegate() {
+            @Override public void onInitializeAccessibilityNodeInfo(View host,
+                    AccessibilityNodeInfo info) {
+                super.onInitializeAccessibilityNodeInfo(host, info);
+                CharSequence state = article.state.getText();
+                info.setContentDescription(WorkingIndicator.working(state)
+                        ? WorkingIndicator.spoken(state, 0) : state);
+            }
+        });
         expandedState.addOnLayoutChangeListener((view, left, top, right, bottom,
                 oldLeft, oldTop, oldRight, oldBottom) -> syncWorkingAnimation());
-        page.addView(expandedState);
+        expandedWorkingCount = workingCountLine();
+        LinearLayout expandedStateRow = new LinearLayout(this);
+        expandedStateRow.setOrientation(LinearLayout.HORIZONTAL);
+        expandedStateRow.setGravity(Gravity.CENTER_VERTICAL);
+        expandedStateRow.addView(expandedState,
+                new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
+        expandedStateRow.addView(expandedWorkingCount,
+                new LinearLayout.LayoutParams(LinearLayout.LayoutParams.WRAP_CONTENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT));
+        page.addView(expandedStateRow);
         expandedScroll = new ScrollView(this);
         expandedFollow = new NewspaperLayoutDecision.FollowTail();
         expandedAnswer = newspaperText("", 20, false, true);
@@ -1566,6 +1605,7 @@ public final class MainActivity extends Activity {
                 expandedPane = null;
                 expandedAnswer = null;
                 expandedState = null;
+                expandedWorkingCount = null;
                 expandedStatus = null;
                 expandedTitle = null;
                 expandedByline = null;
@@ -1599,17 +1639,12 @@ public final class MainActivity extends Activity {
         setIfChanged(expandedByline, article.byline.getText().toString());
         if (WorkingIndicator.working(article.state.getText())) {
             setWorkingText(expandedState, expandedWorkingSpans,
-                    WorkingIndicator.line(article.state.getText(), article.words));
-            String spoken = WorkingIndicator.spoken(article.state.getText(), 0);
-            if (!TextUtils.equals(spoken, expandedState.getContentDescription())) {
-                expandedState.setContentDescription(spoken);
-            }
+                    WorkingIndicator.line(article.state.getText()));
+            setIfChanged(expandedWorkingCount, WorkingIndicator.count(article.words));
         } else {
             expandedWorkingSpans.line = "";
+            setIfChanged(expandedWorkingCount, "");
             setIfChanged(expandedState, article.state.getText().toString());
-            if (expandedState.getContentDescription() != null) {
-                expandedState.setContentDescription(null);
-            }
         }
         boolean changed = !article.rawAnswer.equals(expandedAnswer.getTag());
         boolean done = article.lastRenderedState.equals("done");
@@ -3721,9 +3756,7 @@ public final class MainActivity extends Activity {
             value.setGravity(Gravity.END);
             value.setMinWidth(dp(56));
             NewspaperSummary.Lane lane = rowLanes.get(rowIndex);
-            String toneSource = lane == null ? row.label + " " + row.value
-                    : lane.state + " " + row.value;
-            int color = parseHex(palette.colorForTone(UiPalette.tone(toneSource)));
+            int color = parseHex(palette.colorForTone(TonightRows.tone(row, lane)));
             label.setTextColor(color);
             value.setTextColor(color);
             line.addView(label, new LinearLayout.LayoutParams(0,
@@ -3875,27 +3908,26 @@ public final class MainActivity extends Activity {
     }
 
     private void setLaneState(TextView stateView, View card, String text) {
-        String previous = stateView.getText().toString();
-        boolean changed = !text.equals(previous);
-        boolean announce = changed && !(WorkingIndicator.working(previous)
-                && WorkingIndicator.working(text));
-        setIfChanged(stateView, text);
-        applyTone(stateView);
-        if (card != null) applyCardStroke(card, UiPalette.tone(text));
+        PaneViews matchingArticle = null;
         for (PaneViews article : paneViews.values()) {
             if (article.state == stateView) {
-                updateWorking(article);
-                if (announce && visible && screen != null && screen.isShown()
-                        && screen.getImportantForAccessibility()
-                        != View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
-                        && article.card.isAttachedToWindow() && article.card.isShown()) {
-                    String spoken = WorkingIndicator.working(text)
-                            ? WorkingIndicator.spoken(text, 0) : text;
-                    screen.announceForAccessibility(article.heading.getText() + ", " + spoken);
-                }
+                matchingArticle = article;
                 break;
             }
         }
+        // Hide the raw live label before changing it; TalkBack should hear only "Working".
+        if (matchingArticle != null) {
+            if (WorkingIndicator.working(text)) {
+                if (stateView.getVisibility() != View.GONE) stateView.setVisibility(View.GONE);
+            } else if (stateView.getVisibility() != View.VISIBLE) {
+                matchingArticle.workingRow.setVisibility(View.GONE);
+                stateView.setVisibility(View.VISIBLE);
+            }
+        }
+        setIfChanged(stateView, text);
+        applyTone(stateView);
+        if (card != null) applyCardStroke(card, UiPalette.tone(text));
+        if (matchingArticle != null) updateWorking(matchingArticle);
         syncWorkingAnimation();
     }
 
@@ -3906,9 +3938,19 @@ public final class MainActivity extends Activity {
         view.setPadding(stateView.getPaddingLeft(), stateView.getPaddingTop(),
                 stateView.getPaddingRight(), stateView.getPaddingBottom());
         view.setTextColor(themeColor(R.color.newspaper_ink));
-        // This replaces the plain state line while a lane works.
+        // A steady live region says "Working" once; answer growth does not repeat it.
+        view.setContentDescription(WorkingIndicator.spoken(WorkingIndicator.STREAMING, 0));
+        view.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+        return view;
+    }
+
+    private TextView workingCountLine() {
+        TextView view = new TextView(this);
+        typography.state(view);
+        view.setTextColor(themeColor(R.color.newspaper_ink));
+        view.setSingleLine(true);
+        view.setEllipsize(TextUtils.TruncateAt.END);
         view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        view.setVisibility(View.GONE);
         return view;
     }
 
@@ -3965,14 +4007,19 @@ public final class MainActivity extends Activity {
         if (article == null || article.working == null) return;
         TextView view = article.working;
         if (!WorkingIndicator.working(article.state.getText())) {
-            if (view.getVisibility() != View.GONE) view.setVisibility(View.GONE);
+            if (article.workingRow.getVisibility() != View.GONE) {
+                article.workingRow.setVisibility(View.GONE);
+            }
             if (article.state.getVisibility() != View.VISIBLE) article.state.setVisibility(View.VISIBLE);
             return;
         }
-        String line = WorkingIndicator.line(article.state.getText(), article.words);
+        String line = WorkingIndicator.line(article.state.getText());
         setWorkingText(view, article.workingSpans, line);
+        setIfChanged(article.workingCount, WorkingIndicator.count(article.words));
         if (article.state.getVisibility() != View.GONE) article.state.setVisibility(View.GONE);
-        if (view.getVisibility() != View.VISIBLE) view.setVisibility(View.VISIBLE);
+        if (article.workingRow.getVisibility() != View.VISIBLE) {
+            article.workingRow.setVisibility(View.VISIBLE);
+        }
     }
 
     private void drawWorkingFrame(TextView view, WorkingSpans spans, float frame, boolean still) {
@@ -4011,7 +4058,8 @@ public final class MainActivity extends Activity {
         boolean animatorsEnabled = ValueAnimator.areAnimatorsEnabled();
         animatedWorking.clear();
         for (PaneViews article : paneViews.values()) {
-            boolean live = article.working != null && article.working.getVisibility() == View.VISIBLE;
+            boolean live = article.workingRow != null
+                    && article.workingRow.getVisibility() == View.VISIBLE;
             boolean onScreen = inViewport && live && article.working.isAttachedToWindow()
                     && article.working.isShown()
                     && article.working.getGlobalVisibleRect(workingBounds)
@@ -6136,6 +6184,7 @@ public final class MainActivity extends Activity {
             typography.body(pane.answer, typography.bodySp());
             if (pane.working != null) {
                 typography.state(pane.working);
+                typography.state(pane.workingCount);
                 pane.workingSpans.line = "";
                 updateWorking(pane);
             }

@@ -23,13 +23,14 @@ final class WorkingIndicator {
         return STREAMING.equals(state) || THINKING.equals(state) ? DISPLAY : state;
     }
 
-    /** Fixed-width live label; only the word count can change its layout. */
-    static String line(CharSequence stateWords, int words) {
-        if (!working(stateWords)) return "";
-        int w = Math.max(0, words);
-        StringBuilder sb = new StringBuilder("● ").append(DISPLAY);
-        if (w > 0) sb.append(" · ").append(w).append(w == 1 ? " word" : " words");
-        return sb.toString();
+    /** A steady live label lets TalkBack announce the transition without repeating every word. */
+    static String line(CharSequence stateWords) {
+        return working(stateWords) ? "● " + DISPLAY : "";
+    }
+
+    /** The visible count is separate from the live region, so it never repeats a spoken state. */
+    static String count(int words) {
+        return words <= 0 ? "" : " · " + words + (words == 1 ? " word" : " words");
     }
 
     /** A spoken label without the moving dot or bar. */

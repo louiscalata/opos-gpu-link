@@ -41,6 +41,16 @@ public final class TonightRowsTest {
         check(withNote.get(0) == null);
         check(withNote.get(1) == first);
         check(withNote.get(2) == second);
+        NewspaperSummary.Lane stopped = new NewspaperSummary.Lane(
+                "Nemotron Mini 4B", "one", "Stopped", 1200L);
+        TonightRows.Row stoppedRow = TonightRows.parse(
+                NewspaperSummary.timing(Arrays.asList(stopped))).get(0);
+        equal(UiPalette.Tone.NEUTRAL, TonightRows.tone(stoppedRow, stopped));
+        NewspaperSummary.Lane failed = new NewspaperSummary.Lane(
+                "Nemotron Mini 4B", "one", "Stopped early. Here is what it wrote.", 1200L);
+        TonightRows.Row failedRow = TonightRows.parse(
+                NewspaperSummary.timing(Arrays.asList(failed))).get(0);
+        equal(UiPalette.Tone.ERROR, TonightRows.tone(failedRow, failed));
         equal(0, TonightRows.parse("").size());
         equal(0, TonightRows.parse(null).size());
         System.out.println("TonightRowsTest: OK");

@@ -174,7 +174,7 @@ final class NewspaperSummary {
 
     /**
      * Fail closed: a lane is settled only when the caller does not flag it pending and its
-     * state is a known end (Done, or an error line such as a stop or failure). Anything
+     * state is a known end (Done, a user Stop, or a failure). Anything
      * else ("Loading…", "Retrying… (2/3)", "Queued", "Paused — …") is still going.
      */
     static boolean stillGoing(Lane lane) {
