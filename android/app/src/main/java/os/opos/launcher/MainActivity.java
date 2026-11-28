@@ -6091,7 +6091,6 @@ public final class MainActivity extends Activity {
             setupNotesDock();
         }
         if (bottomDock == null) return;
-        detach(summaryCard);
         summaryCard.setLayoutTransition(null);
         summaryCard.animate().cancel();
         summaryCard.setAlpha(1f);
@@ -6101,7 +6100,8 @@ public final class MainActivity extends Activity {
         summaryCard.setPadding(dp(LaneCardLayout.CARD_PADDING_DP), summaryVerticalPad,
                 dp(LaneCardLayout.CARD_PADDING_DP), summaryVerticalPad);
         if (landscapeLayout) {
-            summaryCard.setPadding(dp(LaneCardLayout.CARD_PADDING_DP), 0, dp(4), 0);
+            summaryCard.setPadding(dp(LaneCardLayout.CARD_PADDING_DP), 0,
+                    dp(LaneCardLayout.CARD_PADDING_DP), 0);
             if (summaryRow == null) {
                 summaryRow = new LinearLayout(this);
                 summaryRow.setOrientation(LinearLayout.HORIZONTAL);
@@ -6114,13 +6114,16 @@ public final class MainActivity extends Activity {
                 detach(summaryText);
                 summaryScroll = new ScrollView(this);
                 summaryScroll.setVerticalScrollBarEnabled(true);
+                summaryScroll.setPadding(0, 0, dp(8), dp(8));
                 summaryScroll.addView(summaryText, new ScrollView.LayoutParams(
                         ScrollView.LayoutParams.MATCH_PARENT,
                         ScrollView.LayoutParams.WRAP_CONTENT));
                 summaryCard.addView(summaryScroll, new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.MATCH_PARENT,
-                        dp(NotesSheet.SUMMARY_MAX_INNER_DP - NotesSheet.SUMMARY_WIDE_DP)));
+                        0, 1f));
                 summaryHeading.setGravity(Gravity.CENTER_VERTICAL);
+                summaryHeading.setSingleLine(true);
+                summaryHeading.setEllipsize(TextUtils.TruncateAt.END);
                 summaryHeading.setFocusable(true);
                 summaryHeading.setAccessibilityDelegate(mastheadButtonRole());
                 summaryHeading.setOnClickListener(view -> {
@@ -6132,16 +6135,19 @@ public final class MainActivity extends Activity {
                 tabRow.setVisibility(View.GONE);
                 detach(notesTab);
                 notesTab.setPadding(dp(12), 0, dp(12), 0);
+                notesTab.setMinimumWidth(dp(48));
                 summaryRow.addView(notesTab, new LinearLayout.LayoutParams(
                         LinearLayout.LayoutParams.WRAP_CONTENT, dp(NotesSheet.SUMMARY_WIDE_DP)));
-                notesTab.setAccessibilityDelegate(mastheadButtonRole());
-                notesTab.setOnClickListener(view -> setNotesSheetState(
-                        NotesSheet.onTabTap(notesSheetState), true));
             }
-            summaryHeading.setText(summaryExpanded
-                    ? "SUMMARY · tap to close" : "SUMMARY · tap to open");
-            summaryHeading.setContentDescription(summaryExpanded
-                    ? "Summary, tap to close" : "Summary, tap to open");
+            String cue = summaryExpanded ? " · Close" : " · Open";
+            SpannableStringBuilder heading = new SpannableStringBuilder("SUMMARY" + cue);
+            heading.setSpan(new TypefaceSpan(typography.interMedium), 7, heading.length(),
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            heading.setSpan(new AbsoluteSizeSpan(typography.labelSp(), true), 7,
+                    heading.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+            summaryHeading.setText(heading);
+            summaryHeading.setContentDescription(getString(summaryExpanded
+                    ? R.string.summary_close : R.string.summary_open));
             summaryScroll.setVisibility(summaryExpanded ? View.VISIBLE : View.GONE);
         }
         if (summaryText != null) {
@@ -6157,7 +6163,12 @@ public final class MainActivity extends Activity {
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 summaryCapPx());
-        bottomDock.addView(summaryCard, params);
+        if (landscapeLayout && summaryCard.getParent() == bottomDock) {
+            summaryCard.setLayoutParams(params);
+        } else {
+            detach(summaryCard);
+            bottomDock.addView(summaryCard, params);
+        }
         summaryCard.setVisibility(View.VISIBLE);
         bottomDock.setVisibility(View.VISIBLE);
         bottomDock.bringToFront();
@@ -6179,6 +6190,9 @@ public final class MainActivity extends Activity {
             notesTab.setPadding(dp(18), dp(8), dp(18), dp(6));
             notesTab.setClickable(true);
             notesTab.setFocusable(true);
+            notesTab.setAccessibilityDelegate(mastheadButtonRole());
+            notesTab.setOnClickListener(view -> setNotesSheetState(
+                    NotesSheet.onTabTap(notesSheetState), true));
             notesTabLabel = newspaperText(NotesSheet.tabLabel(0), typography.labelSp(), true, false);
             typography.kicker(notesTabLabel);
             notesTab.addView(notesTabLabel);
@@ -6256,7 +6270,9 @@ public final class MainActivity extends Activity {
 
     private void styleNotesDock() {
         if (notesTab != null) {
-            notesTab.setBackground(folderTabDrawable(notesDragActive));
+            notesTab.setBackground(landscapeLayout
+                    ? (notesDragActive ? panelDrawable(palette.ink()) : null)
+                    : folderTabDrawable(notesDragActive));
         }
         if (notesCard != null && !notesDragActive) {
             notesCard.setBackground(panelDrawable(palette.stroke()));
@@ -6646,7 +6662,8 @@ public final class MainActivity extends Activity {
     }
 
     private void highlightNotesTarget(boolean on) {
-        if (notesTab != null) notesTab.setBackground(folderTabDrawable(on));
+        if (notesTab != null) notesTab.setBackground(landscapeLayout
+                ? (on ? panelDrawable(palette.ink()) : null) : folderTabDrawable(on));
         if (notesCard != null) {
             notesCard.setBackground(panelDrawable(on ? palette.ink() : palette.stroke()));
         }

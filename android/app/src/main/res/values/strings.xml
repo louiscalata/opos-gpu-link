@@ -190,6 +190,8 @@
     <string name="history_not_asked_now">Not asked this time</string>
     <string name="notes_tab_open">Open Notes</string>
     <string name="notes_tab_close">Close Notes</string>
+    <string name="summary_open">Open Summary</string>
+    <string name="summary_close">Close Summary</string>
     <string name="notes_saved">Saved to Notes</string>
 </resources>
 
