@@ -48,9 +48,10 @@
     <string name="ask_gpu">Ask the GPU</string>
     <string name="ask_phone">Ask the phone model</string>
     <string name="empty_answer">Answer appears here.</string>
+    <string name="open_answer_description">Open answer for %1$s</string>
     <string name="phone_heading">This phone</string>
     <string name="gpu_heading">PC GPU</string>
-    <string name="gpu_disclosure">GPU prompts go to the paired PC.</string>
+    <string name="gpu_disclosure">GPU prompts go to the paired computer.</string>
     <string name="ready_to_ask">Ready</string>
     <string name="phone_model_unavailable">No phone model available</string>
     <string name="gpu_ready_or_waiting">Waiting for the GPU model</string>
@@ -179,6 +180,8 @@
     <string name="history_then_vs_now">Then vs Now</string>
     <string name="history_linked_refresh">Refresh of an earlier question</string>
     <string name="history_open">Open this saved question</string>
+    <string name="history_open_description">Open saved question: %1$s. %2$s</string>
+    <string name="history_open_untitled_description">Open saved question. %1$s</string>
     <string name="history_subtitle">Saved on this phone only · newest first · tap to open</string>
     <string name="history_refresh_not_sent">Could not refresh that question right now. Check the models and the cable, then try again.</string>
     <string name="history_not_asked_then">Not in the original run</string>

@@ -2,4 +2,5 @@
 <resources>
     <item name="cover_inverted" type="id" />
     <item name="paused_chip" type="id" />
+    <item name="model_toggle_selected" type="id" />
 </resources>

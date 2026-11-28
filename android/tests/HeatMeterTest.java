@@ -25,7 +25,7 @@ public final class HeatMeterTest {
         check(HeatMeter.TEXT_SP > 13 && HeatMeter.TEXT_SP_COMPACT >= 13, "meter reads bigger than status");
         equal("", HeatMeter.label(-1, false));
         equal("", HeatMeter.label(9, true));
-        equal("Phone heat 3, hot", HeatMeter.description(3));
+        equal("Phone is hot", HeatMeter.description(3));
         equal("", HeatMeter.description(-2));
         System.out.println("HeatMeterTest OK");
     }
