@@ -169,7 +169,6 @@ for(let i=0;i<snapshots.length;i++){
  const cards=root=>get(root+'-extra').children.map(c=>({id:c.dataset.pane,title:get(c.dataset.pane+'-title').text,
   sectionName:c.attrs['aria-labelledby'],aria:get(c.dataset.pane+'-answer').attrs['aria-label'],
   speedClass:get(c.dataset.pane+'-speed').className,speedRole:get(c.dataset.pane+'-speed').attrs.role,
-  speedLive:get(c.dataset.pane+'-speed').attrs['aria-live'],
   stop:get(c.dataset.pane+'-stop').text,stopHidden:get(c.dataset.pane+'-stop').hidden,
   model:get(c.dataset.pane+'-model').text}));
  out.push({title:get('gpu-title').text,disclosure:get('gpu-disclosure').text,aria:get('gpu-answer').attrs['aria-label'],
@@ -345,7 +344,7 @@ class PageScriptTest(NoNetwork):
         self.assertIn("#phone-extra{grid-column:1 / 4;grid-row:13}", css)
         self.assertIn("#pc-extra{grid-column:1 / 4;grid-row:14}", css)
 
-    def test_extra_cards_have_named_regions_and_non_live_speed(self):
+    def test_extra_cards_have_named_regions_and_matching_status_styles(self):
         snap = _snapshot(_pc("M5 Pro MacBook Pro"))
         snap["models"] = [_model("m1", "phone", "Nemotron Mini 4B"),
                           _model("g1", "pc", "Granite 4.1 3B", maker="IBM")]
@@ -353,8 +352,7 @@ class PageScriptTest(NoNetwork):
         for card in shown["phoneCards"] + shown["pcCards"]:
             self.assertEqual(card["sectionName"], card["id"] + "-title")
             self.assertEqual(card["speedClass"], "speed")
-            self.assertIsNone(card.get("speedRole"))
-            self.assertEqual(card["speedLive"], "off")
+            self.assertEqual(card["speedRole"], "status")
 
     def test_a_saved_answer_names_the_computer_that_wrote_it(self):
         snap = _snapshot(_pc("M5 Pro MacBook Pro"))

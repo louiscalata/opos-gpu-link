@@ -988,7 +988,7 @@ function drawPCModels(s){
    [['h2','title'],['p','model'],['p','speed'],['p','state'],['div','answer'],['button','stop']].forEach(function(pair){
     var e=document.createElement(pair[0]);e.id=id+'-'+pair[1];
     if(pair[1]==='answer'){e.className='answer';e.tabIndex=0;e.setAttribute('role','region')}
-    if(pair[1]==='speed'){e.className='speed';e.setAttribute('aria-live','off')}
+    if(pair[1]==='speed'){e.className='speed';e.setAttribute('role','status')}
     if(pair[1]==='stop'){e.className='stop';e.type='button'}
     card.appendChild(e)});
   }

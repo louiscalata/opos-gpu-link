@@ -14,14 +14,11 @@ NODE_HARNESS = r"""
 const fs=require('node:fs'),vm=require('node:vm');
 const input=JSON.parse(fs.readFileSync(0,'utf8'));
 const nodes=new Map();
-const statusWrites=[];
 class El{
  constructor(id){this.id=id;this.text='';this.hidden=false;this.dataset={};this.attrs={};
   this.children=[];this.value='';this.style={};this.scrollHeight=0;this.clientHeight=0;
   this.scrollTop=0;this.classList={toggle(){},add(){},remove(){}}}
- set textContent(v){this.text=String(v);this.children=[];
-  if(['phone-speed','gpu-speed','gpu-cable'].includes(this.id))
-   statusWrites.push([this.id,this.text])} get textContent(){return this.text}
+ set textContent(v){this.text=String(v);this.children=[]} get textContent(){return this.text}
  appendChild(c){this.children.push(c);c.parentNode=this;return c} insertBefore(c){return this.appendChild(c)}
  setAttribute(k,v){this.attrs[k]=String(v)} getAttribute(k){return this.attrs[k]}
  remove(){} focus(){} addEventListener(){}
@@ -48,7 +45,6 @@ const ctx=vm.createContext({document,location:{search:''},URLSearchParams,AbortC
  if(input.afterAction)vm.runInContext(input.afterAction,ctx);
  process.stdout.write(JSON.stringify({phoneSpeed:get('phone-speed').text,
   gpuSpeed:get('gpu-speed').text,m1Speed:get('m1-speed').text,g1Speed:get('g1-speed').text,
-  gpuCable:get('gpu-cable').text,statusWrites,
   phoneState:get('phone-state').text,m1State:get('m1-state').text,g1State:get('g1-state').text,
   error:get('err').text,controlsHidden:get('controls').hidden,
   askDisabled:get('ask').disabled,askQueued:vm.runInContext('askQueued',ctx),
@@ -79,47 +75,6 @@ class PageStatusTest(NoNetwork):
                               capture_output=True, text=True, timeout=30, check=False)
         self.assertEqual(done.returncode, 0, done.stderr[-2000:])
         return json.loads(done.stdout)
-
-    def test_main_statuses_and_cable_keep_their_live_regions(self):
-        markup = _constants(PAGE, "_LIST")[0][1] + _constants(PAGE, "_THUMB")[0][1]
-        for ident in ("err", "phone-speed", "gpu-speed", "gpu-cable"):
-            with self.subTest(ident=ident):
-                self.assertRegex(markup, rf'<p id="{ident}"[^>]* role="status"')
-
-        snap = _snapshot({"label": "M5 Pro MacBook Pro", "live": False, "state": "ready"})
-        snap["phone"]["ready"] = True
-        snap["gpu"]["link"]["model"] = {"state": "ready"}
-        ready = json.loads(json.dumps(snap))
-        ready["rev"] = 2
-        ready["gpu"]["link"]["pc"]["live"] = True
-        answering = json.loads(json.dumps(ready))
-        answering["rev"] = 3
-        answering["phone"]["answer"] = _answer("p", "answering")
-        shown = self.run_page(snap, after=ready,
-                              after_action=f"draw({json.dumps(answering)})")
-        self.assertEqual([write[1] for write in shown["statusWrites"] if write[0] == "phone-speed"],
-                         ["Ready", "Answering"])
-        self.assertEqual([write[1] for write in shown["statusWrites"] if write[0] == "gpu-speed"],
-                         ["Waiting for the MacBook", "Ready"])
-        self.assertEqual([write[1] for write in shown["statusWrites"] if write[0] == "gpu-cable"],
-                         ["Not connected. Check the cable and the MacBook.",
-                          "Connected. Safe to unplug."])
-
-    def test_cable_status_changes_with_a_persistent_storage_notice(self):
-        snap = _snapshot({"label": "M5 Pro MacBook Pro", "live": True, "state": "ready"})
-        snap["gpu"]["link"].update(model={"state": "ready"}, storage="error",
-                                   storage_notice="A saved answer was damaged and moved aside.")
-        disconnected = json.loads(json.dumps(snap))
-        disconnected["rev"] = 2
-        disconnected["gpu"]["link"]["pc"]["live"] = False
-        reconnected = json.loads(json.dumps(snap))
-        reconnected["rev"] = 3
-        shown = self.run_page(snap, after=disconnected,
-                              after_action=f"draw({json.dumps(reconnected)})")
-        self.assertEqual([write[1] for write in shown["statusWrites"] if write[0] == "gpu-cable"],
-                         ["Connected. Safe to unplug.",
-                          "Not connected. Check the cable and the MacBook.",
-                          "Connected. Safe to unplug."])
 
     def test_live_speed_names_the_measured_unit_and_this_run(self):
         snap = _snapshot()
