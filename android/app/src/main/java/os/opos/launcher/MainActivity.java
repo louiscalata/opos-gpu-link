@@ -4672,12 +4672,14 @@ public final class MainActivity extends Activity {
     private void addLaneRetryButton(String pane, LinearLayout card, View stateRow) {
         Button button = outlineButton(getString(R.string.lane_retry)); // 0.5dp dark-gray frame
         typography.retry(button);
-        button.setPadding(dp(Space.L), 0, dp(Space.L), 0);
+        button.setPadding(dp(Space.S), 0, dp(Space.S), 0);
+        button.setSingleLine(false);
+        button.setEllipsize(null);
         button.setVisibility(View.GONE);
         button.setContentDescription(getString(R.string.lane_retry_description));
         button.setOnClickListener(view -> retryLane(pane, false));
         LinearLayout.LayoutParams params = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
         params.topMargin = dp(8);
         // Keep the action next to its state on every card. A long answer must not bury Retry.
         card.addView(button, LaneCardLayout.retryInsertIndex(
@@ -6495,6 +6497,7 @@ public final class MainActivity extends Activity {
         typography.body(settings, typography.bodySp());
         typography.body(error, typography.bodySp());
         typography.retry(retry);
+        for (Button laneRetry : laneRetryButtons.values()) typography.retry(laneRetry);
         typography.kicker(findViewById(R.id.question_label));
         applyPairingTypography();
         if (deviceBand != null) {
