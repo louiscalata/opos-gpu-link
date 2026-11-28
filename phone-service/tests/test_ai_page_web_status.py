@@ -1,0 +1,123 @@
+# SPDX-License-Identifier: Apache-2.0
+"""Check the fallback page's speed, failure, and locked words without a phone or socket."""
+
+import json
+import shutil
+import subprocess
+import unittest
+
+from tests.test_computer_words import NoNetwork, PAGE, _constants, _snapshot
+
+
+NODE_HARNESS = r"""
+'use strict';
+const fs=require('node:fs'),vm=require('node:vm');
+const input=JSON.parse(fs.readFileSync(0,'utf8'));
+const nodes=new Map();
+class El{
+ constructor(id){this.id=id;this.text='';this.hidden=false;this.dataset={};this.attrs={};
+  this.children=[];this.value='';this.style={};this.scrollHeight=0;this.clientHeight=0;
+  this.scrollTop=0;this.classList={toggle(){},add(){},remove(){}}}
+ set textContent(v){this.text=String(v);this.children=[]} get textContent(){return this.text}
+ appendChild(c){this.children.push(c);c.parentNode=this;return c} insertBefore(c){return this.appendChild(c)}
+ setAttribute(k,v){this.attrs[k]=String(v)} getAttribute(k){return this.attrs[k]}
+ remove(){} focus(){} addEventListener(){}
+}
+const get=id=>{if(!nodes.has(id))nodes.set(id,new El(id));return nodes.get(id)};
+const document={hidden:false,documentElement:new El('html'),getElementById:get,
+ createElement:()=>new El(''),activeElement:null,
+ querySelector:()=>({content:'fixture-token'}),addEventListener(){}};
+const refuse=name=>function(){throw new Error(name+' is not allowed in tests')};
+const ctx=vm.createContext({document,location:{search:''},URLSearchParams,AbortController,
+ WebSocket:refuse('WebSocket'),EventSource:refuse('EventSource'),XMLHttpRequest:refuse('XMLHttpRequest'),
+ performance:{now:()=>0},setTimeout:()=>0,clearTimeout(){},console,
+ fetch:()=>input.reply?Promise.resolve({status:input.reply.status,
+  json:()=>Promise.resolve(input.reply.body)}):new Promise(()=>{})});
+(async()=>{
+ vm.runInContext(input.script,ctx);
+ vm.runInContext('draw('+JSON.stringify(input.snapshot)+')',ctx);
+ if(input.reply){vm.runInContext('request()',ctx);await new Promise(setImmediate)}
+ process.stdout.write(JSON.stringify({phoneSpeed:get('phone-speed').text,
+  gpuSpeed:get('gpu-speed').text,m1Speed:get('m1-speed').text,g1Speed:get('g1-speed').text,
+  phoneState:get('phone-state').text,m1State:get('m1-state').text,g1State:get('g1-state').text,
+  error:get('err').text,controlsHidden:get('controls').hidden}));
+})().catch(err=>{console.error(err);process.exitCode=1});
+"""
+
+
+def _answer(ident, state, *, tps=None, error=None):
+    return {"id": ident, "state": state, "text": "Answer", "tps": tps,
+            "error": error, "model": "Nemotron Mini 4B"}
+
+
+def _model(pane, kind, answer, *, live_speed=None):
+    return {"pane": pane, "kind": kind, "label": "Nemotron Mini 4B", "model": "Nemotron Mini 4B",
+            "maker": "NVIDIA", "where": "on this phone" if kind == "phone" else "on the PC's GPU",
+            "ready": True, "answer": answer, "live_speed": live_speed}
+
+
+@unittest.skipIf(shutil.which("node") is None, "needs node to run the page script")
+class PageStatusTest(NoNetwork):
+    def run_page(self, snapshot, reply=None):
+        script = _constants(PAGE, "_SCRIPT")[0][1]
+        done = subprocess.run(["node", "-e", NODE_HARNESS],
+                              input=json.dumps({"script": script, "snapshot": snapshot, "reply": reply}),
+                              capture_output=True, text=True, timeout=30, check=False)
+        self.assertEqual(done.returncode, 0, done.stderr[-2000:])
+        return json.loads(done.stdout)
+
+    def test_live_speed_names_the_measured_unit_and_this_run(self):
+        snap = _snapshot()
+        snap["phone"]["answer"] = _answer("p", "answering")
+        snap["phone"]["live_speed"] = 4
+        snap["models"] = [_model("m1", "phone", _answer("m", "answering"), live_speed=7),
+                          _model("g1", "pc", _answer("g", "answering"), live_speed=6)]
+        shown = self.run_page(snap)
+        self.assertEqual(shown["phoneSpeed"], "about 4 pieces per second · this run")
+        self.assertEqual(shown["m1Speed"], "about 7 pieces per second · this run")
+        self.assertEqual(shown["g1Speed"], "about 6 tokens per second · this run")
+
+    def test_finished_speed_is_labelled_as_one_run(self):
+        snap = _snapshot()
+        snap["phone"]["answer"] = _answer("p", "done", tps=12)
+        snap["models"] = [_model("m1", "phone", _answer("m", "done", tps=8))]
+        shown = self.run_page(snap)
+        self.assertEqual(shown["phoneSpeed"], "12 tokens per second · this run")
+        self.assertEqual(shown["m1Speed"], "8 tokens per second · this run")
+        self.assertEqual(shown["m1State"], "Done")
+
+    def test_phone_cards_use_the_same_specific_failure_words(self):
+        for code, words in (("low_memory", "Not enough free memory for this model right now."),
+                            ("model_start", "This model could not start."),
+                            ("unknown", "The phone could not finish the answer.")):
+            with self.subTest(code=code):
+                snap = _snapshot()
+                snap["phone"]["answer"] = _answer("p", "failed", error=code)
+                snap["models"] = [_model("m1", "phone", _answer("m", "failed", error=code))]
+                shown = self.run_page(snap)
+                self.assertEqual(shown["phoneSpeed"], words)
+                self.assertEqual(shown["m1Speed"], words)
+
+    def test_waiting_and_loading_words_match_the_main_cards(self):
+        snap = _snapshot()
+        snap["phone"]["answer"] = _answer("p", "waiting")
+        snap["gpu"]["answer"] = _answer("g", "loading")
+        snap["models"] = [_model("m1", "phone", _answer("m", "waiting")),
+                          _model("g1", "pc", _answer("g1", "loading"))]
+        shown = self.run_page(snap)
+        self.assertEqual(shown["m1Speed"], shown["phoneSpeed"])
+        self.assertEqual(shown["m1Speed"], "Waiting for the phone model")
+        self.assertEqual(shown["g1Speed"], shown["gpuSpeed"])
+        self.assertEqual(shown["g1Speed"], "Loading the model")
+
+    def test_locked_response_does_not_show_a_raw_error(self):
+        snap = _snapshot()
+        shown = self.run_page(snap, {"status": 403, "body": {"error": "locked"}})
+        self.assertTrue(shown["controlsHidden"])
+        self.assertEqual(shown["phoneSpeed"], "Unlock the phone to use AI mode.")
+        self.assertEqual(shown["gpuSpeed"], "Unlock the phone to use AI mode.")
+        self.assertEqual(shown["error"], "")
+
+
+if __name__ == "__main__":
+    unittest.main()
