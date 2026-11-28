@@ -5,6 +5,12 @@ public final class NewspaperLayoutDecisionTest {
         check(!NewspaperLayoutDecision.compact(360, 880));
         check(NewspaperLayoutDecision.compact(360, 374));
         check(NewspaperLayoutDecision.compact(300, 1000));
+        check(!NewspaperLayoutDecision.stackedHeader(1f, false, false));
+        check(!NewspaperLayoutDecision.stackedHeader(1.4f, false, false));
+        check(NewspaperLayoutDecision.stackedHeader(1.5f, false, false));
+        check(NewspaperLayoutDecision.stackedHeader(2f, false, false));
+        check(!NewspaperLayoutDecision.stackedHeader(2f, true, false));
+        check(!NewspaperLayoutDecision.stackedHeader(2f, false, true));
         for (int count = 1; count <= 6; count++) {
             NewspaperLayoutDecision.ArticleSlot[] mosaic =
                     NewspaperLayoutDecision.articleSlots(count, false);

@@ -9,6 +9,12 @@ final class NewspaperLayoutDecision {
         return widthDp < 320 || heightDp < 700;
     }
 
+    /** Keep the normal header until larger system text can crowd its four items. */
+    static boolean stackedHeader(float fontScale, boolean compactLayout,
+                                 boolean landscapeLayout) {
+        return fontScale >= 1.5f && !compactLayout && !landscapeLayout;
+    }
+
     static final class ArticleSlot {
         final int column;
         final int heightDp;
