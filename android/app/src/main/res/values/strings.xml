@@ -1,5 +1,7 @@
 <resources>
     <string name="app_name">OPOS GPU Link</string>
+    <string name="masthead_menu_title">%1$s ⌄</string>
+    <string name="masthead_menu_description">%1$s, menu</string>
     <string name="device_phone_kicker">PHONE</string>
     <string name="device_phone_name">Phone</string>
     <string name="device_link_waiting">USB-C\nWaiting</string>
@@ -24,6 +26,7 @@
     <string name="pairing_pending">Pair your PC to use its GPU</string>
     <string name="pairing_title">Pair this PC?</string>
     <string name="pairing_request">Compare this code with the one on %1$s. If they match, tap %2$s.</string>
+    <string name="pairing_unnamed_computer">the %1$s</string>
     <string name="pairing_notification_title">Pair with %1$s?</string>
     <string name="pairing_notification_title_unnamed">Pair with this computer?</string>
     <string name="pairing_notification_text">Compare with your computer: %1$s. Tap to choose.</string>
@@ -102,8 +105,10 @@
     <string name="info_phone_model_label">Phone model</string>
     <string name="info_pc_label">Computer</string>
     <string name="info_pc_id_label">Computer ID</string>
+    <string name="info_pc_dynamic_id_label">PC ID</string>
     <string name="info_pc_id_unavailable">Not available</string>
     <string name="info_pc_status_label">Computer status</string>
+    <string name="info_pc_dynamic_status_label">PC status</string>
     <string name="info_pairing_label">Pairing</string>
     <string name="info_replace_pc_steps">Connect the PC by USB-C, compare its 6-digit code, then tap Allow on the phone.</string>
     <string name="info_app_version_label">App version</string>
@@ -196,6 +201,7 @@
     <string name="history_open_untitled_description">Open saved question. %1$s</string>
     <string name="history_subtitle">Saved on this phone only · newest first · tap to open</string>
     <string name="history_refresh_not_sent">Could not refresh that question right now. Check the models and the cable, then try again.</string>
+    <string name="history_save_failed">Could not save this question to History.</string>
     <string name="history_not_asked_then">Not in the original run</string>
     <string name="history_not_asked_now">Not asked this time</string>
     <string name="notes_tab_open">Open Notes</string>
@@ -204,11 +210,20 @@
     <string name="summary_close">Close Summary</string>
     <string name="summary_title">Summary</string>
     <string name="summary_label">SUMMARY</string>
+    <string name="summary_cue_open">\u0020· Open</string>
+    <string name="summary_cue_close">\u0020· Close</string>
     <string name="summary_empty">Ask the models to compare their answers.</string>
     <string name="tonight_label">TONIGHT</string>
     <string name="tonight_initial_time">0.0 s</string>
     <string name="tonight_waiting">PC waiting\nPhone waiting</string>
     <string name="notes_saved">Saved to Notes</string>
+    <string name="model_selection_title">Model Selection</string>
+    <string name="model_selection_note">Phone models answer one at a time. Computer models can answer together.</string>
+    <string name="model_not_ready">Not ready</string>
+    <string name="model_on">ON</string>
+    <string name="model_off">OFF</string>
+    <string name="model_size_whole_mb">%1$.0f MB</string>
+    <string name="model_size_decimal_mb">%1$.1f MB</string>
 </resources>
 
 
