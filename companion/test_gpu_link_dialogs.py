@@ -124,7 +124,7 @@ class DialogTests(unittest.TestCase):
         })
         self.assertEqual((link.DIALOG_INK, link.DIALOG_PAPER, link.DIALOG_ERROR,
                           link.DIALOG_SUCCESS),
-                         ("#000000", "#FFFFFF", "#B00000", "#008000"))
+                         ("#000000", "#FFFFFF", "#B3261E", "#0F7A45"))
         specs = link._dialog_font_specs(
             {"Source Serif 4 Subhead SemiBold", "Source Serif 4 Text", "Inter Medium"},
             "Tk heading", "Tk text")
@@ -283,7 +283,7 @@ class DialogTests(unittest.TestCase):
             self.assertEqual([label.options["text"] for label in tk.labels],
                              ["Pair this MacBook?",
                               "Compare this code with the phone before you allow.",
-                              "Pairing code", "123 456", "60 seconds left",
+                              "Pairing code", "123 456", "60 s left",
                               "If allowed, this MacBook can see your questions and the answers. A model file stays here.",
                               "On the phone, tap Allow this MacBook."])
             self.assertEqual([label.options["font"] for label in tk.labels],
@@ -293,8 +293,11 @@ class DialogTests(unittest.TestCase):
             self.assertEqual(tk.buttons[0].options["font"], "S5 font")
             self.assertEqual(tk.buttons[0].options["text"], "Not now")
             self.assertTrue(tk.buttons[0].focused)
-            now[0] = 61.0
+            now[0] = 1.1
             top.run_after(750)
+            self.assertEqual(tk.labels[4].options["text"], "59 s left")
+            now[0] = 61.0
+            top.run_after(1000)
             self.assertEqual(tk.labels[6].options["text"],
                              "Error: Pairing expired. Wait for a new code on the phone.")
             self.assertEqual(tk.labels[6].options["fg"], link.DIALOG_ERROR)
@@ -308,7 +311,8 @@ class DialogTests(unittest.TestCase):
         app = self.app(root, tk, now)
         with patch.object(link, "_dialog_fonts", return_value=self.FONTS), \
                 patch.object(link, "computer_noun", return_value="MacBook"), \
-                patch.object(link.proto, "code", return_value="123456"):
+                patch.object(link.proto, "code", return_value="123456"), \
+                patch.object(link, "authenticated_idle", return_value=False):
             self.assertFalse(link.Companion.wait_for_phone_allow(
                 app, SimpleNamespace(label="fixture", key=b"fixture")))
 
