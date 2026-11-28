@@ -844,7 +844,25 @@ public final class MainActivity extends Activity {
         AlertDialog dialog = builder.create();
         dialog.show();
         typography.defaults(dialog.getWindow().getDecorView());
+        applyPaletteToAlert(dialog);
         return dialog;
+    }
+
+    private void applyPaletteToAlert(Dialog dialog) {
+        Window window = dialog.getWindow();
+        if (window == null) return;
+        window.setBackgroundDrawable(new ColorDrawable(themeColor(R.color.newspaper_paper)));
+        recolorAlertText(window.getDecorView(), themeColor(R.color.newspaper_ink));
+    }
+
+    private void recolorAlertText(View view, int ink) {
+        if (view instanceof TextView) ((TextView) view).setTextColor(ink);
+        if (view instanceof ViewGroup) {
+            ViewGroup group = (ViewGroup) view;
+            for (int i = 0; i < group.getChildCount(); i++) {
+                recolorAlertText(group.getChildAt(i), ink);
+            }
+        }
     }
 
     private LinearLayout box() {
@@ -4427,10 +4445,10 @@ public final class MainActivity extends Activity {
 
     private void confirmQuit() {
         showAlert(new AlertDialog.Builder(this, R.style.LinkDialogTheme)
-                .setTitle("Quit OPOS GPU Link?")
-                .setMessage("Answers in progress will stop.")
-                .setNegativeButton(R.string.not_now, null)
-                .setPositiveButton("Quit", (dialog, which) -> quitActivity()));
+                .setTitle(R.string.quit_confirm_title)
+                .setMessage(R.string.quit_confirm_message)
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.quit_action, (dialog, which) -> quitActivity()));
     }
 
     private static List<String> openAnswerIds(JSONObject data) {
@@ -4448,12 +4466,13 @@ public final class MainActivity extends Activity {
         handler.removeCallbacks(poll);
         updateButtons();
         quitProgressDialog = new AlertDialog.Builder(this, R.style.LinkDialogTheme)
-                .setMessage("Stopping answers…")
+                .setMessage(R.string.quit_stopping)
                 .setCancelable(false)
                 .create();
         quitProgressDialog.setCanceledOnTouchOutside(false);
         quitProgressDialog.show();
         typography.defaults(quitProgressDialog.getWindow().getDecorView());
+        applyPaletteToAlert(quitProgressDialog);
         JSONObject lastSeen = snapshot;
         network.execute(() -> {
             JSONObject latest = null;
@@ -4503,10 +4522,10 @@ public final class MainActivity extends Activity {
                     updateButtons();
                     schedule(0);
                     showAlert(new AlertDialog.Builder(this, R.style.LinkDialogTheme)
-                            .setTitle("Answers may still be running")
-                            .setMessage("The phone could not confirm that every answer stopped.")
-                            .setPositiveButton("Try again", (dialog, which) -> quitActivity())
-                            .setNegativeButton("Close app", (dialog, which) -> finishAndRemoveTask()));
+                            .setTitle(R.string.quit_still_running_title)
+                            .setMessage(R.string.quit_still_running_message)
+                            .setPositiveButton(R.string.try_again, (dialog, which) -> quitActivity())
+                            .setNegativeButton(R.string.quit_close_app, (dialog, which) -> finishAndRemoveTask()));
                 } else finishAndRemoveTask();
             });
         });
@@ -5144,12 +5163,12 @@ public final class MainActivity extends Activity {
         scroll.addView(historyRows);
         root.addView(scroll, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
-        Button clear = outlineButton("Clear history");
+        Button clear = outlineButton(getString(R.string.history_clear_action));
         clear.setOnClickListener(view -> showAlert(new AlertDialog.Builder(this, R.style.LinkDialogTheme)
-                .setTitle("Clear history?")
-                .setMessage("Remove all saved questions from this phone?")
-                .setNegativeButton(R.string.not_now, null)
-                .setPositiveButton("Clear history", (confirmed, which) -> {
+                .setTitle(R.string.history_clear_title)
+                .setMessage(R.string.history_clear_message)
+                .setNegativeButton(R.string.cancel, null)
+                .setPositiveButton(R.string.history_clear_action, (confirmed, which) -> {
                     String currentId = latestRequestAtWallMs > 0
                             ? Long.toString(latestRequestAtWallMs) : "";
                     suppressedIssueId = historyStore.contains(currentId) ? currentId : "";
@@ -5560,7 +5579,7 @@ public final class MainActivity extends Activity {
         showAlert(new AlertDialog.Builder(this, R.style.LinkDialogTheme)
                 .setTitle(pcWords(R.string.forget_pc_title))
                 .setMessage(pcWords(R.string.forget_pc_first_message))
-                .setNegativeButton(R.string.not_now, null)
+                .setNegativeButton(R.string.cancel, null)
                 .setPositiveButton(R.string.continue_label, (first, which) -> {
                     if (!sameTrustedPc(label, fingerprint)) {
                         setIfChanged(info.findViewById(R.id.info_forget_error),
@@ -5570,7 +5589,7 @@ public final class MainActivity extends Activity {
                     showAlert(new AlertDialog.Builder(this, R.style.LinkDialogTheme)
                             .setTitle(pcWords(R.string.forget_pc_confirm_title))
                             .setMessage(pcWords(R.string.forget_pc_second_message, label))
-                            .setNegativeButton(R.string.not_now, null)
+                            .setNegativeButton(R.string.cancel, null)
                             .setPositiveButton(pcWords(R.string.forget_pc_final), (second, confirmed) -> {
                                 if (acting) return;
                                 if (!sameTrustedPc(label, fingerprint)) {
@@ -5961,7 +5980,7 @@ public final class MainActivity extends Activity {
         int pagePad = dp(coverMode ? 10 : 16);
         page.setPadding(pagePad, pagePad, pagePad, pagePad);
         page.setBackgroundColor(themeColor(R.color.newspaper_paper));
-        page.addView(pageBar(getString(R.string.settings), getString(R.string.settings_close),
+        page.addView(pageBar(getString(R.string.settings), getString(R.string.close),
                 view -> dialog.dismiss()));
         TextView section = newspaperText(getString(R.string.settings_ui), typography.labelSp(), true, false);
         typography.kicker(section);
