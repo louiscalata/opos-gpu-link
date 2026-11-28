@@ -11,7 +11,7 @@ final class AnsweredModel {
     /** The answer's own model when it has one, otherwise the slot's current label. */
     static String label(String slotLabel, String answerModel) {
         String answered = answerModel == null ? "" : answerModel.trim();
-        return answered.isEmpty() ? (slotLabel == null ? "" : slotLabel.trim()) : answered;
+        return ModelDisplay.label(answered.isEmpty() ? slotLabel : answered);
     }
 
     /** The slot's maker belongs to the slot's model; it is dropped for an answer from another model. */

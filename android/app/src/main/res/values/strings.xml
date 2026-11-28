@@ -1,7 +1,7 @@
 <resources>
     <string name="app_name">OPOS GPU Link</string>
     <string name="eyebrow">OPOS / MODELS</string>
-    <string name="subtitle">Compare answers on this phone and on the connected computer GPU.</string>
+    <string name="subtitle">Compare answers on this phone and on the connected computer.</string>
     <string name="connecting">Checking the phone service…</string>
     <string name="checking_connection">Checking connection…</string>
     <string name="phone_unreachable">Phone unavailable</string>
@@ -51,6 +51,7 @@
     <string name="open_answer_description">Open answer for %1$s</string>
     <string name="phone_heading">This phone</string>
     <string name="gpu_heading">PC GPU</string>
+    <string name="gpu_heading_neutral">Computer GPU</string>
     <string name="gpu_disclosure">GPU prompts go to the paired computer.</string>
     <string name="ready_to_ask">Ready</string>
     <string name="phone_model_unavailable">No phone model available</string>

@@ -1,6 +1,7 @@
 package os.opos.launcher;
 
 import java.util.Locale;
+import java.util.regex.Pattern;
 
 /**
  * The maker shown on a Model Selection row. Host-testable; no Android types. When the phone
@@ -10,24 +11,27 @@ import java.util.Locale;
  */
 final class ModelMaker {
     static final String NVIDIA = "NVIDIA";
+    private static final Pattern NVIDIA_WORD = Pattern.compile("(?<![a-z0-9])nvidia(?![a-z0-9])");
 
     private ModelMaker() {}
 
-    /** The reported maker, else one inferred from the model name, else "". */
+    /** The known model family takes priority; otherwise use the reported maker. */
     static String maker(String reported, String model) {
         String r = reported == null ? "" : reported.trim();
-        if (!r.isEmpty()) return r;
         String m = model == null ? "" : model.toLowerCase(Locale.US);
-        if (m.contains("nvidia") || m.contains("nemotron") || m.contains("aceinstruct")) {
+        if (m.contains("nemotron") || m.contains("aceinstruct")
+                || NVIDIA_WORD.matcher(m).find()) {
             return NVIDIA;
         }
         if (m.contains("lfm")) return "Liquid AI";
-        return "";
+        if (m.contains("qwen")) return "Qwen (Alibaba)";
+        if (m.contains("granite")) return "IBM";
+        return r;
     }
 
     /** "Nemotron Mini 4B · NVIDIA · on this phone"; the maker is skipped when empty or already named. */
     static String details(String model, String maker, String where) {
-        String m = model == null ? "" : model.trim();
+        String m = ModelDisplay.label(model);
         String k = maker == null ? "" : maker.trim();
         String w = where == null ? "" : where.trim();
         StringBuilder sb = new StringBuilder();

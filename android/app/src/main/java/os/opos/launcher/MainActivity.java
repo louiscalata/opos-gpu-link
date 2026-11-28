@@ -2074,16 +2074,20 @@ public final class MainActivity extends Activity {
      */
     private void nameExtraLane(PaneViews view, String pane, JSONObject model) {
         if (view == null) return;
-        String slotLabel = model == null || model.isNull("label") ? pane : model.optString("label", pane);
+        String slotLabel = ModelDisplay.firstNonBlank(textField(model, "label"),
+                textField(model, "model"));
+        if (slotLabel.isEmpty()) slotLabel = pane;
         // Only an answer the card actually shows names it; a hidden older answer must not.
         String answered = answerShown(pane, model == null ? null : model.optJSONObject("answer"))
                 ? answeredModel(model) : "";
         String label = AnsweredModel.label(slotLabel, answered);
-        String maker = AnsweredModel.maker(slotLabel,
-                model == null || model.isNull("maker") ? "" : model.optString("maker"), answered);
-        String where = PaneKeys.shownWhere(pane, model == null ? "" : model.optString("where"));
+        String namedModel = answered.isEmpty() ? slotLabel : answered;
+        String maker = ModelMaker.maker(AnsweredModel.maker(slotLabel,
+                textField(model, "maker"), answered),
+                namedModel);
+        String where = PaneKeys.shownWhere(pane, textField(model, "where"));
         setIfChanged(view.heading, label);
-        setIfChanged(view.byline, label + (maker.isEmpty() ? "" : " · " + maker) + " · " + where);
+        setIfChanged(view.byline, ModelMaker.details(label, maker, where));
     }
 
     /**
@@ -2998,16 +3002,23 @@ public final class MainActivity extends Activity {
             String label = "phone".equals(pane) ? getString(R.string.phone_heading)
                     : article.heading.getText().toString();
             // Keep the model that wrote this answer, even if the slot now holds another one.
-            String maker = PaneKeys.extra(pane)
-                    ? AnsweredModel.maker(model == null || model.isNull("label") ? "" : model.optString("label"),
-                            model == null || model.isNull("maker") ? "" : model.optString("maker"), answer.isNull("model")
-                                    ? "" : answer.optString("model"))
-                    : "phone".equals(pane)
+            String answerModel = textField(answer, "model");
+            String slotLabel = textField(model, "label");
+            String slotModel = textField(model, "model");
+            String slotMaker = textField(model, "maker");
+            String resolvedModel = answerModel.isEmpty()
+                    ? ModelDisplay.firstNonBlank(PaneKeys.extra(pane) ? slotLabel : "", slotModel)
+                    : answerModel;
+            String maker = "phone".equals(pane)
                     // The phone lane's History byline keeps the model that wrote the answer.
-                    ? PhoneByline.modelAndMaker(answer.isNull("model") ? "" : answer.optString("model"))
-                    : model == null ? "" : model.optString("maker");
+                    ? PhoneByline.modelAndMaker(answerModel)
+                    : ModelMaker.maker(AnsweredModel.maker(
+                            PaneKeys.extra(pane) ? slotLabel : slotModel,
+                            slotMaker, answerModel), resolvedModel);
             if (PaneKeys.extra(pane)) {
-                label = AnsweredModel.label(label, answer.isNull("model") ? "" : answer.optString("model"));
+                label = AnsweredModel.label(label, answerModel);
+            } else if ("gpu".equals(pane)) {
+                if (!resolvedModel.isEmpty()) label = ModelDisplay.label(resolvedModel);
             }
             String where = PaneKeys.shownWhere(pane,
                     model == null || model.isNull("where") ? "" : model.optString("where"));
@@ -4742,14 +4753,17 @@ public final class MainActivity extends Activity {
     private String modelLabel(String pane, JSONObject view) {
         if ("phone".equals(pane)) return getString(R.string.phone_heading);
         if ("gpu".equals(pane)) return ComputerWords.title(ComputerWords.current());
-        String label = view == null ? "" : view.optString("label").trim();
-        return label.isEmpty() ? pane.toUpperCase(Locale.US) : label;
+        String label = ModelDisplay.firstNonBlank(textField(view, "label"),
+                textField(view, "model"));
+        return label.isEmpty() ? pane.toUpperCase(Locale.US) : ModelDisplay.label(label);
     }
 
     private String modelDetails(String pane, JSONObject view) {
-        String model = view == null ? "" : view.optString("model").trim();
-        String maker = view == null ? "" : view.optString("maker").trim();
-        String where = PaneKeys.shownWhere(pane, view == null ? "" : view.optString("where"));
+        String model = ModelDisplay.firstNonBlank(
+                PaneKeys.extra(pane) ? textField(view, "label") : "",
+                textField(view, "model"));
+        String maker = textField(view, "maker");
+        String where = PaneKeys.shownWhere(pane, textField(view, "where"));
         StringBuilder details = new StringBuilder(
                 ModelMaker.details(model, ModelMaker.maker(maker, model), where));
         double fileMb = view == null ? Double.NaN : view.optDouble("file_mb", Double.NaN);
@@ -4760,6 +4774,10 @@ public final class MainActivity extends Activity {
                     : String.format(Locale.US, "%.1f MB", fileMb));
         }
         return details.toString();
+    }
+
+    private static String textField(JSONObject object, String key) {
+        return object == null || object.isNull(key) ? "" : object.optString(key).trim();
     }
 
     private void addModelSection(String heading) {
@@ -5254,9 +5272,10 @@ public final class MainActivity extends Activity {
         dialog.<TextView>findViewById(R.id.info_about).setTypeface(typography.smTextRegular);
         JSONObject phone = snapshot == null ? null : snapshot.optJSONObject("phone");
         JSONObject gpu = snapshot == null ? null : snapshot.optJSONObject("gpu");
-        String phoneModel = phone == null ? "" : phone.optString("model").trim();
+        String phoneModel = textField(phone, "model");
         setIfChanged(dialog.findViewById(R.id.info_phone_model),
-                phoneModel.isEmpty() ? getString(R.string.info_unavailable) : phoneModel);
+                phoneModel.isEmpty() ? getString(R.string.info_unavailable)
+                        : PhoneByline.modelAndMaker(phoneModel));
         updateInfoPcRows(dialog, gpu, pcConnection(gpu));
         String version = getString(R.string.info_unavailable);
         try {
