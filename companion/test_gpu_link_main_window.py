@@ -88,7 +88,7 @@ class FakeTk:
 class MainWindowTests(unittest.TestCase):
     def test_phone_is_left_computer_is_right_and_status_grows(self):
         root, tk = FakeWidget(), FakeTk()
-        status = FakeVar("Waiting for the phone over USB-C")
+        status = FakeVar("Waiting for the phone on USB.")
         window = link._build_main_window(
             tk, root, status, "MacBook", {"title": "H5", "small": "S5", "body": "B5"},
             lambda: None, lambda: None, lambda: None,
@@ -114,7 +114,7 @@ class MainWindowTests(unittest.TestCase):
         self.assertEqual(window["link_label"].options["width"], 18)
         self.assertEqual(window["status_label"].options["font"], "B5")
         self.assertEqual([button.options["text"] for button in tk.buttons], [
-            "Retry connection", "Remove model copies", "Stop GPU Link"])
+            "Try again", "Remove model copies", "Stop GPU Link"])
         self.assertTrue(all(button.grid_options["sticky"] == "ew" for button in tk.buttons))
         self.assertIn("<Configure>", window["status_frame"].bindings)
         window["status_frame"].bindings["<Configure>"](SimpleNamespace(width=600))

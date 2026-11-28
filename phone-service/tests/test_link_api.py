@@ -165,6 +165,38 @@ class SnapshotTests(Base):
         self.assertEqual([(item["pane"], item["kind"], item["label"], item["ready"]) for item in lanes],
                          [("g1", "pc", "Big model", True)])
 
+    def test_lfm2_is_a_visible_baseline_without_changing_advertisement(self):
+        api = self.api()
+        self.enrolled()
+        source = {"id": "lfm2-1.2b", "label": "LFM2 1.2B", "maker": "Liquid AI", "gpu": None}
+        self.assertEqual(self.pc.advertise([source]).status, 200)
+        lane = api.snapshot()["models"][0]
+        self.assertEqual((lane["label"], lane["maker"], lane["model"]),
+                         ("LFM2 (comparison baseline)", "Liquid AI", "LFM2 (comparison baseline)"))
+        self.assertEqual(self.link._advertised["g1"]["label"], "LFM2 1.2B")
+        self.assertEqual(source["label"], "LFM2 1.2B")
+
+    def test_saved_mac_answer_uses_display_label_in_every_view(self):
+        api = self.api()
+        answer = self.answers.ask("gpu", "Question", model="Nemotron-3.5-Bolt-E4B")
+        self.answers.note(answer["id"], where="M5 Pro PC")
+        with mock.patch.dict(os.environ, {"OPOS_GPU_LINK_PC_DISPLAY": "M5 Pro PC=M5 Pro MacBook Pro"}):
+            gpu = api.snapshot()["gpu"]
+        self.assertEqual(gpu["where"], "M5 Pro MacBook Pro")
+        self.assertEqual(gpu["answer"]["where"], "M5 Pro MacBook Pro")
+        self.assertEqual(gpu["answer"]["model"], "Nemotron 3.5 Bolt")
+        self.assertEqual(self.answers.get(answer["id"])["where"], "M5 Pro PC")
+
+    def test_saved_extra_answer_keeps_maker_and_mac_name(self):
+        api = self.api()
+        answer = self.answers.ask("g1", "Question", model="LFM2-1.2B")
+        self.answers.note(answer["id"], where="M5 Pro PC")
+        with mock.patch.dict(os.environ, {"OPOS_GPU_LINK_PC_DISPLAY": "M5 Pro PC=M5 Pro MacBook Pro"}):
+            lane = api.snapshot()["models"][0]
+        self.assertEqual((lane["label"], lane["maker"], lane["answer"]["where"]),
+                         ("LFM2 (comparison baseline)", "Liquid AI", "M5 Pro MacBook Pro"))
+        self.assertEqual(self.answers.get(answer["id"])["model"], "LFM2-1.2B")
+
 
 class ActionTests(Base):
     def test_ask_gpu_runs_through_the_pc_and_finishes(self):

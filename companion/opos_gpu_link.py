@@ -50,10 +50,10 @@ PORT = re.compile(r"[1-9][0-9]{0,4}\Z")
 DEFAULT_SERVER = "http://127.0.0.1:1235/v1/chat/completions"
 
 # Android's H5 + S5 + B5 sizes and optical values. Tk labels support font size
-# and weight, but not letter tracking or a fixed line height.
+# and weight, but not letter tracking, tabular figures, or a fixed line height.
 DIALOG_TYPE = {
-    "H5": {"size": 21, "weight": "bold", "leading": 1.15, "tracking": -0.01},
-    "S5": {"size": 11, "weight": "normal", "leading": 1.25, "tracking": 0.02},
+    "H5": {"size": 21, "weight": "semibold", "leading": 1.15, "tracking": -0.01},
+    "S5": {"size": 11, "weight": "normal", "leading": 1.25, "tracking": 0.02, "tnum": True},
     "B5": {"size": 17, "weight": "normal", "leading": 1.35, "tracking": 0.0},
 }
 DIALOG_INK = "#000000"
@@ -72,11 +72,12 @@ def _dialog_font_specs(available, heading_fallback, text_fallback):
 
     title = pick(("Source Serif 4 Subhead SemiBold", "Source Serif 4 Subhead",
                   "Source Serif 4 SemiBold", "Source Serif 4",
+                  "Newsreader SemiBold", "Newsreader", "Newsreader 72pt",
                   "Source Serif Pro", "Source Serif"), heading_fallback)
-    # A SemiBold family name is already heavy; asking Tk for weight=bold can double-bold it.
-    title_weight = "normal" if "semibold" in title.casefold() else DIALOG_TYPE["H5"]["weight"]
-    text = pick(("Source Serif 4 Text", "Source Serif 4", "Source Serif Pro",
-                 "Source Serif"), text_fallback)
+    # Tk has no semibold weight. Use the real cut when installed, else bold.
+    title_weight = "normal" if "semibold" in title.casefold() else "bold"
+    text = pick(("Source Serif 4 Text", "Source Serif 4", "Newsreader",
+                 "Source Serif Pro", "Source Serif", "Inter"), text_fallback)
     small = pick(("Inter Medium", "Inter"), text_fallback)
     return {"title": (title, DIALOG_TYPE["H5"]["size"], title_weight),
             "small": (small, DIALOG_TYPE["S5"]["size"], DIALOG_TYPE["S5"]["weight"]),
@@ -151,7 +152,7 @@ def _build_main_window(tk, root, status, computer_label, fonts, on_retry,
     controls = tk.Frame(root, bg=DIALOG_PAPER)
     controls.grid(row=2, column=0, sticky="ew", padx=18, pady=(0, 18))
     for column, (label, command) in enumerate((
-        ("Retry connection", on_retry),
+        ("Try again", on_retry),
         ("Remove model copies", on_remove),
         ("Stop GPU Link", on_stop),
     )):
@@ -183,16 +184,78 @@ def _main_window_tone(online: bool, message: str) -> tuple[str, str, str]:
     return "USB-C\nWaiting", DIALOG_INK, DIALOG_INK
 
 
-def _confirm_remove_model_copies(root, models_dir: Path) -> bool:
-    from tkinter import messagebox
-    return messagebox.askyesno(
-        "Remove model copies",
-        f"Remove GPU Link model copies from {models_dir}?\n"
-        "Only downloads marked by GPU Link will be removed. "
-        "Removal does not unload a running model. Stop GPU Link unloads GPU Link-owned "
-        "servers unless --keep-server is set.",
-        parent=root,
-    )
+class _DialogLifetime:
+    """Cancel a dialog's pending Tk callbacks before destroying its window."""
+
+    def __init__(self, top):
+        self.top = top
+        self.pending = set()
+        self.closed = False
+
+    def after(self, delay, callback):
+        if self.closed:
+            return
+
+        def run():
+            self.pending.discard(timer_id)
+            if not self.closed:
+                callback()
+
+        timer_id = self.top.after(delay, run)
+        self.pending.add(timer_id)
+
+    def close(self):
+        if self.closed:
+            return
+        self.closed = True
+        for timer_id in tuple(self.pending):
+            self.top.after_cancel(timer_id)
+        self.pending.clear()
+        self.top.destroy()
+
+
+def _confirm_remove_model_copies(root, models_dir: Path, tk, clock=time.monotonic) -> bool:
+    """A styled, guarded confirmation for this companion's marked downloads."""
+    top = tk.Toplevel(root)
+    top.title("Remove model copies?")
+    top.transient(root)
+    top.grab_set()
+    top.configure(bg=DIALOG_PAPER)
+    fonts = _dialog_fonts(root)
+    _dialog_label(tk, top, "Remove model copies?", fonts["title"]).pack(
+        padx=24, pady=(22, 10), anchor="w")
+    _dialog_label(tk, top, f"Remove GPU Link's downloaded model files from {models_dir}?",
+                  fonts["body"]).pack(padx=24, pady=(0, 8), anchor="w")
+    _dialog_label(tk, top, "A model already running stays loaded.", fonts["small"]).pack(
+        padx=24, pady=(0, 14), anchor="w")
+    choice = {"remove": False}
+    unblock = clock() + 0.7
+    lifetime = _DialogLifetime(top)
+
+    def finish(remove=False):
+        if lifetime.closed or (remove and clock() < unblock):
+            return
+        choice["remove"] = remove
+        lifetime.close()
+
+    remove = _dialog_button(tk, top, "Remove copies", fonts["small"], state="disabled",
+                            command=lambda: finish(True))
+    deny = _dialog_button(tk, top, "Not now", fonts["small"], state="normal",
+                          command=finish)
+    remove.pack(side="right", padx=(0, 24), pady=(0, 18))
+    deny.pack(side="right", padx=12, pady=(0, 18))
+    deny.focus_set()
+
+    def on_return(_event):
+        finish(top.focus_get() == remove)
+        return "break"
+
+    top.bind("<Escape>", lambda event: finish())
+    top.bind("<Return>", on_return)
+    top.protocol("WM_DELETE_WINDOW", finish)
+    lifetime.after(700, lambda: remove.configure(state="normal"))
+    root.wait_window(top)
+    return choice["remove"]
 
 
 def _permission_identity_lines(args):
@@ -939,6 +1002,32 @@ class ConsoleStatus:
             self.last = message
 
 
+def presenter_error(error: Exception) -> str:
+    """Keep expected setup failures to one actionable status line."""
+    if isinstance(error, OSError):
+        return "Error: Pairing folder is unavailable. Check file access on this computer, then retry."
+    message = str(error).strip()
+    if not message:
+        return "Error: GPU Link stopped. Restart it, then retry."
+    if message.startswith("Error:"):
+        return message
+    if "already running for this phone" in message:
+        return "Error: GPU Link is already running for this phone. Stop the other copy, then retry."
+    if "More than one authorized USB phone" in message:
+        return "Error: More than one USB phone is ready. Unplug the extra phone, then retry."
+    if "adb is unavailable" in message or "adb not found" in message:
+        return "Error: USB tools are missing. Install Android platform tools, then retry."
+    if "adb" in message or "forward" in message:
+        return "Error: USB link failed. Check the cable and USB approval, then retry."
+    if "directory" in message or "key file" in message:
+        return "Error: Pairing folder is unavailable. Check its permissions, then retry."
+    if "pairing" in message.lower() or "key" in message.lower():
+        return "Error: Pairing could not continue. Check the phone, then retry."
+    if message.startswith("Phone enrolment reply"):
+        return "Error: Phone did not reply. Check the cable and phone, then retry."
+    return f"Error: {message.rstrip('.')}. Check setup, then retry."
+
+
 class InstanceGuard:
     """Hold a per-user, per-phone lock until the companion exits."""
 
@@ -983,9 +1072,9 @@ class Companion:
         self.wake = threading.Event()
         if headless:
             self.status = ConsoleStatus()
-            self.status.set("Waiting for the phone over USB-C")
+            self.status.set("Waiting for the phone on USB.")
         else:
-            self.status = tk.StringVar(value="Waiting for the phone over USB-C")
+            self.status = tk.StringVar(value="Waiting for the phone on USB.")
             self.main_window = _build_main_window(
                 tk, root, self.status, computer_noun(), _dialog_fonts(root),
                 self.retry, self.remove_model_copies, self.stop,
@@ -1022,54 +1111,61 @@ class Companion:
             return False  # A headless transient grant cannot silently renew.
         if not self.link_present():
             return False
+        noun = computer_noun()
         top = self.tk.Toplevel(self.root)
-        top.title("Let this phone use your GPU?")
+        top.title(f"Let this phone use your {noun}'s GPU?")
         top.transient(self.root)
         top.grab_set()
         top.configure(bg=DIALOG_PAPER)
         fonts = _dialog_fonts(self.root)
-        _dialog_label(self.tk, top, "Let this phone use your GPU?", fonts["title"]).pack(
+        _dialog_label(self.tk, top, f"Let this phone use your {noun}'s GPU?", fonts["title"]).pack(
             padx=24, pady=(22, 10), anchor="w")
         for line in _permission_identity_lines(self.args):
             _dialog_label(self.tk, top, line, fonts["small"]).pack(
                 padx=24, pady=(0, 3), anchor="w")
         for index, line in enumerate((
-                "A language model will run on this computer's GPU while the phone is plugged in.",
-                "This computer will see the questions and the answers.",
-                "A copy of the model file stays on this computer until it is removed.",
+                f"The phone can use this {noun}'s GPU while the cable is plugged in.",
+                f"This {noun} can see your questions and the answers.",
+                f"A copy of the model file stays on this {noun} until you remove it.",
         )):
             _dialog_label(self.tk, top, line, fonts["body"]).pack(
                 padx=24, pady=(10 if index == 0 else 0, 6), anchor="w")
         _dialog_label(self.tk, top,
-                      "Unplug to pause. Access ends 2 minutes after unplug, or when you choose Stop GPU Link.",
+                      "Unplug to pause. Access ends after 2 minutes unplugged or when you choose Stop GPU Link.",
                       fonts["small"]).pack(padx=24, pady=(8, 14), anchor="w")
         choice = {"allowed": False}
         unblock = self.clock() + 0.7
+        lifetime = _DialogLifetime(top)
 
         def finish(allowed=False):
-            if self.clock() < unblock:
+            if lifetime.closed or (allowed and self.clock() < unblock):
                 return
             choice["allowed"] = allowed and self.link_present()
-            top.destroy()
+            lifetime.close()
 
         def still_attached():
             if not self.link_present():
-                top.destroy()
+                lifetime.close()
             else:
-                top.after(1000, still_attached)
+                lifetime.after(1000, still_attached)
 
-        allow = _dialog_button(self.tk, top, "Allow", fonts["small"], state="disabled",
+        allow = _dialog_button(self.tk, top, "Allow this phone", fonts["small"], state="disabled",
                                command=lambda: finish(True))
-        deny = _dialog_button(self.tk, top, "Not now", fonts["small"], state="disabled",
+        deny = _dialog_button(self.tk, top, "Not now", fonts["small"], state="normal",
                               command=finish)
         allow.pack(side="right", padx=(0, 24), pady=(0, 18))
         deny.pack(side="right", padx=12, pady=(0, 18))
+        deny.focus_set()
+
+        def on_return(_event):
+            finish(top.focus_get() == allow)
+            return "break"
+
         top.bind("<Escape>", lambda event: finish())
-        top.bind("<Return>", lambda event: finish())
+        top.bind("<Return>", on_return)
         top.protocol("WM_DELETE_WINDOW", finish)
-        top.after(700, lambda: (allow.configure(state="normal"), deny.configure(state="normal"),
-                                deny.focus_set()))
-        top.after(1000, still_attached)
+        lifetime.after(700, lambda: allow.configure(state="normal"))
+        lifetime.after(1000, still_attached)
         self.root.wait_window(top)
         return choice["allowed"]
 
@@ -1077,7 +1173,7 @@ class Companion:
         code = proto.code(pc.label, pc.key)
         deadline = self.clock() + 60
         if self.headless:
-            self.status.set(f"Compare code {code[:3]} {code[3:]} on phone; tap Allow on the phone within 60 seconds")
+            self.status.set(f"Compare code {code[:3]} {code[3:]} on the phone. Tap Allow there.")
             while self.running and self.clock() < deadline:
                 if not self.link_present():
                     return False
@@ -1090,30 +1186,47 @@ class Companion:
                 self.wake.clear()
             return False
         top = self.tk.Toplevel(self.root)
-        top.title("Confirm on the phone")
+        noun = computer_noun()
+        top.title(f"Pair this {noun}?")
         top.transient(self.root)
         top.grab_set()
         top.configure(bg=DIALOG_PAPER)
         fonts = _dialog_fonts(self.root)
-        _dialog_label(self.tk, top, f"Compare on the phone: {code[:3]} {code[3:]}",
-                      fonts["title"]).pack(padx=24, pady=(22, 8), anchor="w")
-        note = _dialog_label(self.tk, top, "Tap Allow on the phone within 60 seconds.",
-                             fonts["body"])
-        note.pack(padx=24, pady=8, anchor="w")
+        _dialog_label(self.tk, top, f"Pair this {noun}?", fonts["title"]).pack(
+            padx=24, pady=(22, 8), anchor="w")
+        _dialog_label(self.tk, top, "Compare this code with the phone before you allow.",
+                      fonts["body"]).pack(padx=24, pady=(0, 12), anchor="w")
+        _dialog_label(self.tk, top, "Pairing code", fonts["small"]).pack(
+            padx=24, pady=(0, 4), anchor="w")
+        _dialog_label(self.tk, top, f"{code[:3]} {code[3:]}", fonts["title"]).pack(
+            padx=24, pady=(0, 6), anchor="w")
+        countdown = _dialog_label(self.tk, top, "60 seconds left", fonts["small"])
+        countdown.pack(padx=24, pady=(0, 12), anchor="w")
+        _dialog_label(self.tk, top,
+                      f"If allowed, this {noun} can see your questions and the answers. A model file stays here.",
+                      fonts["body"]).pack(padx=24, pady=(0, 8), anchor="w")
+        note = _dialog_label(self.tk, top, f"On the phone, tap Allow this {noun}.",
+                             fonts["small"])
+        note.pack(padx=24, pady=(0, 14), anchor="w")
         accepted = {"yes": False}
+        lifetime = _DialogLifetime(top)
 
         def close():
-            top.destroy()
+            lifetime.close()
 
         def probe():
             if not self.link_present():
-                close()
+                note.configure(text="Error: Phone not ready. Check the cable and USB access.", fg=DIALOG_ERROR)
+                countdown.configure(text="")
+                lifetime.after(5000, close)
                 return
             if self.clock() >= deadline:
-                note.configure(text="Phone Allow was not confirmed. Pairing was not saved.",
+                note.configure(text="Error: Pairing expired. Wait for a new code on the phone.",
                                fg=DIALOG_ERROR)
-                top.after(1500, close)
+                countdown.configure(text="Expired", fg=DIALOG_ERROR)
+                lifetime.after(5000, close)
                 return
+            countdown.configure(text=f"{max(1, int(deadline - self.clock() + 0.999))} seconds left")
             try:
                 if authenticated_idle(pc):
                     accepted["yes"] = self.running and self.clock() < deadline and self.link_present()
@@ -1121,12 +1234,15 @@ class Companion:
                     return
             except (OSError, ToolError, CompanionError):
                 pass
-            top.after(1000, probe)
+            lifetime.after(1000, probe)
 
-        _dialog_button(self.tk, top, "Cancel", fonts["small"], command=close).pack(
-            padx=24, pady=(8, 18), anchor="e")
+        deny = _dialog_button(self.tk, top, "Not now", fonts["small"], command=close)
+        deny.pack(padx=24, pady=(0, 18), anchor="e")
+        deny.focus_set()
+        top.bind("<Escape>", lambda event: close())
+        top.bind("<Return>", lambda event: close())
         top.protocol("WM_DELETE_WINDOW", close)
-        top.after(750, probe)
+        lifetime.after(750, probe)
         self.root.wait_window(top)
         return accepted["yes"]
 
@@ -1140,10 +1256,10 @@ class Companion:
         if self.granted:
             return
         if self.headless:
-            raise GrantDeclined(f"{computer_noun()} grant expired; restart with --always-allow to retain it")
+            raise GrantDeclined(f"Error: {computer_noun()} access expired. Restart GPU Link to allow access again.")
         self.granted = self.permission()
         if not self.granted:
-            raise GrantDeclined(f"{computer_noun()} permission declined; reconnect to ask again")
+            raise GrantDeclined(f"Error: {computer_noun()} access was declined. Replug to try again.")
 
     def _forget_extra_checks(self) -> None:
         """Drop the "model already verified" cache: LM Studio may have unloaded a model, or the
@@ -1215,21 +1331,22 @@ class Companion:
 
         def emit(message):
             if message == "Status ready":
-                line = "Phone connected; ready for requests"
+                line = "Ready for questions on the phone."
             elif message == "Status busy":
-                line = "Answer in progress"
+                line = "Answer in progress."
             elif message == "Status warming":
-                line = "Warming model"
+                line = "Loading the model."
             elif message.startswith("Work received"):
-                line = "Answer started or resumed"
+                match = re.search(r"partial (\d+) bytes", message)
+                line = "Answer resumed." if match and int(match.group(1)) else "Answer started."
             elif message == "Answer held: model server recovering":
-                line = "Local model server stalled; holding the answer until it recovers"
+                line = "Answer paused. Waiting for the model server."
             elif message == "Model server answering again; resuming":
-                line = "Local model server answering again; resuming the answer"
+                line = "Model server recovered. Resuming the answer."
             elif message.startswith("Answer stopped: chat-completions server error"):
-                line = "Local model server could not stream; check it and retry"
+                line = "Error: The model could not finish. Check the model server, then retry."
             elif message.startswith("Answer cancelled"):
-                line = "Phone cancelled the answer"
+                line = "Answer stopped on the phone."
             else:
                 return  # No question, answer, token, path, key or raw error in status.
             self.events.put((generation, line))
@@ -1251,7 +1368,20 @@ class Companion:
             self._forget_extra_checks()
             if event["status"] == "fallback" and extra_models:
                 self.guard_refresh.set()
-            self.events.put((generation, "Local model recovery: " + event["status"]))
+            words = {
+                "restart_pending": "Model server stopped. Restarting it.",
+                "restarted": "Model server restarted.",
+                "fallback": "A model is ready after recovery.",
+                "gave_up": "Error: Model server stopped. Check its log, then retry.",
+                "port_busy": "Error: Model port is busy. Free it, then retry.",
+                "ownership_refused": "Error: Model server changed. Check the running server.",
+                "cleanup_failed": "Error: Model server did not stop. Check the running server.",
+                "fallback_failed": "Error: The replacement model did not start. Check its log.",
+                "supervisor_error": "Error: Model server check failed. Check its log.",
+            }
+            line = words.get(event["status"])
+            if line:
+                self.events.put((generation, line))
 
         advertised = threading.Event()
 
@@ -1263,7 +1393,7 @@ class Companion:
                 if not advertise():  # a restarted phone that now refuses the route has no extra models
                     raise ToolError("extra model advertisement refused")
             except (OSError, ToolError, ValueError):
-                self.events.put((generation, f"Phone restarted; reconnecting {computer_noun()} models"))
+                self.events.put((generation, "Phone restarted. Reconnecting the models."))
                 stop.set()  # the session restarts through the normal reconnect path
 
         def run():
@@ -1310,7 +1440,7 @@ class Companion:
                                             show_text=False, give_up_after=30,
                                             server_ready=server_ready).run(stop)
                                 except (OSError, ToolError, ValueError):
-                                    self.events.put((generation, f"One {computer_noun()} model lane stopped; retrying"))
+                                    self.events.put((generation, "A model stopped. Retrying."))
                                 if not stop.is_set():
                                     client.epoch = None
                                     stop.wait(2)
@@ -1323,14 +1453,14 @@ class Companion:
                 StandIn(pc, source, rate=1 if enabled else 4, emit=emit, show_text=False,
                         give_up_after=30, server_ready=main_ready).run(stop)
             except (OSError, ToolError, ValueError):
-                self.events.put((generation, "Answer worker stopped; checking the phone and model server"))
+                self.events.put((generation, "Answer stopped. Checking the phone and model server."))
             finally:
                 stop.set()
                 if runtime is not None:
                     runtime.unlisten(runtime_event)
                 pc.on_new_epoch = None
                 join_within(lane_threads, LANE_JOIN_BUDGET)
-                self.events.put((generation, "Answer worker exited; reconnecting if possible"))
+                self.events.put((generation, "Reconnecting if the phone is ready."))
 
         self.worker_stop = stop
         worker = threading.Thread(target=run, name="opos-gpu-worker", daemon=True)
@@ -1346,7 +1476,7 @@ class Companion:
     def _connect(self) -> None:
         if self.session_pc is not None and self.bridge.forward_present():
             if not model_server_listening(self.args.server):
-                raise RetryLater("Local model server unavailable; start it and GPU Link will retry")
+                raise RetryLater("Error: Model server unavailable. Start it; GPU Link will retry.")
             self._start_preflight()
             return
         self.session_pc = None
@@ -1391,16 +1521,16 @@ class Companion:
                 status, state = self.bridge.enrol(pc)
                 if status != 202 or state != "pending":
                     if status == 403 and state == "closed":
-                        raise CompanionError("Phone pairing is closed; owner must reopen it on the phone")
+                        raise CompanionError("Error: Pairing is closed. Tap Allow computer requests again on the phone.")
                     if status == 409 and state == "enrolled":
-                        raise CompanionError("Phone already trusts a computer; owner recovery is required")
-                    raise CompanionError("Phone did not accept a first pairing request")
+                        raise CompanionError("Error: Phone is already paired. Use Forget on the phone, then retry.")
+                    raise CompanionError("Error: Phone did not accept pairing. Check the phone, then retry.")
                 approved = self.wait_for_phone_allow(pc)
                 if not self.running:
                     self.bridge.remove_own_forward()
                     return
                 if not approved:
-                    raise CompanionError("Phone Allow was not confirmed; pairing was not saved")
+                    raise CompanionError("Error: Pairing was not allowed on the phone. Replug to try again.")
             if not self.running:
                 self.bridge.remove_own_forward()
                 return
@@ -1412,15 +1542,15 @@ class Companion:
                 self.bridge.remove_own_forward()
                 return
             if not authenticated_idle(pc):
-                raise CompanionError("Saved pairing rejected; use phone owner recovery")
+                raise CompanionError("Error: Saved pairing was rejected. Tap Forget on the phone, then restart GPU Link with pairing reset for this phone.")
             launch_failed = open_models_screen()
             self.ensure_permission()
         if not self.link_present():
-            raise RetryLater("Phone disconnected during pairing; waiting to reconnect")
+            raise RetryLater("USB link lost during pairing. Replug to retry.")
         self.session_pc = pc
         self.session_launch_failed = launch_failed
         if not model_server_listening(self.args.server):
-            raise RetryLater("Local model server unavailable; start it and GPU Link will retry")
+            raise RetryLater("Error: Model server unavailable. Start it; GPU Link will retry.")
         self._start_preflight()
 
     def _start_preflight(self) -> None:
@@ -1430,7 +1560,7 @@ class Companion:
         done = threading.Event()
         self.preflight_cancel, self.preflight_done = cancel, done
         self.preflight_result = False
-        self.status.set("Warming model")
+        self.status.set("Checking the model.")
 
         def run():
             try:
@@ -1458,7 +1588,7 @@ class Companion:
         """
         self.session_pc = None
         self.bridge.remove_own_forward()
-        self.status.set("Phone link interrupted; reconnecting")
+        self.status.set("USB link lost. Reconnecting.")
         losses = getattr(self, "preflight_link_losses", 0) + 1
         self.preflight_link_losses = losses
         if losses == 1:
@@ -1488,9 +1618,9 @@ class Companion:
                 self.detached_at = None
                 self.retry_delay = 3
                 self.preflight_link_losses = 0
-                self.status.set("Phone connected; waiting for requests"
-                                + ("; use phone notification to open"
-                                   if self.session_launch_failed else ""))
+                self.status.set("Ready for questions on the phone."
+                                if not self.session_launch_failed else
+                                "Ready. Open GPU Link from the phone notification.")
             return
         if not self.bridge.forward_present():
             # The forward disappeared while the one-token check ran, whether it
@@ -1498,7 +1628,7 @@ class Companion:
             self._link_lost_while_warming()
             return
         self.preflight_link_losses = 0  # only consecutive link losses back off
-        self.status.set("Local model or chat route failed its one-token check; check --server and --model; retrying")
+        self.status.set("Error: Model check failed. Check the model server and selected model; retrying.")
         self._schedule_retry()
 
     def tick(self) -> None:
@@ -1536,7 +1666,7 @@ class Companion:
                 self.bridge.remove_own_forward()
                 # Also cover the warming window, when self.online is still False.
                 self.preflight_link_losses = 0  # a replug must feel instant again
-                self.status.set("Phone disconnected; waiting to reconnect")
+                self.status.set("Phone paused. Replug or allow USB access to resume.")
                 self.next_try = self.clock() + 1
                 self.retry_delay = 3
             if (present and not self.online and self.preflight_thread is not None
@@ -1557,13 +1687,13 @@ class Companion:
                 self.online = False
                 self.detached_at = self.clock() if not present else None
                 if not present:
-                    self.status.set("Phone disconnected; waiting to reconnect")
+                    self.status.set("Phone paused. Replug or allow USB access to resume.")
                 elif not forward_ok:
-                    self.status.set("Phone link interrupted; reconnecting")
+                    self.status.set("USB link lost. Reconnecting.")
                 elif not server_ok:
-                    self.status.set("Local model server unavailable; start it and GPU Link will retry")
+                    self.status.set("Error: Model server unavailable. Start it; GPU Link will retry.")
                 else:
-                    self.status.set("Answer worker stopped; retrying")
+                    self.status.set("Answer stopped. Retrying.")
                 self.next_try = self.clock() + 2
                 self.retry_delay = 3
             self._finish_preflight(present)
@@ -1575,7 +1705,7 @@ class Companion:
                   and self.clock() >= self.next_try and not self.blocked_until_detach):
                 if self.worker is not None and (self.worker.is_alive() or any(
                     lane.is_alive() for lane in getattr(self, "lane_workers", []))):
-                    self.status.set("Waiting for the previous answer worker to stop")
+                    self.status.set("Waiting for the previous answer to stop.")
                 else:
                     self._connect()
         except GrantDeclined as error:
@@ -1594,14 +1724,14 @@ class Companion:
             self._cancel_preflight()
             self.bridge.remove_own_forward()
             self.session_pc = None
-            self.status.set(str(error))
+            self.status.set(presenter_error(error))
             self.blocked_until_detach = True
         except (OSError, ToolError, ValueError):
             self._stop_worker()
             self._cancel_preflight()
             self.bridge.remove_own_forward()
             self.session_pc = None
-            self.status.set("Phone service unavailable; retrying")
+            self.status.set("Error: Phone service unavailable. Check the phone; retrying.")
             self._schedule_retry()
         if not getattr(self, "headless", False):
             self._refresh_main_window()
@@ -1621,7 +1751,7 @@ class Companion:
         self.blocked_until_detach = False
         self.next_try = 0
         self.retry_delay = 3
-        self.status.set("Checking the phone again")
+        self.status.set("Checking the phone again.")
 
     def remove_model_copies(self) -> None:
         """Remove marked cache downloads after the owner confirms the path."""
@@ -1633,7 +1763,7 @@ class Companion:
             self.status.set(message)
             print("GPU Link: " + message, flush=True)
             return
-        if not _confirm_remove_model_copies(self.root, models_dir):
+        if not _confirm_remove_model_copies(self.root, models_dir, self.tk):
             return
         try:
             removed = remove_model_copies(self.args.data_dir, models_dir)
@@ -1661,8 +1791,8 @@ class Companion:
         self.bridge.remove_own_forward()
         self.session_pc = None
         self.cleanup_ok = self._cleanup_done()
-        self.status.set("Stopped" if self.cleanup_ok else
-                        "Stop requested; worker or adb forward cleanup unconfirmed")
+        self.status.set("Stopped." if self.cleanup_ok else
+                        "Error: Stop was incomplete. Check the USB link and model server.")
         if not self.headless:
             self.root.destroy()
 
@@ -1690,15 +1820,15 @@ class Companion:
             self.bridge.remove_own_forward()
             self.cleanup_ok = self._cleanup_done()
             if self.headless and not self.running:
-                self.status.set("Stopped" if self.cleanup_ok else
-                                "Stop requested; worker or adb forward cleanup unconfirmed")
+                self.status.set("Stopped." if self.cleanup_ok else
+                                "Error: Stop was incomplete. Check the USB link and model server.")
 
 
 def arguments(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--serial", help="authorized USB adb device serial; auto-select if exactly one")
     parser.add_argument("--adb", default="adb", help="adb executable from Android platform tools")
-    parser.add_argument("--label", default="OPOS GPU PC", help="pairing label sent to the phone (1 to 24 letters, digits, spaces or hyphens); "
+    parser.add_argument("--label", help="pairing label sent to the phone (1 to 24 letters, digits, spaces or hyphens); "
                         "the phone keeps the label it saw at pairing, so a new one takes effect only "
                         "after Forget on the phone and --reset-pairing here")
     routes = parser.add_mutually_exclusive_group()
@@ -1730,6 +1860,8 @@ def arguments(argv=None):
         parser.error("--json requires --discover")
     if args.discover:
         return args
+    if args.label is None:
+        args.label = f"OPOS GPU {computer_noun()}"
     if args.serial is not None and not valid_usb_serial(args.serial):
         parser.error("serial must be a USB adb serial, not a network or emulator transport")
     if not proto.valid_label(args.label):
@@ -1843,8 +1975,7 @@ def main(argv=None, runtime=None, data_dir=None, models_dir=None) -> int:
         try:
             guard = InstanceGuard(args.key_dir, args.serial)
         except (OSError, CompanionError) as error:
-            print("GPU Link: " + (str(error) if isinstance(error, CompanionError)
-                                  else "Pairing directory is unavailable"), file=sys.stderr)
+            print("GPU Link: " + presenter_error(error), file=sys.stderr)
             return 2
         try:
             removed = KeyStore(args.key_dir, args.serial).reset()
@@ -1852,7 +1983,7 @@ def main(argv=None, runtime=None, data_dir=None, models_dir=None) -> int:
                                   else "No saved pairing for this serial"), flush=True)
             return 0
         except CompanionError as error:
-            print("GPU Link: " + str(error), file=sys.stderr)
+            print("GPU Link: " + presenter_error(error), file=sys.stderr)
             return 2
         finally:
             guard.close()
@@ -1870,7 +2001,7 @@ def main(argv=None, runtime=None, data_dir=None, models_dir=None) -> int:
     try:
         args.adb = resolve_launch_adb(args.adb)
     except CompanionError as error:
-        print("GPU Link: " + str(error), file=sys.stderr)
+        print("GPU Link: " + presenter_error(error), file=sys.stderr)
         return 2
     if args.serial is None:
         try:
@@ -1884,13 +2015,12 @@ def main(argv=None, runtime=None, data_dir=None, models_dir=None) -> int:
             print("GPU Link: Stopped while waiting for a USB phone", flush=True)
             return 130
         except CompanionError as error:
-            print("GPU Link: " + str(error), file=sys.stderr)
+            print("GPU Link: " + presenter_error(error), file=sys.stderr)
             return 2
     try:
         guard = InstanceGuard(args.key_dir, args.serial)
     except (OSError, CompanionError) as error:
-        print("GPU Link: " + (str(error) if isinstance(error, CompanionError)
-                              else "Pairing directory is unavailable"), file=sys.stderr)
+        print("GPU Link: " + presenter_error(error), file=sys.stderr)
         return 2
     try:
         root, tk = None, None
