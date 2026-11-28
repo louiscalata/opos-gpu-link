@@ -103,13 +103,15 @@ class DialogTests(unittest.TestCase):
             "S5": {"size": 11, "weight": "normal", "leading": 1.25, "tracking": 0.02},
             "B5": {"size": 17, "weight": "normal", "leading": 1.35, "tracking": 0.0},
         })
-        self.assertEqual((link.DIALOG_INK, link.DIALOG_PAPER, link.DIALOG_ERROR),
-                         ("#000000", "#FFFFFF", "#B00000"))
+        self.assertEqual((link.DIALOG_INK, link.DIALOG_PAPER, link.DIALOG_ERROR,
+                          link.DIALOG_SUCCESS),
+                         ("#000000", "#FFFFFF", "#B00000", "#008000"))
         specs = link._dialog_font_specs(
-            {"Newsreader", "Inter Tight", "Inter Tight Medium", "Inter"}, "Tk heading", "Tk text")
-        self.assertEqual(specs, {"title": ("Newsreader", 21, "bold"),
-                                 "small": ("Inter Tight Medium", 11, "normal"),
-                                 "body": ("Inter Tight", 17, "normal")})
+            {"Source Serif 4 Subhead SemiBold", "Source Serif 4 Text", "Inter Medium"},
+            "Tk heading", "Tk text")
+        self.assertEqual(specs, {"title": ("Source Serif 4 Subhead SemiBold", 21, "normal"),
+                                 "small": ("Inter Medium", 11, "normal"),
+                                 "body": ("Source Serif 4 Text", 17, "normal")})
         fallback = link._dialog_font_specs(set(), "Tk heading", "Tk text")
         self.assertEqual(fallback, {"title": ("Tk heading", 21, "bold"),
                                     "small": ("Tk text", 11, "normal"),

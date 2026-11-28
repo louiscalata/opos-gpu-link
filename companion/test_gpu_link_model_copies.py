@@ -26,6 +26,40 @@ class FakeWidget:
     def pack(self, **_options):
         pass
 
+    def grid(self, **_options):
+        pass
+
+    def configure(self, **_options):
+        pass
+
+    def columnconfigure(self, *_args, **_options):
+        pass
+
+    def rowconfigure(self, *_args, **_options):
+        pass
+
+    def minsize(self, *_args):
+        pass
+
+    def bind(self, *_args):
+        pass
+
+    def protocol(self, *_args):
+        pass
+
+
+class FakeVar:
+    def __init__(self, value, messages):
+        self.value, self.messages = value, messages
+        self.messages.append(value)
+
+    def set(self, value):
+        self.value = value
+        self.messages.append(value)
+
+    def get(self):
+        return self.value
+
 
 class FakeTk:
     def __init__(self):
@@ -33,8 +67,10 @@ class FakeTk:
         self.messages = []
 
     def StringVar(self, value):
-        self.messages.append(value)
-        return SimpleNamespace(set=self.messages.append)
+        return FakeVar(value, self.messages)
+
+    def Frame(self, _root, **options):
+        return FakeWidget(**options)
 
     def Label(self, _root, **options):
         return FakeWidget(**options)
@@ -133,10 +169,12 @@ class ModelCopyTests(unittest.TestCase):
     def test_window_button_confirms_and_logs_cache_removal(self):
         owned = self.download_copy()
         tk = FakeTk()
-        root = SimpleNamespace(protocol=lambda *_args: None)
+        root = FakeWidget()
         args = SimpleNamespace(adb="fake-adb", serial="PHONE", key_dir=self.data,
                                always_allow=False, data_dir=self.data, models_dir=self.models)
-        app = link.Companion(args, root, tk)
+        with patch.object(link, "_dialog_fonts", return_value={
+            "title": "H5", "small": "S5", "body": "B5"}):
+            app = link.Companion(args, root, tk)
         self.assertIn("Remove model copies", tk.buttons)
         with patch.object(link, "_confirm_remove_model_copies", return_value=False):
             tk.buttons["Remove model copies"]()
@@ -211,10 +249,12 @@ class ModelCopyTests(unittest.TestCase):
         outside = self.root / "other" / "models"
         outside.mkdir(parents=True)
         tk = FakeTk()
-        root = SimpleNamespace(protocol=lambda *_args: None)
+        root = FakeWidget()
         args = SimpleNamespace(adb="fake-adb", serial="PHONE", key_dir=self.data,
                                always_allow=False, data_dir=self.data, models_dir=outside)
-        app = link.Companion(args, root, tk)
+        with patch.object(link, "_dialog_fonts", return_value={
+            "title": "H5", "small": "S5", "body": "B5"}):
+            app = link.Companion(args, root, tk)
         with patch.object(link, "_confirm_remove_model_copies") as confirm,                 patch("builtins.print") as printed:
             tk.buttons["Remove model copies"]()
         confirm.assert_not_called()
@@ -225,10 +265,12 @@ class ModelCopyTests(unittest.TestCase):
     def test_window_logs_a_partial_removal_error(self):
         owned = self.download_copy()
         tk = FakeTk()
-        root = SimpleNamespace(protocol=lambda *_args: None)
+        root = FakeWidget()
         args = SimpleNamespace(adb="fake-adb", serial="PHONE", key_dir=self.data,
                                always_allow=False, data_dir=self.data, models_dir=self.models)
-        app = link.Companion(args, root, tk)
+        with patch.object(link, "_dialog_fonts", return_value={
+            "title": "H5", "small": "S5", "body": "B5"}):
+            app = link.Companion(args, root, tk)
         failure = RuntimeError(f"Removed 1 model copy from {self.models}; cleanup could not be completed")
         with patch.object(link, "_confirm_remove_model_copies", return_value=True),                 patch.object(setup, "remove_model_copies", side_effect=failure),                 patch("builtins.print") as printed:
             tk.buttons["Remove model copies"]()
