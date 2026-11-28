@@ -6,14 +6,14 @@ package os.opos.launcher;
  */
 public final class SpanLayoutFamilyTest {
     public static void main(String[] args) {
-        int dpi = 401;
+        int dpi = 400;
         SpanGeometry spanned = SpanGeometry.of(2784, 1800, 1350, 0, 1434, 1800);
         // Window heights below are illustrative dp values for the usable height, not measurements.
         for (int heightDp : new int[] {640, 690, 699, 700, 718}) {
             int singleWidthDp = SpanPolicy.pxToDp(1350, dpi);
             int spannedWindowDp = SpanPolicy.pxToDp(2784, dpi);
-            equal(539, singleWidthDp);
-            equal(1111, spannedWindowDp);
+            equal(540, singleWidthDp);
+            equal(1114, spannedWindowDp);
             int content = SpanPolicy.contentWidthDp(spanned, dpi, spannedWindowDp);
             equal(singleWidthDp, content);
             CoverScreenPolicy.Mode single = CoverScreenPolicy.select(singleWidthDp, heightDp, 0);
@@ -22,12 +22,12 @@ public final class SpanLayoutFamilyTest {
             check(!CoverScreenPolicy.needsRecreate(single, span));
         }
         // Without a hinge the window width passes through unchanged.
-        equal(1111, SpanPolicy.contentWidthDp(SpanGeometry.NONE, dpi, 1111));
+        equal(1114, SpanPolicy.contentWidthDp(SpanGeometry.NONE, dpi, 1114));
         equal(540, SpanPolicy.contentWidthDp(null, dpi, 540));
         // A horizontal or too-narrow hinge also passes the window width through.
-        equal(1111, SpanPolicy.contentWidthDp(SpanGeometry.of(2784, 1800, 100, 500, 2600, 600), dpi, 1111));
+        equal(1114, SpanPolicy.contentWidthDp(SpanGeometry.of(2784, 1800, 100, 500, 2600, 600), dpi, 1114));
         // Documents why the content width matters: the full spanned window is a different family.
-        check(CoverScreenPolicy.select(1111, 690, 0) != CoverScreenPolicy.select(539, 690, 0));
+        check(CoverScreenPolicy.select(1114, 690, 0) != CoverScreenPolicy.select(540, 690, 0));
         System.out.println("SpanLayoutFamilyTest: OK");
     }
 
