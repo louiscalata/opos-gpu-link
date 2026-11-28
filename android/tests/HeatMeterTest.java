@@ -2,8 +2,15 @@ package os.opos.launcher;
 
 public final class HeatMeterTest {
     public static void main(String[] args) {
-        check(HeatMeter.cool(0) && HeatMeter.cool(1), "0 and 1 are cool (green)");
-        for (int s = 2; s <= 6; s++) check(!HeatMeter.cool(s), "warm or hot is red: " + s);
+        check(HeatMeter.cool(0) && HeatMeter.cool(1), "0 and 1 are cool (ink)");
+        check(!HeatMeter.cool(2) && !HeatMeter.hot(2), "warm stays neutral");
+        for (int s = 3; s <= 6; s++) {
+            check(!HeatMeter.cool(s), "hot is not cool: " + s);
+            check(HeatMeter.hot(s), "hot is red: " + s);
+        }
+        for (int s : new int[] {-1, 0, 1, 2, 7}) {
+            check(!HeatMeter.hot(s), "only 3 through 6 are hot: " + s);
+        }
         check(!HeatMeter.cool(-1) && !HeatMeter.known(-1) && !HeatMeter.known(7), "unknown hidden");
         equal("● Phone cool", HeatMeter.label(0, false));
         equal("● Phone cool", HeatMeter.label(1, false));

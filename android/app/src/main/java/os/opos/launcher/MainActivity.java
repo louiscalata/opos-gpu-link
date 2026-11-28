@@ -777,6 +777,8 @@ public final class MainActivity extends Activity {
         title.setOnClickListener(view -> toggleMenu());
         title.setAccessibilityDelegate(mastheadButtonRole());
         typography.display(title, 20);
+        title.setSingleLine(true);
+        title.setEllipsize(TextUtils.TruncateAt.END);
         title.setMinHeight(dp(48));
         title.setAlpha(0f);
         title.setLayoutParams(new LinearLayout.LayoutParams(0,
@@ -786,20 +788,22 @@ public final class MainActivity extends Activity {
         status.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
         status.setTypeface(typography.interMedium);
         status.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        status.setSingleLine(true);
+        status.setEllipsize(TextUtils.TruncateAt.END);
         header.addView(status, 1, new LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
         heatMeter = newspaperText("", 13, false, false);
         heatMeter.setSingleLine(true);
-        heatMeter.setGravity(Gravity.CENTER_VERTICAL);
-        heatMeter.setPadding(dp(4), 0, dp(8), 0);
+        heatMeter.setEllipsize(TextUtils.TruncateAt.END);
+        heatMeter.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
+        heatMeter.setPadding(dp(12), 0, dp(12), dp(4));
         heatMeter.setVisibility(View.GONE);
-        int heatIndex = info != null && info.getParent() == header
-                ? header.indexOfChild(info) : header.getChildCount();
-        LinearLayout.LayoutParams heatParams = new LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT);
-        heatParams.gravity = Gravity.CENTER_VERTICAL;
-        header.addView(heatMeter, heatIndex, heatParams);
         setupLinkBanner();
+        // Keep the heat reading on its own line: it must never steal the title's width.
+        LinearLayout root = (LinearLayout) screen;
+        root.addView(heatMeter, root.indexOfChild(header) + 1,
+                new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT));
         info.setLayoutParams(new LinearLayout.LayoutParams(dp(52), dp(48)));
         header.setPadding(dp(12), dp(2), dp(12), dp(4));
         bigMasthead = newspaperText(getString(R.string.app_name) + " ⌄", 34, true, true);
@@ -1267,6 +1271,8 @@ public final class MainActivity extends Activity {
         float smallAlpha = MastheadPolicy.smallAlpha(fraction);
         mastheadBlock.setAlpha(bigAlpha);
         smallMasthead.setAlpha(smallAlpha);
+        // The hidden title must not take width from the status on narrow screens.
+        smallMasthead.setVisibility(smallAlpha > 0f ? View.VISIBLE : View.GONE);
         bigMasthead.setEnabled(bigAlpha > 0f);
         smallMasthead.setEnabled(smallAlpha > 0f);
         bigMasthead.setImportantForAccessibility(fraction < 0.5f
@@ -3069,7 +3075,7 @@ public final class MainActivity extends Activity {
         }
     }
 
-    /** Green while cool (0–1), red from warm (2) up; hidden when Android reports nothing. */
+    /** Ink while cool or warm, red only when hot; hidden for an unknown status. */
     private void showHeat(int status) {
         heatStatus = status;
         if (heatMeter == null) return;
@@ -3082,7 +3088,7 @@ public final class MainActivity extends Activity {
         heatMeter.setTextSize(TypedValue.COMPLEX_UNIT_SP,
                 compactHeat ? HeatMeter.TEXT_SP_COMPACT : HeatMeter.TEXT_SP);
         setIfChanged(heatMeter, HeatMeter.label(status, compactHeat));
-        heatMeter.setTextColor(parseHex(HeatMeter.cool(status) ? palette.ok() : palette.error()));
+        heatMeter.setTextColor(parseHex(HeatMeter.hot(status) ? palette.error() : palette.ink()));
         heatMeter.setContentDescription(HeatMeter.description(status));
         heatMeter.setVisibility(View.VISIBLE);
     }
