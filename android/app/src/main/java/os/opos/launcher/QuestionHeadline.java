@@ -6,17 +6,7 @@ package os.opos.launcher;
  * string to the models.
  */
 final class QuestionHeadline {
-    /** One 1.25 modular step above H5 inner (21). */
-    static final int INNER_SP = 26;
-    /** One 1.25 modular step above H5 cover (17), up from the old 18. */
-    static final int COVER_SP = 21;
-    /** Preferred shrink floor, still larger than S5. */
-    static final int INNER_MIN_SP = 16;
-    static final int COVER_MIN_SP = 14;
-    /** S5 sizes; shrink may go this far so a long question never clips. */
-    static final int INNER_FLOOR_SP = 11;
-    static final int COVER_FLOOR_SP = 10;
-    /** Midway between H5 1.15 and B5 1.35, matching the H5/S5 1.25 scale. */
+    /** A longer question can shrink below H5 to keep every word visible. */
     static final float LEADING = 1.25f;
 
     private QuestionHeadline() {}
@@ -59,15 +49,15 @@ final class QuestionHeadline {
     }
 
     static int baseSp(boolean coverMode) {
-        return coverMode ? COVER_SP : INNER_SP;
+        return TypeConfig.header().size(coverMode);
     }
 
     static int minSp(boolean coverMode) {
-        return coverMode ? COVER_MIN_SP : INNER_MIN_SP;
+        return TypeConfig.body().size(coverMode);
     }
 
     static int floorSp(boolean coverMode) {
-        return coverMode ? COVER_FLOOR_SP : INNER_FLOOR_SP;
+        return TypeConfig.subheader().size(coverMode);
     }
 
     /**
