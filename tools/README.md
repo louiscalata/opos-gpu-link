@@ -1,5 +1,7 @@
 # OPOS GPU Link pacing check
 
+Run `python3 tools/show_preflight.py [--adb PATH] [--serial SERIAL]` for a short, read-only adb demo checklist (device, thermal status, battery, display IDs, lock state). Point `--adb` (or `$ADB`) at the companion's own adb so the adb server is not restarted. See [HANDS-ON-RUNSHEET.md](../HANDS-ON-RUNSHEET.md).
+
 Run from this checkout with Python 3.11+:
 
 ```sh
