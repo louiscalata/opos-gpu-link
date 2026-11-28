@@ -2,6 +2,7 @@
 
 import importlib.util
 from pathlib import Path
+import re
 import struct
 import tempfile
 import unittest
@@ -16,6 +17,15 @@ SPEC.loader.exec_module(preview)
 
 
 class DeviceLayoutPreviewTest(unittest.TestCase):
+    def test_preview_uses_only_black_white_and_working_green(self):
+        for scene in (preview.inner_scene(1080, 2640, landscape=False),
+                      preview.inner_scene(2640, 1080, landscape=True),
+                      preview.cover_scene(), preview.tk_scene()):
+            with self.subTest(scene=scene.width):
+                colors = set(re.findall(r"#[0-9A-Fa-f]{6}", scene.svg()))
+                self.assertLessEqual(colors, {preview.BLACK, preview.WHITE,
+                                              preview.GREEN, "#008000"})
+
     def test_column_math_reads_android_policy(self):
         threshold = preview.column_threshold()
         self.assertEqual(1, preview.column_count(threshold - 1, cover=False, lane_count=4))
@@ -74,22 +84,26 @@ class DeviceLayoutPreviewTest(unittest.TestCase):
         self.assertIn("if (side == Side.UNKNOWN)", source)
         self.assertNotIn("side == Side.PHONE && phoneCards > computerCards", source)
         self.assertEqual({
+            "Nemotron Mini 4B": "left",
             "Qwen3.5-2B": "left",
             "Nemotron 3.5 Bolt": "right",
             "Granite 4.1 3B": "left",
-            "LFM2": "left",
+            "LFM2 1.2B (baseline)": "left",
         }, preview.place_demo_lanes())
         scene = preview.inner_scene(2640, 1080, landscape=True)
         headings = {op.args[2]: op.args[0] for op in scene.operations
                     if op.kind == "text" and op.args[2] in preview.place_demo_lanes()}
+        self.assertEqual(headings["Nemotron Mini 4B"], headings["Qwen3.5-2B"])
         self.assertEqual(headings["Qwen3.5-2B"], headings["Granite 4.1 3B"])
-        self.assertEqual(headings["Qwen3.5-2B"], headings["LFM2"])
+        self.assertEqual(headings["Qwen3.5-2B"], headings["LFM2 1.2B (baseline)"])
         self.assertLess(headings["Qwen3.5-2B"], headings["Nemotron 3.5 Bolt"])
-        self.assertIn("PHONE · COMPARISON BASELINE", scene.svg())
+        self.assertIn("PHONE · m3 · COMPARISON BASELINE", scene.svg())
 
     def test_mac_mock_uses_final_window_copy(self):
         scene = preview.tk_scene().svg()
-        self.assertIn("Retry connection", scene)
+        self.assertIn("Try again", scene)
+        self.assertIn("Ready for questions on the phone.", scene)
+        self.assertNotIn("Retry connection", scene)
         self.assertNotIn("Retry after phone recovery", scene)
         self.assertNotIn("THIS COMPUTER", scene)
 
@@ -97,9 +111,12 @@ class DeviceLayoutPreviewTest(unittest.TestCase):
         scene = preview.inner_scene(1080, 2640, landscape=False)
         headings = {op.args[2]: op.args[1] for op in scene.operations
                     if op.kind == "text" and op.args[2] in preview.place_demo_lanes()}
-        self.assertLess(headings["Nemotron 3.5 Bolt"], headings["Qwen3.5-2B"])
-        self.assertLess(headings["Qwen3.5-2B"], headings["Granite 4.1 3B"])
-        self.assertLess(headings["Granite 4.1 3B"], headings["LFM2"])
+        order = ["Nemotron 3.5 Bolt", "Nemotron Mini 4B", "Qwen3.5-2B",
+                 "LFM2 1.2B (baseline)", "Granite 4.1 3B"]
+        for first, second in zip(order, order[1:]):
+            self.assertLess(headings[first], headings[second])
+        self.assertEqual(len(headings), 5)
+        self.assertLess(headings[order[-1]] + 21 * 3, scene.height)
 
     def test_cover_has_composer_and_pinned_summary_without_clipping(self):
         scene = preview.cover_scene()

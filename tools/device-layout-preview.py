@@ -28,8 +28,8 @@ FONTS = ROOT / "android/app/src/main/res/font"
 
 BLACK = "#000000"
 WHITE = "#FFFFFF"
-GRAY = "#BFBFBF"
-STROKE = "#5C5C5C"
+GRAY = WHITE
+STROKE = WHITE
 GREEN = "#3DDC84"  # UiPalette.OK_DARK; only a working link or live answer uses it.
 
 
@@ -63,14 +63,9 @@ def band_weights() -> tuple[float, float, float]:
 
 
 def place_demo_lanes() -> dict[str, str]:
-    """Mirror DeviceLayoutPolicy.column for the four source-named mock lanes."""
-    placed = {}
-    for name, side in (("Nemotron 3.5 Bolt", "computer"),
-                       ("Qwen3.5-2B", "phone"),
-                       ("Granite 4.1 3B", "phone"),
-                       ("LFM2", "phone")):
-        placed[name] = "left" if side == "phone" else "right"
-    return placed
+    """Mirror DeviceLayoutPolicy.column for the five current demo cards."""
+    return {name: "left" if side == "phone" else "right"
+            for name, _, _, _, _, _, side in DEMO_CARDS}
 
 
 def cool_heat_label(*, compact: bool) -> str:
@@ -167,9 +162,15 @@ class Scene:
         return "\n".join(chunks)
 
 
-ANSWER = ("Each model's reply appears in its own card as the words arrive. "
-          "The card grows with the full answer, so there is room to read and compare. ")
-SHORT_ANSWER = "This answer appears here as its words arrive. The card grows with the reply."
+SHORT_ANSWER = "Words appear here as they arrive."
+
+DEMO_CARDS = (
+    ("Nemotron 3.5 Bolt", "NVIDIA", "MACBOOK GPU", False, True, SHORT_ANSWER, "computer"),
+    ("Nemotron Mini 4B", "NVIDIA", "PHONE · m1", False, True, SHORT_ANSWER, "phone"),
+    ("Qwen3.5-2B", "Qwen (Alibaba)", "PHONE · m2", False, True, SHORT_ANSWER, "phone"),
+    ("LFM2 1.2B (baseline)", "Liquid AI", "PHONE · m3", True, False, SHORT_ANSWER, "phone"),
+    ("Granite 4.1 3B", "IBM", "PHONE · m4", False, False, SHORT_ANSWER, "phone"),
+)
 
 
 def device_band(scene: Scene, y: float, *, margin: float, scale: float,
@@ -268,7 +269,7 @@ def inner_scene(width: int, height: int, *, landscape: bool) -> Scene:
     scene.text(margin, question_y + 18 * scale, "What can this setup do?",
                size=head, face="head")
     top = question_y + 52 * scale
-    count = column_count(width_dp, cover=False, lane_count=4)
+    count = column_count(width_dp, cover=False, lane_count=len(DEMO_CARDS))
     gap = 6 * scale
     if count == 2:
         col_width = (width - margin * 2 - gap) / 2
@@ -276,12 +277,7 @@ def inner_scene(width: int, height: int, *, landscape: bool) -> Scene:
         next_y = {"left": top, "right": top}
         x_for = {"left": left_x, "right": right_x}
         placements = place_demo_lanes()
-        for name, maker, where, baseline, live, sample in (
-            ("Nemotron 3.5 Bolt", "NVIDIA", "MACBOOK GPU", False, True, SHORT_ANSWER),
-            ("Qwen3.5-2B", "Qwen (Alibaba)", "PHONE", False, True, SHORT_ANSWER),
-            ("Granite 4.1 3B", "IBM", "PHONE", False, False, ANSWER),
-            ("LFM2", "Liquid AI", "PHONE", True, False, ANSWER),
-        ):
+        for name, maker, where, baseline, live, sample, _side in DEMO_CARDS:
             column = placements[name]
             next_y[column] = article(scene, x_for[column], next_y[column], col_width,
                                      scale=scale, name=name, maker=maker, where=where,
@@ -289,18 +285,10 @@ def inner_scene(width: int, height: int, *, landscape: bool) -> Scene:
                                      body_text=sample) + gap
     else:
         card_width = width - 2 * margin
-        top = article(scene, margin, top, card_width, scale=scale,
-                name="Nemotron 3.5 Bolt", maker="NVIDIA", where="MACBOOK GPU",
-                paragraphs=1, live=True) + gap
-        top = article(scene, margin, top, card_width, scale=scale,
-                      name="Qwen3.5-2B", maker="Qwen (Alibaba)", where="PHONE",
-                      paragraphs=1, live=True) + gap
-        top = article(scene, margin, top, card_width, scale=scale,
-                      name="Granite 4.1 3B", maker="IBM", where="PHONE",
-                      paragraphs=1) + gap
-        article(scene, margin, top, card_width, scale=scale,
-                name="LFM2", maker="Liquid AI", where="PHONE",
-                paragraphs=1, baseline=True)
+        for name, maker, where, baseline, live, sample, _side in DEMO_CARDS:
+            top = article(scene, margin, top, card_width, scale=scale,
+                          name=name, maker=maker, where=where, paragraphs=1,
+                          baseline=baseline, live=live, body_text=sample) + gap
     scroll_cue(scene, scale, margin)
     return scene
 
@@ -351,7 +339,7 @@ def tk_scene() -> Scene:
     scene = Scene(width, height, background=WHITE)
     margin = 18
     scene.text(margin, 10, "MOCK PREVIEW · MAC COMPANION", size=11,
-               color=STROKE, face="small")
+               color=BLACK, face="small")
     scene.text(margin, 35, "OPOS GPU Link", size=21, color=BLACK, face="head")
     band_y, band_height = 77, 72
     band_gap = 106
@@ -374,9 +362,9 @@ def tk_scene() -> Scene:
     scene.text(margin + 12, status_y + 10, "STATUS", size=11,
                color=BLACK, face="small")
     scene.text(margin + 12, status_y + 34,
-               "Phone connected; waiting for requests", size=17,
+               "Ready for questions on the phone.", size=17,
                color=BLACK, face="body")
-    controls = ("Retry connection", "Remove model copies", "Stop GPU Link")
+    controls = ("Try again", "Remove model copies", "Stop GPU Link")
     button_gap = 8
     button_width = (width - 2 * margin - button_gap * 2) / 3
     for index, label in enumerate(controls):
