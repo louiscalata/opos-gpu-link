@@ -51,6 +51,7 @@ If you unplug the cable, the computer answer pauses and keeps the text already s
 - **Phone not found:** use a data cable, unlock the phone, and allow its USB debugging prompt. See [computer setup](companion/SETUP.md) if more than one phone is connected.
 - **Codes differ:** do not tap Allow. Check that you are comparing the same phone and computer, then start pairing again.
 - **Model will not start:** check that the local model file and server program are present. Offline mode will not download them. See [computer setup](companion/SETUP.md).
+- **App stays on Home after an update:** After replacing the app on a Samsung phone, the first start command can finish while the Home screen stays visible. Unlock the phone and open OPOS GPU Link from its icon, or run the start command again. Check that the app is on screen before the demo; a finished command does not confirm it opened.
 - **Answer stays paused after replug:** leave the companion running and check the cable and USB debugging approval. See [unplugging and troubleshooting](companion/SETUP.md#unplugging-and-troubleshooting).
 
 ## Privacy
