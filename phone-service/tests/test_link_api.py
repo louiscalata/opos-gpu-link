@@ -172,7 +172,7 @@ class SnapshotTests(Base):
         self.assertEqual(self.pc.advertise([source]).status, 200)
         lane = api.snapshot()["models"][0]
         self.assertEqual((lane["label"], lane["maker"], lane["model"]),
-                         ("LFM2 (comparison baseline)", "Liquid AI", "LFM2 (comparison baseline)"))
+                         ("LFM2 1.2B (baseline)", "Liquid AI", "LFM2 1.2B (baseline)"))
         self.assertEqual(self.link._advertised["g1"]["label"], "LFM2 1.2B")
         self.assertEqual(source["label"], "LFM2 1.2B")
 
@@ -194,7 +194,7 @@ class SnapshotTests(Base):
         with mock.patch.dict(os.environ, {"OPOS_GPU_LINK_PC_DISPLAY": "M5 Pro PC=M5 Pro MacBook Pro"}):
             lane = api.snapshot()["models"][0]
         self.assertEqual((lane["label"], lane["maker"], lane["answer"]["where"]),
-                         ("LFM2 (comparison baseline)", "Liquid AI", "M5 Pro MacBook Pro"))
+                         ("LFM2 1.2B (baseline)", "Liquid AI", "M5 Pro MacBook Pro"))
         self.assertEqual(self.answers.get(answer["id"])["model"], "LFM2-1.2B")
 
 
