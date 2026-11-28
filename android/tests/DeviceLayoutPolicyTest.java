@@ -1,5 +1,9 @@
 package os.opos.launcher;
 
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+
 public final class DeviceLayoutPolicyTest {
     public static void main(String[] args) {
         eq(1, DeviceLayoutPolicy.columns(360, false, 4));
@@ -17,12 +21,18 @@ public final class DeviceLayoutPolicyTest {
                 DeviceLayoutPolicy.column(DeviceLayoutPolicy.Side.PHONE, 0, 1));
         eq(DeviceLayoutPolicy.Side.COMPUTER,
                 DeviceLayoutPolicy.column(DeviceLayoutPolicy.Side.COMPUTER, 1, 0));
-        eq(DeviceLayoutPolicy.Side.COMPUTER,
+        eq(DeviceLayoutPolicy.Side.PHONE,
                 DeviceLayoutPolicy.column(DeviceLayoutPolicy.Side.PHONE, 1, 0));
-        eq(DeviceLayoutPolicy.Side.COMPUTER,
+        eq(DeviceLayoutPolicy.Side.PHONE,
                 DeviceLayoutPolicy.column(DeviceLayoutPolicy.Side.PHONE, 3, 1));
-        eq(DeviceLayoutPolicy.Side.COMPUTER,
+        eq(DeviceLayoutPolicy.Side.PHONE,
                 DeviceLayoutPolicy.column(DeviceLayoutPolicy.Side.PHONE, 2, 1));
+        eq(DeviceLayoutPolicy.Side.COMPUTER,
+                DeviceLayoutPolicy.column(DeviceLayoutPolicy.Side.COMPUTER, 0, 3));
+        eq(Arrays.asList("gpu", "m1", "m4", "phone"), DeviceLayoutPolicy.orderedPanes(
+                Arrays.asList("phone", "m1", "gpu", "m4"), new HashMap<>()));
+        eq(Arrays.asList("gpu", "phone"), DeviceLayoutPolicy.orderedPanes(
+                Arrays.asList("phone", "gpu"), Collections.emptyMap()));
         eq(DeviceLayoutPolicy.LinkState.CABLE_OUT,
                 DeviceLayoutPolicy.linkState(false, true, false, true));
         eq(DeviceLayoutPolicy.LinkState.PAUSED,

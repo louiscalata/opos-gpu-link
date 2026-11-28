@@ -78,6 +78,8 @@ final class CoverScreenPolicy {
         List<String> ranked = new ArrayList<>(order);
         ranked.sort(Comparator
                 .comparingInt((String pane) -> priority(states.get(pane)))
+                .thenComparingInt(pane -> max == 1 && "gpu".equals(pane)
+                        && "answering".equals(states.get(pane)) ? 0 : 1)
                 .thenComparingInt(pane -> current.contains(pane) ? 0 : 1)
                 .thenComparingInt(order::indexOf));
         if (max == 1) {

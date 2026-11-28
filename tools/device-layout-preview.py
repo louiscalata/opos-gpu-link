@@ -63,23 +63,12 @@ def band_weights() -> tuple[float, float, float]:
 
 def place_demo_lanes() -> dict[str, str]:
     """Mirror DeviceLayoutPolicy.column for the four source-named mock lanes."""
-    left_count = right_count = 0
     placed = {}
-    for name, side in (("Qwen3.5-2B", "phone"),
-                       ("Nemotron 3.5 Bolt", "computer"),
+    for name, side in (("Nemotron 3.5 Bolt", "computer"),
+                       ("Qwen3.5-2B", "phone"),
                        ("Granite 4.1 3B", "phone"),
                        ("LFM2", "phone")):
-        if side == "phone":
-            column = "right" if (left_count > 0 and right_count == 0
-                                 or left_count > right_count) else "left"
-        else:
-            column = "left" if (right_count > 0 and left_count == 0
-                                or right_count > left_count) else "right"
-        placed[name] = column
-        if column == "left":
-            left_count += 1
-        else:
-            right_count += 1
+        placed[name] = "left" if side == "phone" else "right"
     return placed
 
 
@@ -210,7 +199,7 @@ def article(scene: Scene, x: float, y: float, width: float, *, scale: float,
     height = bottom - y
     scene.rect(x, y, width, height, stroke=STROKE)
     label = (where + " · COMPARISON BASELINE") if baseline else where
-    scene.text(x + pad, y + (3 if cover else 8) * scale, label,
+    scene.text(x + pad, y + 8 * scale, label,
                size=small, color=GRAY, face="small")
     scene.text(x + pad, y + (17 if cover else 26) * scale,
                name, size=head, face="head")
@@ -264,8 +253,8 @@ def inner_scene(width: int, height: int, *, landscape: bool) -> Scene:
         x_for = {"left": left_x, "right": right_x}
         placements = place_demo_lanes()
         for name, maker, where, baseline, live, sample in (
-            ("Qwen3.5-2B", "Qwen (Alibaba)", "PHONE", False, True, SHORT_ANSWER),
             ("Nemotron 3.5 Bolt", "NVIDIA", "MACBOOK GPU", False, True, SHORT_ANSWER),
+            ("Qwen3.5-2B", "Qwen (Alibaba)", "PHONE", False, True, SHORT_ANSWER),
             ("Granite 4.1 3B", "IBM", "PHONE", False, False, ANSWER),
             ("LFM2", "Liquid AI", "PHONE", True, False, ANSWER),
         ):
@@ -277,11 +266,11 @@ def inner_scene(width: int, height: int, *, landscape: bool) -> Scene:
     else:
         card_width = width - 2 * margin
         top = article(scene, margin, top, card_width, scale=scale,
-                      name="Qwen3.5-2B", maker="Qwen (Alibaba)", where="PHONE",
-                      paragraphs=1, live=True) + gap
-        top = article(scene, margin, top, card_width, scale=scale,
                 name="Nemotron 3.5 Bolt", maker="NVIDIA", where="MACBOOK GPU",
                 paragraphs=1, live=True) + gap
+        top = article(scene, margin, top, card_width, scale=scale,
+                      name="Qwen3.5-2B", maker="Qwen (Alibaba)", where="PHONE",
+                      paragraphs=1, live=True) + gap
         top = article(scene, margin, top, card_width, scale=scale,
                       name="Granite 4.1 3B", maker="IBM", where="PHONE",
                       paragraphs=1) + gap
@@ -296,7 +285,7 @@ def cover_scene() -> Scene:
     width, height = 720, 748
     scene = Scene(width, height)
     margin = 24
-    scene.text(margin, 5, "MOCK PREVIEW · COVER", size=11, color=GRAY, face="small")
+    scene.text(margin, 5, "MOCK PREVIEW · COVER", size=22, color=GRAY, face="small")
     scene.text(margin, 27, "GPU LINK", size=48, face="head")
     # CoverScreenPolicy: a 52 dp composer row above the results at 2 px per dp.
     prompt_x, composer_y, composer_h = margin, 88, 104
@@ -338,26 +327,22 @@ def tk_scene() -> Scene:
     scene.text(margin, 10, "MOCK PREVIEW · MAC COMPANION", size=11,
                color=STROKE, face="small")
     scene.text(margin, 35, "OPOS GPU Link", size=21, color=BLACK, face="head")
-    band_y, band_height = 77, 110
+    band_y, band_height = 77, 72
     band_gap = 106
     panel_width = (width - 2 * margin - band_gap) / 2
     right_x = margin + panel_width + band_gap
     for x in (margin, right_x):
         scene.rect(x, band_y, panel_width, band_height,
                    fill=WHITE, stroke=BLACK)
-    scene.text(margin + 12, band_y + 10, "PHONE", size=11,
-               color=BLACK, face="small")
-    scene.text(margin + 12, band_y + 34, "Phone", size=21,
+    scene.text(margin + 12, band_y + 24, "Phone", size=21,
                color=BLACK, face="head")
-    scene.text(right_x + 12, band_y + 10, "THIS COMPUTER", size=11,
-               color=BLACK, face="small")
-    scene.text(right_x + 12, band_y + 34, "MacBook", size=21,
+    scene.text(right_x + 12, band_y + 24, "MacBook", size=21,
                color=BLACK, face="head")
-    scene.text(width / 2, band_y + 36, "USB-C", size=11,
+    scene.text(width / 2, band_y + 20, "USB-C", size=11,
                color="#008000", face="small", anchor="middle")
-    scene.text(width / 2, band_y + 55, "Connected", size=11,
+    scene.text(width / 2, band_y + 39, "Connected", size=11,
                color="#008000", face="small", anchor="middle")
-    status_y, status_height = 201, 446
+    status_y, status_height = 163, 484
     scene.rect(margin, status_y, width - 2 * margin, status_height,
                fill=WHITE, stroke=BLACK)
     scene.text(margin + 12, status_y + 10, "STATUS", size=11,
@@ -365,7 +350,7 @@ def tk_scene() -> Scene:
     scene.text(margin + 12, status_y + 34,
                "Phone connected; waiting for requests", size=17,
                color=BLACK, face="body")
-    controls = ("Retry after phone recovery", "Remove model copies", "Stop GPU Link")
+    controls = ("Retry connection", "Remove model copies", "Stop GPU Link")
     button_gap = 8
     button_width = (width - 2 * margin - button_gap * 2) / 3
     for index, label in enumerate(controls):
@@ -452,8 +437,8 @@ def _stdlib_png(scene: Scene, output: Path) -> None:
             line(*a)
         else:
             x, y, value, size, rgb, _, anchor = a
-            # With no installed renderer, use one small bar per word. It preserves
-            # the text measure and spacing; the accompanying SVG retains the words.
+            # With no installed renderer, use one small bar per word.
+            # The PNG still preserves the text measure and spacing.
             words = value.split()
             widths = [max(5, len(word) * size * 0.40) for word in words]
             total = sum(widths) + max(0, len(words) - 1) * size * 0.35
@@ -500,8 +485,7 @@ def generate(output_dir: Path) -> list[tuple[Path, str]]:
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--output-dir", type=Path,
-                        default=ROOT.parent / "gpulink-uiux-20261127-notes/shots")
+    parser.add_argument("--output-dir", type=Path, required=True)
     args = parser.parse_args()
     for path, renderer in generate(args.output_dir):
         print(f"{path}: mock PNG via {renderer}")

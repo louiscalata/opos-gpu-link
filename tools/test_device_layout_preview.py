@@ -41,7 +41,7 @@ class DeviceLayoutPreviewTest(unittest.TestCase):
             self.assertIn("Scroll for more answers", scene.svg())
         for scene, phone, machine in (
             (preview.cover_scene(), "Phone", "MacBook"),
-            (preview.tk_scene(), "PHONE", "THIS COMPUTER"),
+            (preview.tk_scene(), "Phone", "MacBook"),
         ):
             texts = [op.args for op in scene.operations if op.kind == "text"]
             phone_x = next(args[0] for args in texts if args[2] == phone)
@@ -49,23 +49,37 @@ class DeviceLayoutPreviewTest(unittest.TestCase):
             self.assertLess(phone_x, machine_x)
             self.assertIn("MOCK PREVIEW", scene.svg())
 
-    def test_landscape_card_columns_match_android_free_space_rule(self):
+    def test_landscape_card_columns_match_android_device_sides(self):
         source = preview.POLICY.read_text(encoding="utf-8")
-        self.assertIn("side == Side.PHONE && phoneCards > computerCards", source)
-        self.assertIn("side == Side.COMPUTER && computerCards > phoneCards", source)
+        self.assertIn("if (side == Side.UNKNOWN)", source)
+        self.assertNotIn("side == Side.PHONE && phoneCards > computerCards", source)
         self.assertEqual({
             "Qwen3.5-2B": "left",
             "Nemotron 3.5 Bolt": "right",
             "Granite 4.1 3B": "left",
-            "LFM2": "right",
+            "LFM2": "left",
         }, preview.place_demo_lanes())
         scene = preview.inner_scene(2640, 1080, landscape=True)
         headings = {op.args[2]: op.args[0] for op in scene.operations
                     if op.kind == "text" and op.args[2] in preview.place_demo_lanes()}
         self.assertEqual(headings["Qwen3.5-2B"], headings["Granite 4.1 3B"])
-        self.assertEqual(headings["Nemotron 3.5 Bolt"], headings["LFM2"])
+        self.assertEqual(headings["Qwen3.5-2B"], headings["LFM2"])
         self.assertLess(headings["Qwen3.5-2B"], headings["Nemotron 3.5 Bolt"])
         self.assertIn("PHONE · COMPARISON BASELINE", scene.svg())
+
+    def test_mac_mock_uses_final_window_copy(self):
+        scene = preview.tk_scene().svg()
+        self.assertIn("Retry connection", scene)
+        self.assertNotIn("Retry after phone recovery", scene)
+        self.assertNotIn("THIS COMPUTER", scene)
+
+    def test_primary_leads_portrait_before_baseline(self):
+        scene = preview.inner_scene(1080, 2640, landscape=False)
+        headings = {op.args[2]: op.args[1] for op in scene.operations
+                    if op.kind == "text" and op.args[2] in preview.place_demo_lanes()}
+        self.assertLess(headings["Nemotron 3.5 Bolt"], headings["Qwen3.5-2B"])
+        self.assertLess(headings["Qwen3.5-2B"], headings["Granite 4.1 3B"])
+        self.assertLess(headings["Granite 4.1 3B"], headings["LFM2"])
 
     def test_cover_has_composer_and_pinned_summary_without_clipping(self):
         scene = preview.cover_scene()

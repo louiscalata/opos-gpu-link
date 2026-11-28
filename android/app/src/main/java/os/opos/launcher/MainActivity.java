@@ -853,8 +853,10 @@ public final class MainActivity extends Activity {
         });
         LinearLayout content = findViewById(R.id.content);
         setupDeviceBand();
+        content.removeView(deviceBand);
+        content.addView(deviceBand, 0);
         content.removeView(question);
-        content.addView(question, content.indexOfChild(deviceBand) + 1);
+        content.addView(question, 1);
 
         LinearLayout phoneCard = findViewById(R.id.phone_card);
         LinearLayout gpuCard = findViewById(R.id.gpu_card);
@@ -1203,8 +1205,8 @@ public final class MainActivity extends Activity {
             putWrapCard(answers, timingCard, 96, LaneCardLayout.CARD_GAP_DP);
             pinSummaryBar();
         } else {
-            // The first phone and computer answers sit under their device panels. Extra
-            // answers use the less full column when one side would otherwise be empty.
+            // Phone answers stay left; computer answers stay right. The primary
+            // computer answer leads its column.
             addLabView();
             putWrapCard(answers, timingCard, 96, 0);
             List<String> ordered = orderedDevicePanes();
@@ -1240,21 +1242,12 @@ public final class MainActivity extends Activity {
     }
 
     private List<String> orderedDevicePanes() {
-        List<String> result = new ArrayList<>();
-        for (String lead : new String[]{"phone", "gpu"}) {
-            if (paneOrder.contains(lead)) result.add(lead);
+        Map<String, String> kinds = new HashMap<>();
+        for (String pane : paneOrder) {
+            JSONObject lane = paneOf(snapshot, pane);
+            kinds.put(pane, lane == null ? "" : lane.optString("kind"));
         }
-        for (DeviceLayoutPolicy.Side side : new DeviceLayoutPolicy.Side[]{
-                DeviceLayoutPolicy.Side.PHONE, DeviceLayoutPolicy.Side.COMPUTER,
-                DeviceLayoutPolicy.Side.UNKNOWN}) {
-            for (String pane : paneOrder) {
-                if (result.contains(pane)) continue;
-                JSONObject lane = paneOf(snapshot, pane);
-                if (DeviceLayoutPolicy.side(pane,
-                        lane == null ? "" : lane.optString("kind")) == side) result.add(pane);
-            }
-        }
-        return result;
+        return DeviceLayoutPolicy.orderedPanes(paneOrder, kinds);
     }
 
     private boolean readReducedMotion() {
@@ -3001,11 +2994,9 @@ public final class MainActivity extends Activity {
         deviceComputerKicker = findViewById(R.id.device_computer_kicker);
         deviceComputerName = findViewById(R.id.device_computer_name);
         deviceLink = findViewById(R.id.device_link);
-        deviceBand.setFocusable(true);
-        devicePhone.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
-        deviceComputer.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS);
-        deviceLink.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
-        deviceBand.setContentDescription(DeviceLayoutPolicy.description("computer", deviceLinkState));
+        deviceBand.setContentDescription(DeviceLayoutPolicy.description(
+                ComputerWords.title(ComputerWords.current()), deviceLinkState));
+        applyDeviceBandMode();
     }
 
     private void applyDeviceBandMode() {
@@ -3033,7 +3024,10 @@ public final class MainActivity extends Activity {
                 pausedAfterFreshSnapshot, errorState);
         setIfChanged(deviceComputerName, name);
         setIfChanged(deviceLink, DeviceLayoutPolicy.linkLabel(deviceLinkState));
-        deviceBand.setContentDescription(DeviceLayoutPolicy.description(name, deviceLinkState));
+        String description = DeviceLayoutPolicy.description(name, deviceLinkState);
+        if (!TextUtils.equals(deviceBand.getContentDescription(), description)) {
+            deviceBand.setContentDescription(description);
+        }
         styleDeviceBand();
     }
 
@@ -3043,6 +3037,8 @@ public final class MainActivity extends Activity {
         deviceComputer.setBackground(panelDrawable(palette.stroke()));
         devicePhoneKicker.setTextColor(parseHex(palette.label()));
         deviceComputerKicker.setTextColor(parseHex(palette.label()));
+        devicePhoneName.setTextColor(parseHex(palette.ink()));
+        deviceComputerName.setTextColor(parseHex(palette.ink()));
         deviceLink.setTextColor(parseHex(deviceLinkState == DeviceLayoutPolicy.LinkState.CONNECTED
                 ? palette.ok() : deviceLinkState == DeviceLayoutPolicy.LinkState.ERROR
                 ? palette.error() : palette.ink()));

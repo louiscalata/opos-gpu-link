@@ -1,5 +1,10 @@
 package os.opos.launcher;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+import java.util.Map;
+
 /** Layout and link wording shared by the inner page and the Flip cover. */
 final class DeviceLayoutPolicy {
     static final int TWO_COLUMN_MIN_WIDTH_DP = 600;
@@ -21,11 +26,25 @@ final class DeviceLayoutPolicy {
         return PaneKeys.pc(pane) ? Side.COMPUTER : Side.PHONE;
     }
 
-    /** The first card from each device stays by its panel; later cards use free columns. */
+    /** Primary computer answer first in portrait; the phone comparison baseline follows the other phone answers. */
+    static List<String> orderedPanes(List<String> panes, Map<String, String> kinds) {
+        List<String> ordered = new ArrayList<>(panes);
+        ordered.sort(Comparator.comparingInt(pane -> orderRank(pane, kinds.get(pane))));
+        return ordered;
+    }
+
+    private static int orderRank(String pane, String kind) {
+        if ("gpu".equals(pane)) return 0;
+        if ("phone".equals(pane)) return 3;
+        Side side = side(pane, kind);
+        if (side == Side.PHONE) return 1;
+        if (side == Side.COMPUTER) return 2;
+        return 4;
+    }
+
+    /** Known phone cards stay left and known computer cards stay right. */
     static Side column(Side side, int phoneCards, int computerCards) {
         if (side == Side.UNKNOWN) return phoneCards <= computerCards ? Side.PHONE : Side.COMPUTER;
-        if (side == Side.PHONE && phoneCards > computerCards) return Side.COMPUTER;
-        if (side == Side.COMPUTER && computerCards > phoneCards) return Side.PHONE;
         return side;
     }
 
