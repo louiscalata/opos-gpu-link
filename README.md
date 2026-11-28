@@ -85,6 +85,7 @@ Early demo build. USB is the only link today. Wireless: coming later.
 
 - The APK is a debug build signed with a throwaway key. It is not on Google Play.
 - The phone side runs on its own with `phone-service/run_link.py`, including the `/api/ai` endpoint the app reads. To give a phone answer, it needs a local model server on the phone, such as `llama-server`. Without one, questions go to the computer.
+- Hands-on checks for a live Flip 6 and MacBook (screens, Stop, cable pull, copy, soak, rehearsals, screenshots) are in [HANDS-ON-RUNSHEET.md](HANDS-ON-RUNSHEET.md).
 
 OPOS GPU Link is part of the early Old Phone OS project, coming soon.
 
