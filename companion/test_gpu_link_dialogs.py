@@ -111,20 +111,46 @@ class FakeTk:
 class DialogTests(unittest.TestCase):
     FONTS = {"title": "H5 font", "small": "S5 font", "body": "B5 font"}
 
+    def assert_dark_labels(self, labels, secondary=()):
+        expected_secondary = set(secondary)
+        self.assertEqual([label.options["fg"] for label in labels], [
+            link.DIALOG_SECONDARY if index in expected_secondary else link.DIALOG_INK
+            for index in range(len(labels))
+        ])
+        self.assertTrue(all(label.options["bg"] == link.DIALOG_PAPER for label in labels))
+
+    def assert_outlined_buttons(self, buttons):
+        expected = {
+            "fg": link.DIALOG_INK,
+            "bg": link.DIALOG_PAPER,
+            "activeforeground": link.DIALOG_PAPER,
+            "activebackground": link.DIALOG_INK,
+            "disabledforeground": link.DIALOG_SECONDARY,
+            "relief": "solid",
+            "bd": 1,
+            "highlightthickness": 1,
+            "highlightbackground": link.DIALOG_INK,
+            "highlightcolor": link.DIALOG_INK,
+        }
+        for button in buttons:
+            self.assertEqual({key: button.options[key] for key in expected}, expected)
+
     def app(self, root, tk, now, args=None, attached=None):
         return SimpleNamespace(headless=False, root=root, tk=tk,
                                args=args or SimpleNamespace(), clock=lambda: now[0],
                                link_present=lambda: attached[0] if attached else True)
 
     def test_h5_s5_b5_tokens_and_installed_font_preference(self):
+        self.assertEqual((link.TK_H5_PT, link.TK_S5_PT, link.TK_B5_PT), (21, 11, 17))
         self.assertEqual(link.DIALOG_TYPE, {
             "H5": {"size": 21, "weight": "semibold", "leading": 1.15, "tracking": -0.01},
             "S5": {"size": 11, "weight": "normal", "leading": 1.25, "tracking": 0.02, "tnum": True},
             "B5": {"size": 17, "weight": "normal", "leading": 1.35, "tracking": 0.0},
         })
-        self.assertEqual((link.DIALOG_INK, link.DIALOG_PAPER, link.DIALOG_ERROR,
-                          link.DIALOG_SUCCESS),
-                         ("#000000", "#FFFFFF", "#B3261E", "#0F7A45"))
+        self.assertEqual((link.DIALOG_PAPER, link.DIALOG_INK, link.DIALOG_SECONDARY,
+                          link.DIALOG_STROKE, link.DIALOG_ERROR, link.DIALOG_SUCCESS),
+                         ("#000000", "#FFFFFF", "#BFBFBF", "#5C5C5C",
+                          "#FF5A52", "#3DDC84"))
         specs = link._dialog_font_specs(
             {"Source Serif 4 Subhead SemiBold", "Source Serif 4 Text", "Inter Medium"},
             "Tk heading", "Tk text")
@@ -146,10 +172,14 @@ class DialogTests(unittest.TestCase):
                          {"title": ("Source Serif 4 Subhead Semibold", 21, "normal"),
                           "small": ("Inter Medium", 11, "normal"),
                           "body": ("Source Serif 4", 17, "normal")})
-        public = link._dialog_font_specs({"Newsreader", "Inter"}, "Tk heading", "Tk text")
-        self.assertEqual(public, {"title": ("Newsreader", 21, "bold"),
-                                  "small": ("Inter", 11, "normal"),
-                                  "body": ("Newsreader", 17, "normal")})
+        inter_only = link._dialog_font_specs({"Newsreader", "Inter"}, "Tk heading", "Tk text")
+        self.assertEqual(inter_only, {"title": ("Tk heading", 21, "bold"),
+                                      "small": ("Inter", 11, "normal"),
+                                      "body": ("Tk text", 17, "normal")})
+        newsreader_only = link._dialog_font_specs({"Newsreader"}, "Tk heading", "Tk text")
+        self.assertEqual(newsreader_only, {"title": ("Tk heading", 21, "bold"),
+                                           "small": ("Tk text", 11, "normal"),
+                                           "body": ("Tk text", 17, "normal")})
         fallback = link._dialog_font_specs(set(), "Tk heading", "Tk text")
         self.assertEqual(fallback, {"title": ("Tk heading", 21, "bold"),
                                     "small": ("Tk text", 11, "normal"),
@@ -187,15 +217,13 @@ class DialogTests(unittest.TestCase):
             ])
             self.assertEqual([label.options["font"] for label in tk.labels],
                              ["H5 font", "B5 font", "B5 font", "B5 font", "S5 font"])
-            self.assertTrue(all(label.options["fg"] == link.DIALOG_INK
-                                and label.options["bg"] == link.DIALOG_PAPER for label in tk.labels))
+            self.assert_dark_labels(tk.labels, secondary=(4,))
             allow, deny = tk.buttons
             self.assertEqual((allow.options["text"], deny.options["text"]), ("Allow this phone", "Not now"))
             self.assertEqual((allow.options["state"], deny.options["state"]),
                              ("disabled", "normal"))
-            self.assertTrue(all(button.options["font"] == "S5 font"
-                                and button.options["fg"] == link.DIALOG_INK
-                                and button.options["bg"] == link.DIALOG_PAPER for button in tk.buttons))
+            self.assertTrue(all(button.options["font"] == "S5 font" for button in tk.buttons))
+            self.assert_outlined_buttons(tk.buttons)
             allow.options["command"]()  # Even a direct callback is ignored during debounce.
             self.assertFalse(top.destroyed)
             now[0] = 0.7
@@ -212,6 +240,26 @@ class DialogTests(unittest.TestCase):
         with patch.object(link, "_dialog_fonts", return_value=self.FONTS), \
                 patch.object(link, "computer_noun", return_value="MacBook"):
             self.assertFalse(link.Companion.permission(app))
+
+    def test_permission_identity_labels_are_secondary(self):
+        tk = FakeTk()
+        root = SimpleNamespace()
+
+        def wait_window(top):
+            self.assertEqual([label.options["text"] for label in tk.labels[1:3]],
+                             ["Phone: Galaxy Z Flip 6", "GPU: Apple M5 Pro"])
+            self.assertEqual(len(tk.labels), 7)
+            self.assert_dark_labels(tk.labels, secondary=(1, 2, 6))
+            self.assert_outlined_buttons(tk.buttons)
+            top.bindings["<Escape>"](None)
+
+        root.wait_window = wait_window
+        args = SimpleNamespace(phone_label="Galaxy Z Flip 6",
+                               runtime=SimpleNamespace(gpu={"name": "Apple M5 Pro",
+                                                            "backend": "metal"}))
+        with patch.object(link, "_dialog_fonts", return_value=self.FONTS), \
+                patch.object(link, "computer_noun", return_value="MacBook"):
+            self.assertFalse(link.Companion.permission(self.app(root, tk, [0.0], args=args)))
 
     def test_allow_rechecks_attachment_and_escape_denies(self):
         for action, attached_at_finish, expected in (("Allow", True, True),
@@ -288,10 +336,10 @@ class DialogTests(unittest.TestCase):
                               "On the phone, tap Allow this MacBook."])
             self.assertEqual([label.options["font"] for label in tk.labels],
                              ["H5 font", "B5 font", "S5 font", "H5 font", "S5 font", "B5 font", "S5 font"])
-            self.assertTrue(all(label.options["fg"] == link.DIALOG_INK
-                                and label.options["bg"] == link.DIALOG_PAPER for label in tk.labels))
+            self.assert_dark_labels(tk.labels, secondary=(2, 4, 6))
             self.assertEqual(tk.buttons[0].options["font"], "S5 font")
             self.assertEqual(tk.buttons[0].options["text"], "Not now")
+            self.assert_outlined_buttons(tk.buttons)
             self.assertTrue(tk.buttons[0].focused)
             now[0] = 1.1
             top.run_after(750)
@@ -370,8 +418,10 @@ class DialogTests(unittest.TestCase):
             self.assertEqual(top.options["bg"], link.DIALOG_PAPER)
             self.assertEqual([label.options["font"] for label in tk.labels],
                              ["H5 font", "B5 font", "S5 font"])
+            self.assert_dark_labels(tk.labels, secondary=(2,))
             self.assertEqual([button.options["text"] for button in tk.buttons],
                              ["Remove copies", "Not now"])
+            self.assert_outlined_buttons(tk.buttons)
             remove, deny = tk.buttons
             remove.options["command"]()  # The 700 ms guard rejects direct activation.
             self.assertFalse(top.destroyed)
