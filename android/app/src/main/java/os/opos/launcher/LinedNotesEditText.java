@@ -6,15 +6,14 @@ import android.graphics.Paint;
 import android.graphics.Rect;
 import android.widget.EditText;
 
-/** A phone-local notepad with faint hairline rules. */
+/** A phone-local notepad with the same hairline rules as the cards. */
 final class LinedNotesEditText extends EditText {
     private final Paint rule = new Paint(Paint.ANTI_ALIAS_FLAG);
 
     LinedNotesEditText(Context context) {
         super(context);
-        rule.setColor(context.getColor(R.color.notes_rule));
-        rule.setStrokeWidth(Math.max(1f,
-                context.getResources().getDisplayMetrics().density * 0.75f));
+        rule.setColor(context.getColor(R.color.newspaper_stroke));
+        rule.setStrokeWidth(context.getResources().getDimensionPixelSize(R.dimen.card_stroke));
         setPadding(0, 8, 0, 0);
     }
 

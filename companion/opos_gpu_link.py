@@ -49,17 +49,24 @@ SERIAL = re.compile(r"[A-Za-z0-9._:-]{1,128}\Z")
 PORT = re.compile(r"[1-9][0-9]{0,4}\Z")
 DEFAULT_SERVER = "http://127.0.0.1:1235/v1/chat/completions"
 
-# Android's H5 + S5 + B5 sizes and optical values. Tk labels support font size
-# and weight, but not letter tracking, tabular figures, or a fixed line height.
+# Android's H5 + S5 + B5 sizes and optical values. Positive Tk font sizes are
+# points; on macOS, 1 pt is roughly 1 px. Tk labels cannot set letter tracking,
+# tabular figures, or a fixed line height.
+TK_H5_PT = 21
+TK_S5_PT = 11
+TK_B5_PT = 17
 DIALOG_TYPE = {
-    "H5": {"size": 21, "weight": "semibold", "leading": 1.15, "tracking": -0.01},
-    "S5": {"size": 11, "weight": "normal", "leading": 1.25, "tracking": 0.02, "tnum": True},
-    "B5": {"size": 17, "weight": "normal", "leading": 1.35, "tracking": 0.0},
+    "H5": {"size": TK_H5_PT, "weight": "semibold", "leading": 1.15, "tracking": -0.01},
+    "S5": {"size": TK_S5_PT, "weight": "normal", "leading": 1.25, "tracking": 0.02, "tnum": True},
+    "B5": {"size": TK_B5_PT, "weight": "normal", "leading": 1.35, "tracking": 0.0},
 }
-DIALOG_INK = "#000000"
-DIALOG_PAPER = "#FFFFFF"
-DIALOG_ERROR = "#B3261E"
-DIALOG_SUCCESS = "#0F7A45"
+# Match UiPalette's dark theme and the matching values in colors.xml.
+DIALOG_PAPER = "#000000"
+DIALOG_INK = "#FFFFFF"
+DIALOG_SECONDARY = "#BFBFBF"
+DIALOG_STROKE = "#5C5C5C"
+DIALOG_ERROR = "#FF5A52"
+DIALOG_SUCCESS = "#3DDC84"
 
 
 def _dialog_font_specs(available, heading_fallback, text_fallback):
@@ -72,12 +79,11 @@ def _dialog_font_specs(available, heading_fallback, text_fallback):
 
     title = pick(("Source Serif 4 Subhead SemiBold", "Source Serif 4 Subhead",
                   "Source Serif 4 SemiBold", "Source Serif 4",
-                  "Newsreader SemiBold", "Newsreader", "Newsreader 72pt",
                   "Source Serif Pro", "Source Serif"), heading_fallback)
     # Tk has no semibold weight. Use the real cut when installed, else bold.
     title_weight = "normal" if "semibold" in title.casefold() else "bold"
-    text = pick(("Source Serif 4 Text", "Source Serif 4", "Newsreader",
-                 "Source Serif Pro", "Source Serif", "Inter"), text_fallback)
+    text = pick(("Source Serif 4 Text", "Source Serif 4",
+                 "Source Serif Pro", "Source Serif"), text_fallback)
     small = pick(("Inter Medium", "Inter"), text_fallback)
     return {"title": (title, DIALOG_TYPE["H5"]["size"], title_weight),
             "small": (small, DIALOG_TYPE["S5"]["size"], DIALOG_TYPE["S5"]["weight"]),
@@ -100,8 +106,10 @@ def _dialog_label(tk, parent, text, font, *, color=DIALOG_INK, wraplength=470):
 
 def _dialog_button(tk, parent, text, font, **options):
     return tk.Button(parent, text=text, font=font, fg=DIALOG_INK, bg=DIALOG_PAPER,
-                     activeforeground=DIALOG_INK, activebackground=DIALOG_PAPER,
-                     highlightbackground=DIALOG_PAPER, **options)
+                     activeforeground=DIALOG_PAPER, activebackground=DIALOG_INK,
+                     disabledforeground=DIALOG_SECONDARY, relief="solid", bd=1,
+                     highlightthickness=1, highlightbackground=DIALOG_INK,
+                     highlightcolor=DIALOG_INK, **options)
 
 
 def _build_main_window(tk, root, status, computer_label, fonts, on_retry,
@@ -118,7 +126,7 @@ def _build_main_window(tk, root, status, computer_label, fonts, on_retry,
     band.columnconfigure(2, weight=1, uniform="device")
 
     def device_panel(column, name):
-        panel = tk.Frame(band, bg=DIALOG_PAPER, highlightbackground=DIALOG_INK,
+        panel = tk.Frame(band, bg=DIALOG_PAPER, highlightbackground=DIALOG_STROKE,
                          highlightthickness=1, bd=0)
         panel.grid(row=0, column=column, sticky="nsew")
         panel.columnconfigure(0, weight=1)
@@ -131,17 +139,17 @@ def _build_main_window(tk, root, status, computer_label, fonts, on_retry,
     phone_panel = device_panel(0, "Phone")
     link_state = tk.StringVar(value="USB-C\nWaiting")
     link_label = tk.Label(band, textvariable=link_state, font=fonts["small"],
-                          fg=DIALOG_INK, bg=DIALOG_PAPER, justify="center",
+                          fg=DIALOG_SECONDARY, bg=DIALOG_PAPER, justify="center",
                           anchor="center", width=18)
     link_label.grid(row=0, column=1, sticky="ns", padx=8)
     computer_panel = device_panel(2, computer_label)
 
-    status_frame = tk.Frame(root, bg=DIALOG_PAPER, highlightbackground=DIALOG_INK,
+    status_frame = tk.Frame(root, bg=DIALOG_PAPER, highlightbackground=DIALOG_STROKE,
                             highlightthickness=1, bd=0)
     status_frame.grid(row=1, column=0, sticky="nsew", padx=18, pady=(0, 10))
     status_frame.columnconfigure(0, weight=1)
     status_frame.rowconfigure(1, weight=1)
-    _dialog_label(tk, status_frame, "STATUS", fonts["small"]).grid(
+    _dialog_label(tk, status_frame, "STATUS", fonts["small"], color=DIALOG_SECONDARY).grid(
         row=0, column=0, sticky="ew", padx=12, pady=(10, 4))
     status_label = tk.Label(status_frame, textvariable=status, font=fonts["body"],
                             fg=DIALOG_INK, bg=DIALOG_PAPER, justify="left", anchor="nw")
@@ -181,13 +189,13 @@ def _status_is_error(message: str) -> bool:
 def _main_window_tone(online: bool, message: str) -> tuple[str, str, str]:
     """Return link words, link ink, and status ink from known runtime state."""
     if message == "Stopping.":
-        return "USB-C\nStopping", DIALOG_INK, DIALOG_INK
+        return "USB-C\nStopping", DIALOG_SECONDARY, DIALOG_INK
     if online:
         return ("USB-C\nConnected", DIALOG_SUCCESS,
                 DIALOG_ERROR if _status_is_error(message) else DIALOG_INK)
     if _status_is_error(message):
         return "USB-C\nNeeds attention", DIALOG_ERROR, DIALOG_ERROR
-    return "USB-C\nWaiting", DIALOG_INK, DIALOG_INK
+    return "USB-C\nWaiting", DIALOG_SECONDARY, DIALOG_INK
 
 
 class _DialogLifetime:
@@ -232,7 +240,8 @@ def _confirm_remove_model_copies(root, models_dir: Path, tk, clock=time.monotoni
         padx=24, pady=(22, 10), anchor="w")
     _dialog_label(tk, top, f"Remove GPU Link's downloaded model files from {models_dir}?",
                   fonts["body"]).pack(padx=24, pady=(0, 8), anchor="w")
-    _dialog_label(tk, top, "A model already running stays loaded.", fonts["small"]).pack(
+    _dialog_label(tk, top, "A model already running stays loaded.", fonts["small"],
+                  color=DIALOG_SECONDARY).pack(
         padx=24, pady=(0, 14), anchor="w")
     choice = {"remove": False}
     unblock = clock() + 0.7
@@ -1137,7 +1146,7 @@ class Companion:
         _dialog_label(self.tk, top, f"Let this phone use your {noun}'s GPU?", fonts["title"]).pack(
             padx=24, pady=(22, 10), anchor="w")
         for line in _permission_identity_lines(self.args):
-            _dialog_label(self.tk, top, line, fonts["small"]).pack(
+            _dialog_label(self.tk, top, line, fonts["small"], color=DIALOG_SECONDARY).pack(
                 padx=24, pady=(0, 3), anchor="w")
         for index, line in enumerate((
                 f"The phone can use this {noun}'s GPU while the cable is plugged in.",
@@ -1148,7 +1157,8 @@ class Companion:
                 padx=24, pady=(10 if index == 0 else 0, 6), anchor="w")
         _dialog_label(self.tk, top,
                       "Unplug to pause. Access ends after 2 minutes unplugged or when you choose Stop GPU Link.",
-                      fonts["small"]).pack(padx=24, pady=(8, 14), anchor="w")
+                      fonts["small"], color=DIALOG_SECONDARY).pack(
+                          padx=24, pady=(8, 14), anchor="w")
         choice = {"allowed": False}
         unblock = self.clock() + 0.7
         lifetime = _DialogLifetime(top)
@@ -1212,17 +1222,19 @@ class Companion:
             padx=24, pady=(22, 8), anchor="w")
         _dialog_label(self.tk, top, "Compare this code with the phone before you allow.",
                       fonts["body"]).pack(padx=24, pady=(0, 12), anchor="w")
-        _dialog_label(self.tk, top, "Pairing code", fonts["small"]).pack(
+        _dialog_label(self.tk, top, "Pairing code", fonts["small"],
+                      color=DIALOG_SECONDARY).pack(
             padx=24, pady=(0, 4), anchor="w")
         _dialog_label(self.tk, top, f"{code[:3]} {code[3:]}", fonts["title"]).pack(
             padx=24, pady=(0, 6), anchor="w")
-        countdown = _dialog_label(self.tk, top, "60 s left", fonts["small"])
+        countdown = _dialog_label(self.tk, top, "60 s left", fonts["small"],
+                                  color=DIALOG_SECONDARY)
         countdown.pack(padx=24, pady=(0, 12), anchor="w")
         _dialog_label(self.tk, top,
                       f"If allowed, this {noun} can see your questions and the answers. A model file stays here.",
                       fonts["body"]).pack(padx=24, pady=(0, 8), anchor="w")
         note = _dialog_label(self.tk, top, f"On the phone, tap Allow this {noun}.",
-                             fonts["small"])
+                             fonts["small"], color=DIALOG_SECONDARY)
         note.pack(padx=24, pady=(0, 14), anchor="w")
         accepted = {"yes": False}
         lifetime = _DialogLifetime(top)

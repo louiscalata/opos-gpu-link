@@ -104,6 +104,22 @@ class FakeTk:
 
 
 class MainWindowTests(unittest.TestCase):
+    def assert_outlined_buttons(self, buttons):
+        expected = {
+            "fg": link.DIALOG_INK,
+            "bg": link.DIALOG_PAPER,
+            "activeforeground": link.DIALOG_PAPER,
+            "activebackground": link.DIALOG_INK,
+            "disabledforeground": link.DIALOG_SECONDARY,
+            "relief": "solid",
+            "bd": 1,
+            "highlightthickness": 1,
+            "highlightbackground": link.DIALOG_INK,
+            "highlightcolor": link.DIALOG_INK,
+        }
+        for button in buttons:
+            self.assertEqual({key: button.options[key] for key in expected}, expected)
+
     def window_app(self):
         root, tk = FakeRoot(), FakeTk()
         args = SimpleNamespace(adb="unused", serial="fixture", key_dir=Path("unused"),
@@ -130,20 +146,40 @@ class MainWindowTests(unittest.TestCase):
         self.assertEqual((band.column_weights[0], band.column_weights[2]), (1, 1))
         self.assertEqual((band.column_options[0], band.column_options[2]),
                          ({"uniform": "device"}, {"uniform": "device"}))
+        self.assertEqual(root.options["bg"], link.DIALOG_PAPER)
+        self.assertEqual(band.options["bg"], link.DIALOG_PAPER)
+        self.assertEqual((phone.options["bg"], computer.options["bg"]),
+                         (link.DIALOG_PAPER, link.DIALOG_PAPER))
+        self.assertEqual((phone.options["highlightbackground"],
+                          computer.options["highlightbackground"]),
+                         (link.DIALOG_STROKE, link.DIALOG_STROKE))
         self.assertEqual(root.minimum, (600, 300))
         self.assertEqual(root.column_weights[0], 1)
         self.assertEqual(root.row_weights[1], 1)
         self.assertEqual(window["status_frame"].grid_options["sticky"], "nsew")
+        self.assertEqual(window["status_frame"].options["bg"], link.DIALOG_PAPER)
+        self.assertEqual(window["status_frame"].options["highlightbackground"],
+                         link.DIALOG_STROKE)
         self.assertEqual(window["status_frame"].row_weights[1], 1)
         self.assertEqual(window["status_label"].grid_options["sticky"], "nsew")
+        self.assertEqual(window["status_label"].options["bg"], link.DIALOG_PAPER)
+        self.assertEqual(window["status_label"].options["fg"], link.DIALOG_INK)
+        self.assertEqual(window["status_frame"].children[0].options["fg"],
+                         link.DIALOG_SECONDARY)
         self.assertEqual([child.options.get("text") for child in phone.children], ["Phone"])
         self.assertEqual([child.options.get("text") for child in computer.children], ["MacBook"])
+        self.assertEqual((phone.children[0].options["fg"],
+                          computer.children[0].options["fg"]),
+                         (link.DIALOG_INK, link.DIALOG_INK))
         self.assertEqual(phone.children[0].options["font"], "H5")
         self.assertEqual(window["link_label"].options["width"], 18)
+        self.assertEqual(window["link_label"].options["bg"], link.DIALOG_PAPER)
+        self.assertEqual(window["link_label"].options["fg"], link.DIALOG_SECONDARY)
         self.assertEqual(window["status_label"].options["font"], "B5")
         self.assertEqual([button.options["text"] for button in tk.buttons], [
             "Try again", "Remove model copies", "Stop GPU Link"])
         self.assertEqual(window["action_buttons"], tk.buttons)
+        self.assert_outlined_buttons(tk.buttons)
         self.assertTrue(all(button.grid_options["sticky"] == "ew" for button in tk.buttons))
         self.assertIn("<Configure>", window["status_frame"].bindings)
         window["status_frame"].bindings["<Configure>"](SimpleNamespace(width=600))
@@ -153,7 +189,7 @@ class MainWindowTests(unittest.TestCase):
 
     def test_link_and_status_colors_use_only_the_allowed_states(self):
         self.assertEqual(link._main_window_tone(False, "Phone disconnected; waiting to reconnect"),
-                         ("USB-C\nWaiting", link.DIALOG_INK, link.DIALOG_INK))
+                         ("USB-C\nWaiting", link.DIALOG_SECONDARY, link.DIALOG_INK))
         self.assertEqual(link._main_window_tone(True, "Answer in progress"),
                          ("USB-C\nConnected", link.DIALOG_SUCCESS, link.DIALOG_INK))
         self.assertEqual(link._main_window_tone(True, "Model copies could not be removed"),
@@ -163,11 +199,11 @@ class MainWindowTests(unittest.TestCase):
         self.assertEqual(link._main_window_tone(False, "Phone service unavailable; retrying"),
                          ("USB-C\nNeeds attention", link.DIALOG_ERROR, link.DIALOG_ERROR))
         self.assertEqual(link._main_window_tone(False, "Phone link interrupted; reconnecting"),
-                         ("USB-C\nWaiting", link.DIALOG_INK, link.DIALOG_INK))
+                         ("USB-C\nWaiting", link.DIALOG_SECONDARY, link.DIALOG_INK))
         self.assertEqual(link._main_window_tone(False, "Failed to reach the phone"),
                          ("USB-C\nNeeds attention", link.DIALOG_ERROR, link.DIALOG_ERROR))
         self.assertEqual(link._main_window_tone(True, "Stopping."),
-                         ("USB-C\nStopping", link.DIALOG_INK, link.DIALOG_INK))
+                         ("USB-C\nStopping", link.DIALOG_SECONDARY, link.DIALOG_INK))
 
     def test_refresh_updates_the_visible_link_and_status(self):
         root, tk = FakeWidget(), FakeTk()
@@ -229,7 +265,8 @@ class MainWindowTests(unittest.TestCase):
                 tk.buttons[-1].options["command"]()
                 self.assertEqual(app.status.get(), "Stopping.")
                 self.assertEqual(app.main_window["link_state"].get(), "USB-C\nStopping")
-                self.assertEqual(app.main_window["link_label"].options["fg"], link.DIALOG_INK)
+                self.assertEqual(app.main_window["link_label"].options["fg"],
+                                 link.DIALOG_SECONDARY)
                 self.assertFalse(root.destroyed)
         finally:
             release.set()
