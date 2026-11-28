@@ -91,7 +91,7 @@ public final class HistoryRefreshTest {
         equal("MacBook GPU", HistoryDisplay.label(macLabel));
         equal("Computer GPU", HistoryDisplay.label(new HistoryStore.Lane("gpu", "PC GPU", "",
                 "over USB", "Done", "answer", 0)));
-        equal("MacBook  1.0 s", HistoryDisplay.timing(new HistoryStore.Issue("400", 400,
+        equal("MacBook GPU  1.0 s", HistoryDisplay.timing(new HistoryStore.Issue("400", 400,
                 "Why?", "PC  1.0 s", "1.0 s", Arrays.asList(macLabel))));
         equal("MacBook GPU\u00a01.0\u00a0s", HistoryDisplay.timing(new HistoryStore.Issue("401", 401,
                 "Why?", " PC GPU \u00a01.0\u00a0s", "1.0 s", Arrays.asList(macLabel))));
@@ -103,6 +103,19 @@ public final class HistoryRefreshTest {
                 HistoryDisplay.timing(new HistoryStore.Issue("402", 402, "Why?",
                         "This phone\u00a01.2\u00a0s\nLFM2 1.2B  2.0 s", "2.0 s",
                         Arrays.asList(phoneThen, baseline))));
+        equal("Nemotron 3.5 Bolt 2.0 s · Nemotron Mini 4B 1.2 s",
+                HistoryDisplay.timing(new HistoryStore.Issue("403", 403, "Why?",
+                        "PC 2.0 s · Phone 1.2 s", "2.0 s",
+                        Arrays.asList(gpuThen, phoneThen))));
+        equal("Nemotron 3.5 Bolt\u00a02.0\u00a0s\nNemotron Mini 4B\u00a01.2\u00a0s",
+                HistoryDisplay.timing(new HistoryStore.Issue("404", 404, "Why?",
+                        "PC\u00a02.0\u00a0s\nPhone\u00a01.2\u00a0s", "2.0 s",
+                        Arrays.asList(gpuThen, phoneThen))));
+        equal("Phone model 1\u00a01.0\u00a0s\nNemotron Mini 4B\u00a01.2\u00a0s",
+                HistoryDisplay.timing(new HistoryStore.Issue("405", 405, "Why?",
+                        "Phone model 1\u00a01.0\u00a0s\nPhone\u00a01.2\u00a0s", "1.2 s",
+                        Arrays.asList(new HistoryStore.Lane("m1", "", "", "on this phone",
+                                "Done", "answer", 1000), phoneThen))));
         equal("Phone model", HistoryDisplay.label(new HistoryStore.Lane("phone", "   ",
                 "", "on this phone", "Done", "answer", 0)));
         equal("Phone model 3 (baseline)", HistoryDisplay.label(new HistoryStore.Lane("m3", " ",
