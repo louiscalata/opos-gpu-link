@@ -1,5 +1,6 @@
 package os.opos.launcher;
 
+import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -33,7 +34,7 @@ final class SpanStatsModel {
     }
 
     static SpanStatsModel of(int heatStatus, String linkLabel, List<Lane> lanes, long workingTick, boolean reducedMotion) {
-        List<Lane> copy = lanes == null ? List.of() : List.copyOf(lanes);
+        List<Lane> copy = lanes == null ? new ArrayList<Lane>() : new ArrayList<Lane>(lanes);
         return new SpanStatsModel(heatStatus, linkLabel, copy, workingTick, reducedMotion);
     }
 
