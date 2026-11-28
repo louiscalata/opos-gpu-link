@@ -335,8 +335,8 @@ class PhoneDetection(unittest.TestCase):
             serial = a.wait_for_phone(Path("adb"), run, sleep=lambda s: None)
         text = buffer.getvalue()
         self.assertEqual(serial, "R5CX")
-        self.assertIn("Plug the phone in", text)
-        self.assertEqual(text.count("Allow USB debugging?"), 1)  # shown once per state change
+        self.assertIn("Plug in the USB-C cable", text)
+        self.assertEqual(text.count("Allow USB debugging on the phone"), 1)  # shown once per state change
 
     def test_adb_found_before_download(self):
         with tempfile.TemporaryDirectory() as d:
@@ -395,7 +395,8 @@ class AdbServerBinary(unittest.TestCase):
             got = a.prefer_running_adb_server(path_adb, runner=runner, announce=notes.append, system="linux")
             self.assertEqual(got, server_adb.resolve())
             self.assertTrue(notes)
-            self.assertIn("already-running adb server", notes[0])
+            self.assertEqual(notes, ["Using USB tools already running on this computer."])
+            self.assertNotIn(str(server_adb), notes[0])
 
     def test_keeps_selected_when_no_server(self):
         with tempfile.TemporaryDirectory() as d:
