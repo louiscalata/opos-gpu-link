@@ -811,7 +811,7 @@ public final class MainActivity extends Activity {
         float lastTouchY;
         boolean userScrolled, programmaticScroll;
         String lastRenderedState = "";
-        /** Green live line under the state while the lane streams or thinks; GONE otherwise. */
+        /** Green live line replacing the state while the lane streams or thinks. */
         TextView working;
 
         PaneViews(String pane, LinearLayout card, TextView kicker, TextView heading,
@@ -1137,11 +1137,17 @@ public final class MainActivity extends Activity {
         // No inner ScrollView: the card grows with the answer; the page scrolls.
         PaneViews paneView = new PaneViews(pane, card, kicker, heading, byline,
                 stateView, speed, answerView, null);
-        paneView.working = workingLine();
+        paneView.working = workingLine(stateView);
         int stateIndex = card.indexOfChild(stateView);
+        ViewGroup.MarginLayoutParams stateMargins =
+                (ViewGroup.MarginLayoutParams) stateView.getLayoutParams();
+        LinearLayout.LayoutParams workingMargins = new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT);
+        workingMargins.setMargins(stateMargins.leftMargin, stateMargins.topMargin,
+                stateMargins.rightMargin, stateMargins.bottomMargin);
         card.addView(paneView.working, stateIndex >= 0 ? stateIndex + 1 : card.getChildCount(),
-                new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT));
+                workingMargins);
         View.OnClickListener open = view -> {
             if (pane.equals(suppressArticleClick)) {
                 suppressArticleClick = null;
@@ -1205,7 +1211,6 @@ public final class MainActivity extends Activity {
         card.setOrientation(LinearLayout.VERTICAL);
         TextView heading = newspaperText(PaneKeys.fallbackLabel(pane), 19, true, true);
         TextView stateView = newspaperText(getString(R.string.checking), 13, true, false);
-        stateView.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         TextView answerView = newspaperText("", 17, false, true);
         answerView.setTextIsSelectable(true);
         card.addView(heading);
@@ -3820,27 +3825,35 @@ public final class MainActivity extends Activity {
     }
 
     private void setLaneState(TextView stateView, View card, String text) {
+        boolean changed = !text.contentEquals(stateView.getText());
         setIfChanged(stateView, text);
         applyTone(stateView);
         if (card != null) applyCardStroke(card, UiPalette.tone(text));
         for (PaneViews article : paneViews.values()) {
             if (article.state == stateView) {
                 updateWorking(article);
+                if (changed && visible && screen != null && screen.isShown()
+                        && screen.getImportantForAccessibility()
+                        != View.IMPORTANT_FOR_ACCESSIBILITY_NO_HIDE_DESCENDANTS
+                        && article.card.isAttachedToWindow() && article.card.isShown()) {
+                    String spoken = WorkingIndicator.working(text)
+                            ? WorkingIndicator.spoken(text, 0) : text;
+                    screen.announceForAccessibility(article.heading.getText() + ", " + spoken);
+                }
                 break;
             }
         }
         scheduleWorking();
     }
 
-    private TextView workingLine() {
+    private TextView workingLine(TextView stateView) {
         TextView view = new TextView(this);
         typography.state(view); // the state slot (S5 face, tabular numbers), same size as above
-        view.setIncludeFontPadding(false);
-        view.setSingleLine(true);
-        view.setEllipsize(TextUtils.TruncateAt.END);
-        view.setPadding(0, dp(2), 0, dp(2));
+        view.setIncludeFontPadding(stateView.getIncludeFontPadding());
+        view.setPadding(stateView.getPaddingLeft(), stateView.getPaddingTop(),
+                stateView.getPaddingRight(), stateView.getPaddingBottom());
         // This replaces the plain state line while a lane works.
-        view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_YES);
+        view.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         view.setVisibility(View.GONE);
         return view;
     }
@@ -3857,8 +3870,6 @@ public final class MainActivity extends Activity {
         boolean bright = WorkingIndicator.dotBright(workingTick, reduceMotionEnabled);
         String line = WorkingIndicator.line(workingTick, article.state.getText(), article.words,
                 reduceMotionEnabled);
-        String spoken = WorkingIndicator.spoken(article.state.getText(), article.words);
-        if (!TextUtils.equals(view.getContentDescription(), spoken)) view.setContentDescription(spoken);
         int green = parseHex(palette.ok());
         String key = line + (bright ? "" : "~") + green;
         if (!key.equals(view.getTag())) {
@@ -6811,9 +6822,15 @@ public final class MainActivity extends Activity {
                     AccessibilityNodeInfo info) {
                 super.onInitializeAccessibilityNodeInfo(host, info);
                 info.setClassName(Button.class.getName());
-                info.setContentDescription(getString(R.string.open_answer_description,
+                String description = getString(R.string.open_answer_description,
                         AnswerActionLabel.target(article.heading == null
-                                ? null : article.heading.getText())));
+                                ? null : article.heading.getText()));
+                if (WorkingIndicator.working(article.state.getText())) {
+                    // The count is read on demand; no per-word accessibility event is sent.
+                    description += ", " + WorkingIndicator.spoken(article.state.getText(),
+                            article.words);
+                }
+                info.setContentDescription(description);
                 if (NotesDrop.available(notesVisible())) {
                     info.addAction(new AccessibilityNodeInfo.AccessibilityAction(
                             AccessibilityNodeInfo.ACTION_LONG_CLICK,

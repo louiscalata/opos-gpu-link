@@ -18,26 +18,33 @@ final class WorkingIndicator {
 
     /** True only for the exact live lane labels "Streaming…" and "Thinking…". */
     static boolean working(CharSequence stateWords) {
-        if (stateWords == null) return false;
-        String s = stateWords.toString().trim();
+        String s = label(stateWords);
         return STREAMING.equals(s) || THINKING.equals(s);
     }
 
     /** Keep the card's one visible line in step with its plain state and word count. */
     static String line(long tick, CharSequence stateWords, int words, boolean reducedMotion) {
+        String state = label(stateWords);
+        if (state.isEmpty()) return "";
         int w = Math.max(0, words);
         StringBuilder sb = new StringBuilder("● ");
         if (!reducedMotion) sb.append(SPINNER.charAt(index(tick, SPINNER.length()))).append(' ');
-        sb.append(stateWords.toString().trim());
+        sb.append(state);
         if (w > 0) sb.append(" · ").append(w).append(w == 1 ? " word" : " words");
         return sb.toString();
     }
 
     /** A spoken label without the moving dot or bar. */
     static String spoken(CharSequence stateWords, int words) {
-        String state = stateWords.toString().trim().replace("…", "");
-        int w = Math.max(0, words);
-        return w == 0 ? state : state + ", " + w + (w == 1 ? " word" : " words");
+        String state = label(stateWords).replace("…", "").trim();
+        if (state.isEmpty()) return "";
+        int count = Math.max(0, words);
+        return count == 0 ? state : state + ", " + count
+                + (count == 1 ? " word" : " words");
+    }
+
+    private static String label(CharSequence stateWords) {
+        return stateWords == null ? "" : stateWords.toString().trim();
     }
 
     /** The dot pulses about once a second (bright 4 ticks, dim 4); steady with reduced motion. */

@@ -18,8 +18,14 @@ public final class WorkingIndicatorTest {
         equal("● Thinking…", WorkingIndicator.line(3, "Thinking…", 0, true));
         equal("● ▃ Streaming… · 1234 words", WorkingIndicator.line(2, "Streaming…", 1234, false));
         equal("● Streaming… · 1 word", WorkingIndicator.line(2, "Streaming…", 1, true));
+        equal("Streaming", WorkingIndicator.spoken("  Streaming…  ", 0));
         equal("Streaming, 1 word", WorkingIndicator.spoken("Streaming…", 1));
-        equal("Thinking", WorkingIndicator.spoken("Thinking…", 0));
+        equal("Streaming, 12 words", WorkingIndicator.spoken("  Streaming…  ", 12));
+        equal("Thinking", WorkingIndicator.spoken("Thinking…", -4));
+        equal("", WorkingIndicator.spoken(null, 5));
+        equal("", WorkingIndicator.spoken("   ", 5));
+        equal("", WorkingIndicator.line(0, null, 5, false));
+        equal("", WorkingIndicator.line(0, "   ", 5, false));
         String extreme = WorkingIndicator.line(Long.MIN_VALUE, "Streaming…", 0, false);
         check(WorkingIndicator.SPINNER.indexOf(extreme.charAt(2)) >= 0, "any long tick is a frame");
         for (String s : new String[] {"Streaming paused", "Streaming failed", "Thinking stopped",
