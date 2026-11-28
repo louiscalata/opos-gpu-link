@@ -981,10 +981,10 @@ public final class MainActivity extends Activity {
         rightColumn = new LinearLayout(this);
         rightColumn.setOrientation(LinearLayout.VERTICAL);
         timingCard = box();
-        TextView tonightKicker = newspaperText("TONIGHT", 12, true, false);
+        TextView tonightKicker = newspaperText(getString(R.string.tonight_label), 12, true, false);
         typography.kicker(tonightKicker);
         timingCard.addView(tonightKicker);
-        tonightCount = newspaperText("0.0 s", 28, true, false);
+        tonightCount = newspaperText(getString(R.string.tonight_initial_time), 28, true, false);
         typography.tabular(tonightCount);
         timingCard.addView(tonightCount);
         tonightProvenance = newspaperText("", 13, false, false);
@@ -1004,7 +1004,7 @@ public final class MainActivity extends Activity {
         tonightLeader.setPadding(0, dp(6), 0, 0);
         tonightLeader.setVisibility(View.GONE);
         timingCard.addView(tonightLeader);
-        setTonightTiming(ComputerWords.apply("PC\u00a0waiting\nPhone\u00a0waiting"));
+        setTonightTiming(pcWords(R.string.tonight_waiting));
         notesCard = box();
         notes = new LinedNotesEditText(this);
         notes.setTextColor(themeColor(R.color.newspaper_ink));
@@ -1030,9 +1030,9 @@ public final class MainActivity extends Activity {
         notesCard.setOnDragListener(notesTargetListener());
         applyNotesCompact();
         summaryCard = box();
-        summaryHeading = newspaperText("SUMMARY", typography.headingSp(), true, true);
+        summaryHeading = newspaperText(getString(R.string.summary_label), typography.headingSp(), true, true);
         summaryCard.addView(summaryHeading);
-        summaryText = newspaperText("Ask the models to compare their answers.",
+        summaryText = newspaperText(getString(R.string.summary_empty),
                 typography.bodySp(), false, true);
         typography.body(summaryText, typography.bodySp());
         summaryCard.addView(summaryText, new LinearLayout.LayoutParams(
@@ -5050,10 +5050,10 @@ public final class MainActivity extends Activity {
             Map<String, Boolean> readyNow = readyPanes(snapshot);
             boolean next = !laneSelection.isOn(available, readyNow, pane);
             if (!laneSelection.set(available, readyNow, pane, next)) {
-                setIfChanged(modelSelectionNotice, "Keep at least one model on.");
+                setIfChanged(modelSelectionNotice, getString(R.string.model_selection_minimum));
                 return;
             }
-            setIfChanged(modelSelectionNotice, "Your choices apply to the next question.");
+            setIfChanged(modelSelectionNotice, getString(R.string.model_selection_next_question));
             updateModelSelectionRows();
             if (!displayPinned && snapshot != null) syncModelViews(snapshot);
             updateButtons();
@@ -5129,7 +5129,8 @@ public final class MainActivity extends Activity {
             }
         });
         LinearLayout root = pageRoot();
-        root.addView(pageBar("History", "Close", view -> dialog.dismiss()));
+        root.addView(pageBar(getString(R.string.history_title), getString(R.string.close),
+                view -> dialog.dismiss()));
         // Palette and typography follow the current theme.
         TextView note = newspaperText(getString(R.string.history_subtitle), 14, false, false);
         note.setPadding(0, dp(10), 0, dp(10));
@@ -5170,7 +5171,7 @@ public final class MainActivity extends Activity {
         historyRows.removeAllViews();
         List<HistoryStore.Issue> issues = historyStore.list();
         if (issues.isEmpty()) {
-            TextView empty = newspaperText("No past questions yet.", 18, false, true);
+            TextView empty = newspaperText(getString(R.string.history_empty), 18, false, true);
             empty.setPadding(0, dp(24), 0, 0);
             historyRows.addView(empty);
             return;
@@ -5194,7 +5195,8 @@ public final class MainActivity extends Activity {
             TextView headline = newspaperText(mapped.headline, 23, true, true);
             setQuestionHeadline(headline, mapped.headline);
             row.addView(headline);
-            row.addView(newspaperText("Answered by: " + mapped.answeredBy, 13, false, false));
+            row.addView(newspaperText(getString(R.string.history_answered_by, mapped.answeredBy),
+                    13, false, false));
             if (!issue.sourceId.isEmpty()) {
                 TextView link = newspaperText(getString(R.string.history_linked_refresh), 13, false, false);
                 link.setTextColor(themeColor(R.color.you_asked_label));
@@ -5245,7 +5247,7 @@ public final class MainActivity extends Activity {
         applyTone(stateView);
         card.addView(stateView);
         if (lane.truncated) {
-            TextView excerpt = newspaperText("This saved answer was shortened.",
+            TextView excerpt = newspaperText(getString(R.string.history_answer_shortened),
                     LaneCardLayout.LABEL_SP, true, false);
             typography.tabular(excerpt);
             card.addView(excerpt);
@@ -5269,7 +5271,7 @@ public final class MainActivity extends Activity {
             if (backIssueDialog == dialog) backIssueDialog = null;
         });
         LinearLayout root = pageRoot();
-        root.addView(pageBar(getString(R.string.app_name), "Back to today",
+        root.addView(pageBar(getString(R.string.app_name), getString(R.string.history_back_to_today),
                 view -> dialog.dismiss()));
         View rule = new View(this);
         rule.setBackgroundColor(themeColor(R.color.newspaper_stroke));
@@ -5280,7 +5282,8 @@ public final class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        TextView date = newspaperText("BACK ISSUE · " + issueDate(saved.askedAtMs),
+        TextView date = newspaperText(getString(R.string.history_back_issue_date,
+                        issueDate(saved.askedAtMs)),
                 13, true, false);
         typography.tabular(date);
         date.setPadding(0, dp(10), 0, 0);
@@ -5307,7 +5310,7 @@ public final class MainActivity extends Activity {
         page.addView(refresh, refreshParams);
         addThenVersusNow(page, saved);
         LinearLayout timing = savedBox();
-        TextView timingKicker = newspaperText("TONIGHT", 12, true, false);
+        TextView timingKicker = newspaperText(getString(R.string.tonight_label), 12, true, false);
         typography.kicker(timingKicker);
         timing.addView(timingKicker);
         TextView timingCount = newspaperText(issue.elapsed, 28, true, false);
@@ -5347,11 +5350,11 @@ public final class MainActivity extends Activity {
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT));
             LinearLayout archive = savedBox();
-            archive.addView(newspaperText("ARCHIVE", 21, true, true));
+            archive.addView(newspaperText(getString(R.string.history_archive_label), 21, true, true));
             TextView archiveDate = newspaperText(issueDate(saved.askedAtMs), 15, false, false);
             typography.tabular(archiveDate);
             archive.addView(archiveDate);
-            archive.addView(newspaperText("Answered by: " + issue.answeredBy,
+            archive.addView(newspaperText(getString(R.string.history_answered_by, issue.answeredBy),
                     15, false, false));
             putWrapCard(left, archive, 200, 8);
             for (HistoryStore.Lane lane : issue.lanes) {
@@ -5375,8 +5378,8 @@ public final class MainActivity extends Activity {
             }
         }
         LinearLayout summary = savedBox();
-        summary.addView(newspaperText("SUMMARY", 21, true, true));
-        TextView summaryLine = newspaperText("Answered by: " + issue.answeredBy,
+        summary.addView(newspaperText(getString(R.string.summary_label), 21, true, true));
+        TextView summaryLine = newspaperText(getString(R.string.history_answered_by, issue.answeredBy),
                 13, false, false);
         typography.tabular(summaryLine);
         summary.addView(summaryLine);
