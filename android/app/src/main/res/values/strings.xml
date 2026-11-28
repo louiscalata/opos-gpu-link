@@ -161,9 +161,8 @@
     <string name="pairing_expired">Code expired. Wait for a new code.</string>
     <string name="you_asked">You asked: %1$s</string>
     <string name="settings">Settings</string>
-    <string name="settings_description">Show typography and theme settings</string>
+    <string name="settings_description">Show display settings</string>
     <string name="settings_ui">UI</string>
-    <string name="settings_typography">Typography</string>
     <string name="settings_theme">Theme</string>
     <string name="settings_design_lab">Design lab</string>
     <string name="settings_design_lab_note">Experimental views above the lanes. Off keeps the main screen as it is. Any view other than Off shows the link schematic on the cover screen.</string>
@@ -171,9 +170,6 @@
     <string name="settings_theme_light">Light</string>
     <string name="settings_theme_system">Follow system</string>
     <string name="settings_selected">Selected</string>
-    <string name="settings_preview_kicker">ON THIS PHONE</string>
-    <string name="settings_preview_heading">OPOS GPU Link</string>
-    <string name="settings_preview_body">A graphics processor does the same kind of math across thousands of small cores at once.</string>
     <string name="save_to_notes">Save to Notes</string>
     <string name="settings_close">Close</string>
     <string name="history_refresh">Refresh</string>
