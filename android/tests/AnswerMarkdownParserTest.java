@@ -64,6 +64,21 @@ public final class AnswerMarkdownParserTest {
         equal(2, indented.lists.get(0).indent);
         equal(4, indented.lists.get(2).indent);
 
+        AnswerMarkdownParser.Result cleanStart = AnswerMarkdownParser.parse(
+                " \n\t  answer\n  - nested item\n    2) next item");
+        equal("answer\n  • nested item\n    2) next item", cleanStart.text);
+        equal(2, cleanStart.lists.size());
+        listItem(cleanStart, 0, "  • ", cleanStart.text.indexOf("  • "));
+        listItem(cleanStart, 1, "    2) ", cleanStart.text.indexOf("    2) "));
+        equal(2, cleanStart.lists.get(0).indent);
+        equal(4, cleanStart.lists.get(1).indent);
+        equal("", AnswerMarkdownParser.parse(" \t\n").text);
+        AnswerMarkdownParser.Result firstList = AnswerMarkdownParser.parse(
+                "\n  - first\n    - second");
+        equal("  • first\n    • second", firstList.text);
+        listItem(firstList, 0, "  • ", 0);
+        listItem(firstList, 1, "    • ", firstList.text.indexOf("    • "));
+
         AnswerMarkdownParser.Result gemma = AnswerMarkdownParser.parse(
                 "1. Install drivers\n * Download the latest NVIDIA drivers.\n\n2. Configure ...");
         equal("1. Install drivers\n • Download the latest NVIDIA drivers.\n\n2. Configure ...",
