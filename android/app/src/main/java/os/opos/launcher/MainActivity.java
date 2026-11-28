@@ -282,6 +282,8 @@ public final class MainActivity extends Activity {
     private List<String> coverShown = new ArrayList<>();
     private TextView coverMore;
     private boolean recreating;
+    /** Surface Duo: confines the page to the left screen and shows live stats on the right. */
+    private SpanLayoutController span;
     private long coverInteractionMs;
     private boolean awaitingReplugSnapshot;
     private boolean pausedAfterFreshSnapshot;
@@ -358,6 +360,8 @@ public final class MainActivity extends Activity {
             askRecovery.restoreUnknownUncertain();
         }
         screen = findViewById(R.id.screen);
+        span = new SpanLayoutController(this, findViewById(R.id.root), screen);
+        span.sync();
         typography = new Typography(this);
         typography.useChoice(uiSettings.typography());
         palette = uiSettings.palette(systemDark());
@@ -574,7 +578,12 @@ public final class MainActivity extends Activity {
         } catch (RuntimeException ignored) {
             // Fall back to size alone.
         }
-        return CoverScreenPolicy.select(config.screenWidthDp, config.screenHeightDp, displayId);
+        return CoverScreenPolicy.select(layoutWidthDp(config), config.screenHeightDp, displayId);
+    }
+
+    /** The width the page is built for: the left screen only while spanned on a Surface Duo. */
+    private int layoutWidthDp(Configuration config) {
+        return span == null ? config.screenWidthDp : span.contentWidthDp(config.screenWidthDp);
     }
 
     /**
@@ -585,6 +594,7 @@ public final class MainActivity extends Activity {
     public void onConfigurationChanged(Configuration newConfig) {
         super.onConfigurationChanged(newConfig);
         if (recreating) return;
+        if (span != null) span.sync();
         if (CoverScreenPolicy.needsRecreate(layoutMode, currentLayoutMode(newConfig))) {
             foldSnapshot = pairingPending ? null : snapshot;
             recreating = true;
@@ -1326,7 +1336,7 @@ public final class MainActivity extends Activity {
         rightColumn.removeAllViews();
         columns.removeAllViews();
         int columnCount = DeviceLayoutPolicy.columns(
-                getResources().getConfiguration().screenWidthDp, coverMode, paneOrder.size());
+                layoutWidthDp(getResources().getConfiguration()), coverMode, paneOrder.size());
         if (coverMode) {
             arrangeCoverArticles();
         } else if (columnCount == 1) {
@@ -2713,6 +2723,7 @@ public final class MainActivity extends Activity {
         updateSummary();
         updateCompactLaneStatus();
         restorePageAnchor(snapshotAnchor);
+        refreshSpanStats();
     }
 
     private static final class PageAnchor {
@@ -3441,6 +3452,7 @@ public final class MainActivity extends Activity {
     /** Green while cool, ink while warm, red while hot; hidden for an unknown status. */
     private void showHeat(int status) {
         heatStatus = status;
+        refreshSpanStats();
         if (heatMeter == null) return;
         if (!HeatMeter.known(status)) {
             heatMeter.setVisibility(View.GONE);
@@ -3910,6 +3922,7 @@ public final class MainActivity extends Activity {
         workingScheduled = false;
         if (!reduceMotionEnabled) workingTick++;
         for (PaneViews article : paneViews.values()) updateWorking(article);
+        refreshSpanStats();
         scheduleWorking();
     }
 
@@ -4056,6 +4069,7 @@ public final class MainActivity extends Activity {
     private void setMainStatus(String text) {
         setIfChanged(status, text);
         applyTone(status);
+        refreshSpanStats();
         if (expandedStatus != null) {
             setIfChanged(expandedStatus, text);
             applyTone(expandedStatus);
@@ -5700,6 +5714,22 @@ public final class MainActivity extends Activity {
         showHeat(heatStatus); // the meter's heat color follows the new theme
         JSONObject gpu = snapshot == null ? null : snapshot.optJSONObject("gpu");
         renderLinkBanner(pcConnection(gpu) == Connection.CONNECTED, hasVisiblePcWork());
+        span.style(typography, palette);
+        refreshSpanStats();
+    }
+
+    /** Feeds the Surface Duo stats screen; a no-op unless the app spans both screens. */
+    private void refreshSpanStats() {
+        if (span == null || !span.spanned()) return;
+        List<SpanStatsModel.Lane> lanes = new ArrayList<>();
+        for (String pane : paneOrder) {
+            PaneViews article = paneViews.get(pane);
+            if (article == null) continue;
+            lanes.add(new SpanStatsModel.Lane(article.kicker.getText().toString(),
+                    article.state.getText().toString(), article.words));
+        }
+        span.update(SpanStatsModel.of(heatStatus, status == null ? "" : status.getText().toString(),
+                lanes, workingTick, reduceMotionEnabled));
     }
 
     private void applySystemBars() {

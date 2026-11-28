@@ -7,7 +7,7 @@ rm -rf "$OUT"; mkdir -p "$OUT"
 sources=()
 for file in app/src/main/java/os/opos/launcher/*.java; do
   case "${file##*/}" in
-    AiClient.java|AnswerMarkdown.java|BootReceiver.java|GpuLinkActivity.java|HingeProbe.java|LinedNotesEditText.java|LinkWatcherService.java|MainActivity.java|SendEditText.java|Typography.java) ;;
+    AiClient.java|AnswerMarkdown.java|BootReceiver.java|GpuLinkActivity.java|HingeProbe.java|LinedNotesEditText.java|LinkWatcherService.java|MainActivity.java|SendEditText.java|SpanLayoutController.java|SpanStatsView.java|Typography.java) ;;
     *) sources+=("$file") ;;
   esac
 done
