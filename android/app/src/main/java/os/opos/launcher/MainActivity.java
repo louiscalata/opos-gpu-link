@@ -2791,10 +2791,12 @@ public final class MainActivity extends Activity {
 
     private void setWaitingLayout(PaneViews article, boolean waiting) {
         if (!PaneKeys.extra(article.pane)) return;
-        int visibility = waiting ? View.GONE : View.VISIBLE;
-        setVisibilityIfNeeded(article.kicker, visibility);
-        setVisibilityIfNeeded(article.heading, visibility);
-        setVisibilityIfNeeded(article.answer, visibility);
+        setVisibilityIfNeeded(article.kicker, LaneCardLayout.waitingVisible(
+                waiting, LaneCardLayout.Part.KICKER) ? View.VISIBLE : View.GONE);
+        setVisibilityIfNeeded(article.heading, LaneCardLayout.waitingVisible(
+                waiting, LaneCardLayout.Part.HEADING) ? View.VISIBLE : View.GONE);
+        setVisibilityIfNeeded(article.answer, LaneCardLayout.waitingVisible(
+                waiting, LaneCardLayout.Part.ANSWER) ? View.VISIBLE : View.GONE);
     }
 
     private void setLiveSpeed(PaneViews article, String speed) {
