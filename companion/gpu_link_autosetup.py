@@ -2289,7 +2289,7 @@ def ready_lines(gpu_name, lanes, noun):
     return [f"{noun} hardware: {gpu_name}.",
             f"Computer {'models' if len(lanes) != 1 else 'model'}: {names}." if names else "No computer model selected.",
             "If a pairing code appears, compare it on both screens and tap Allow on the phone.",
-            "Wait for 'Ready for questions on the phone.' before asking.",
+            "Wait until GPU Link says it is ready before asking.",
             "Unplug to pause. Replug while GPU Link is running to reconnect.",
             "Wireless: coming later.",
             "Press Ctrl-C to stop."]

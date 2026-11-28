@@ -833,7 +833,7 @@ class LazyServerSource:
                 result = False
             if result is None:
                 self.stop.wait(1)
-                continue  # A slow JIT load remains Warming model, never a lane error.
+                continue  # A slow first load stays in the loading state, never a lane error.
             ready = result
             break
         if ready and not self.stop.is_set():
@@ -1825,7 +1825,7 @@ class Companion:
 
 
 def arguments(argv=None):
-    parser = argparse.ArgumentParser(description=__doc__.split("\n", 1)[0])
+    parser = argparse.ArgumentParser(description=(__doc__ or "").split("\n", 1)[0] or None)
     parser.add_argument("--serial", help="authorized USB adb device serial; auto-select if exactly one")
     parser.add_argument("--adb", default="adb", help="adb executable from Android platform tools")
     parser.add_argument("--label", help="pairing label sent to the phone (1 to 24 letters, digits, spaces or hyphens); "
