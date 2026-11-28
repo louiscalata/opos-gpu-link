@@ -18,6 +18,7 @@ final class CoverScreenPolicy {
     static final int MASTHEAD_DP = 40;
     static final int COMPOSER_ROW_DP = 52;
     static final int KEYBOARD_COMPOSER_ROW_DP = 48;
+    /** The cover masthead is a display mark sized for its short header. */
     static final int MASTHEAD_SP = 24;
 
     private CoverScreenPolicy() {}
