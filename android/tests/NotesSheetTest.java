@@ -50,16 +50,18 @@ public final class NotesSheetTest {
         check(NotesSheet.summaryOpensFullPage(false));
         check(!NotesSheet.summaryOpensFullPage(true));
         equal(48, NotesSheet.summaryMinDp(true));
-        equal(0, NotesSheet.collapsedTabHeightDp(true));
-        equal(48, NotesSheet.collapsedTabHeightDp(false));
-        equal(0, NotesSheet.collapsedTabHeightDp(
-                CoverScreenPolicy.select(880, 360, 0) == CoverScreenPolicy.Mode.WIDE));
-        equal(0, NotesSheet.collapsedTabHeightDp(
-                CoverScreenPolicy.select(1024, 419, 0) == CoverScreenPolicy.Mode.WIDE));
-        equal(48, NotesSheet.collapsedTabHeightDp(
-                CoverScreenPolicy.select(360, 880, 0) == CoverScreenPolicy.Mode.WIDE));
-        equal(48, NotesSheet.collapsedTabHeightDp(
-                CoverScreenPolicy.select(374, 360, 1) == CoverScreenPolicy.Mode.WIDE));
+        equal(0, NotesSheet.collapsedTabHeightPx(
+                CoverScreenPolicy.select(880, 360, 0) == CoverScreenPolicy.Mode.WIDE, 0, 48));
+        equal(0, NotesSheet.collapsedTabHeightPx(
+                CoverScreenPolicy.select(1024, 419, 0) == CoverScreenPolicy.Mode.WIDE, 0, 48));
+        equal(48, NotesSheet.collapsedTabHeightPx(
+                CoverScreenPolicy.select(360, 880, 0) == CoverScreenPolicy.Mode.WIDE, 0, 48));
+        equal(48, NotesSheet.collapsedTabHeightPx(
+                CoverScreenPolicy.select(374, 360, 1) == CoverScreenPolicy.Mode.WIDE, 0, 48));
+        equal(0, NotesSheet.collapsedTabHeightPx(true, 72, 48));
+        equal(48, NotesSheet.collapsedTabHeightPx(false, 0, 48));
+        equal(48, NotesSheet.collapsedTabHeightPx(false, 36, 48));
+        equal(72, NotesSheet.collapsedTabHeightPx(false, 72, 48));
         equal(56, NotesSheet.summaryMinDp(false));
         equal(48, NotesSheet.summaryHeight(140,
                 NotesSheet.summaryMinDp(true), NotesSheet.summaryMaxDp(false, true)));
