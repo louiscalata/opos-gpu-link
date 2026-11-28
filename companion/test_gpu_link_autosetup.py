@@ -11,7 +11,7 @@ import json
 import unittest
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import gpu_link_autosetup as a  # noqa: E402
@@ -294,6 +294,24 @@ class RuntimeAndGpuVerify(unittest.TestCase):
         self.assertEqual(a.choose_port(18090, 5, free=lambda p: True, taken=(18090, 18091)), 18092)
         with self.assertRaises(RuntimeError):
             a.choose_port(18090, 2, free=lambda p: False)
+
+    def test_port_range_is_checked_before_a_socket_is_opened(self):
+        free = Mock(return_value=True)
+        for start, span in ((0, 10), (-1, 10), (65527, 10), (65535, 2), (18090, 0)):
+            with self.subTest(start=start, span=span), self.assertRaisesRegex(ValueError, "1 and 65535"):
+                a.choose_port(start, span, free=free)
+        free.assert_not_called()
+        self.assertEqual(a.choose_port(65526, 10, free=free), 65526)
+
+    def test_invalid_starting_port_has_a_plain_setup_message(self):
+        for value in ("-1", "0", "65527", "65536"):
+            with self.subTest(value=value), contextlib.redirect_stderr(io.StringIO()) as output:
+                with self.assertRaises(SystemExit) as raised:
+                    a.arguments(["--port", value])
+                self.assertEqual(raised.exception.code, 2)
+                self.assertIn("--port must be between 1 and 65526", output.getvalue())
+                self.assertNotIn("Traceback", output.getvalue())
+        self.assertEqual(a.arguments(["--port", "65526"]).port, 65526)
 
     def test_extract_rejects_path_traversal(self):
         with tempfile.TemporaryDirectory() as d:
@@ -1108,7 +1126,8 @@ class GpuOutputCheck(unittest.TestCase):
 
     def test_good_reply_passes_and_sends_the_key(self):
         port, seen = self.fake_reply("Hello, wonderful audience!")
-        self.assertEqual(a.check_lane_output(port, "k3y"), (True, "ok"))
+        with patch.dict(os.environ, {"OPOS_GPU_LINK_REASONING_EFFORT": "none"}):
+            self.assertEqual(a.check_lane_output(port, "k3y"), (True, "ok"))
         self.assertEqual(seen["auth"], "Bearer k3y")
         self.assertEqual(seen["address"], ("127.0.0.1", port))
         self.assertEqual((seen["method"], seen["target"]), ("POST", "/v1/chat/completions"))
@@ -1116,15 +1135,45 @@ class GpuOutputCheck(unittest.TestCase):
         self.assertEqual(seen["body"], {
             "model": a.ALIAS, "max_tokens": 48, "temperature": 0, "stream": False,
             "messages": [{"role": "user", "content": "Say hello to the audience in one short sentence."}],
+            "reasoning_effort": "none", "chat_template_kwargs": {"enable_thinking": False},
         })
         self.assertNotIn("k3y", json.dumps(seen["body"]))
         self.assertTrue(seen["closed"])
+
+    def test_reasoning_effort_override_is_used_for_the_probe(self):
+        port, seen = self.fake_reply("Hello, wonderful audience!")
+        with patch.dict(os.environ, {"OPOS_GPU_LINK_REASONING_EFFORT": "medium"}):
+            self.assertEqual(a.check_lane_output(port, "k"), (True, "ok"))
+        self.assertEqual(seen["body"]["reasoning_effort"], "medium")
+        self.assertNotIn("chat_template_kwargs", seen["body"])
+
+    def test_default_reasoning_effort_override_is_omitted(self):
+        port, seen = self.fake_reply("Hello, wonderful audience!")
+        with patch.dict(os.environ, {"OPOS_GPU_LINK_REASONING_EFFORT": "default"}):
+            self.assertEqual(a.check_lane_output(port, "k"), (True, "ok"))
+        self.assertNotIn("reasoning_effort", seen["body"])
+        self.assertNotIn("chat_template_kwargs", seen["body"])
 
     def test_blank_reply_fails(self):
         port, _ = self.fake_reply("\n\n\n")
         ok, why = a.check_lane_output(port, "k")
         self.assertFalse(ok)
         self.assertIn("no readable words", why)
+
+    def test_hidden_reasoning_does_not_make_a_blank_answer_ready(self):
+        body = json.dumps({"choices": [{"message": {
+            "content": "", "reasoning_content": "A detailed hidden explanation"
+        }}]}).encode()
+        port, seen = self.fake_reply("", response_body=body)
+        self.assertEqual(a.check_lane_output(port, "k"), (False, "the reply had no readable words"))
+        self.assertTrue(seen["closed"])
+
+    def test_visible_answer_is_checked_on_its_own(self):
+        body = json.dumps({"choices": [{"message": {
+            "content": "Hello to everyone.", "reasoning_content": ["hidden format differs"]
+        }}]}).encode()
+        port, _ = self.fake_reply("", response_body=body)
+        self.assertEqual(a.check_lane_output(port, "k"), (True, "ok"))
 
     def test_error_and_dead_server_fail(self):
         port, _ = self.fake_reply("x", status=500)
@@ -1145,6 +1194,57 @@ class GpuOutputCheck(unittest.TestCase):
         port, seen = self.fake_reply("", response_body=b"x" * 65537)
         self.assertEqual(a.check_lane_output(port, "k"), (False, "the model reply was too long"))
         self.assertTrue(seen["closed"])
+
+
+class StopReportTests(unittest.TestCase):
+    def test_owned_server_stop_failure_changes_the_exit_code(self):
+        import opos_gpu_link as link
+
+        args = SimpleNamespace(detect_only=False, prefetch=False, no_phone=False,
+                               runtime_dir=Path("/unused/runtime"), adb=None, no_download=True,
+                               serial="fixture", data_dir=Path("/unused/data"),
+                               models_dir=Path("/unused/models"), keep_server=False)
+        info = {"gpu": {"name": "Fixture GPU"}}
+        rt = SimpleNamespace(lanes=[], stop=Mock(side_effect=OSError("private stop detail")))
+        with contextlib.redirect_stdout(io.StringIO()) as output, \
+                patch.object(a, "install_term_handler"), \
+                patch.object(a, "plan", return_value=info), \
+                patch.object(a, "start_runtime", return_value=rt), \
+                patch.object(a, "ensure_adb", return_value=Path("/unused/adb")), \
+                patch.object(a, "ready_lines", return_value=[]), \
+                patch.object(a, "banner"), \
+                patch.object(a, "companion_args", return_value=[]), \
+                patch.object(link, "computer_noun", return_value="MacBook"), \
+                patch.object(link, "main", return_value=0):
+            self.assertEqual(a.run(args), 2)
+        rt.stop.assert_called_once_with()
+        self.assertIn("Error: Model server did not stop. Check the running server.", output.getvalue())
+        self.assertNotIn("private stop detail", output.getvalue())
+
+    def test_requested_stop_with_server_stop_failure_has_failure_exit_code(self):
+        import opos_gpu_link as link
+
+        args = SimpleNamespace(detect_only=False, prefetch=False, no_phone=False,
+                               runtime_dir=Path("/unused/runtime"), adb=None, no_download=True,
+                               serial="fixture", data_dir=Path("/unused/data"),
+                               models_dir=Path("/unused/models"), keep_server=False)
+        info = {"gpu": {"name": "Fixture GPU"}}
+        rt = SimpleNamespace(lanes=[], stop=Mock(side_effect=OSError("private stop detail")))
+        with contextlib.redirect_stdout(io.StringIO()) as output, \
+                patch.object(a, "install_term_handler"), \
+                patch.object(a, "plan", return_value=info), \
+                patch.object(a, "start_runtime", return_value=rt), \
+                patch.object(a, "ensure_adb", return_value=Path("/unused/adb")), \
+                patch.object(a, "ready_lines", return_value=[]), \
+                patch.object(a, "banner"), \
+                patch.object(a, "companion_args", return_value=[]), \
+                patch.object(link, "computer_noun", return_value="MacBook"), \
+                patch.object(link, "main", side_effect=a.Terminated):
+            self.assertEqual(a.run(args), 2)
+        rt.stop.assert_called_once_with()
+        self.assertIn("Stopping.", output.getvalue())
+        self.assertIn("Error: Model server did not stop. Check the running server.", output.getvalue())
+        self.assertNotIn("private stop detail", output.getvalue())
 
 
 class Rx580OldMacProfile(unittest.TestCase):
