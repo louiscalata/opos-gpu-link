@@ -154,6 +154,21 @@ class CompanionTests(unittest.TestCase):
         self.assertEqual(bridge.create_forward(), 18768)
         self.assertFalse(any("--remove-all" in args for args, _ in fake.calls))
 
+    def test_forward_check_uses_one_port_snapshot(self):
+        seen = []
+        bridge = link.AdbBridge("fake-adb", "PHONE",
+                                owner_checker=lambda port, adb: seen.append(port) or True)
+        bridge.port = 18767
+
+        def listed(port):
+            seen.append(port)
+            bridge.port = None
+            return True
+
+        with patch.object(bridge, "_listed", side_effect=listed):
+            self.assertTrue(bridge.forward_present())
+        self.assertEqual(seen, [18767, 18767])
+
     def test_forward_refuses_unverified_listener(self):
         fake = FakeAdb()
         fake.state = "device"

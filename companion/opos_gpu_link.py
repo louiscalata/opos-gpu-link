@@ -151,18 +151,22 @@ def _build_main_window(tk, root, status, computer_label, fonts, on_retry,
 
     controls = tk.Frame(root, bg=DIALOG_PAPER)
     controls.grid(row=2, column=0, sticky="ew", padx=18, pady=(0, 18))
+    action_buttons = []
     for column, (label, command) in enumerate((
         ("Try again", on_retry),
         ("Remove model copies", on_remove),
         ("Stop GPU Link", on_stop),
     )):
         controls.columnconfigure(column, weight=1)
-        _dialog_button(tk, controls, label, fonts["small"], command=command).grid(
+        button = _dialog_button(tk, controls, label, fonts["small"], command=command)
+        button.grid(
             row=0, column=column, sticky="ew", padx=(0 if column == 0 else 4,
                                                    0 if column == 2 else 4))
+        action_buttons.append(button)
     return {"phone_panel": phone_panel, "link_label": link_label,
             "link_state": link_state, "computer_panel": computer_panel,
-            "status_frame": status_frame, "status_label": status_label}
+            "status_frame": status_frame, "status_label": status_label,
+            "action_buttons": action_buttons}
 
 
 def _status_is_error(message: str) -> bool:
@@ -607,10 +611,11 @@ class AdbBridge:
         raise CompanionError("adb chose only reserved local ports")
 
     def forward_present(self) -> bool:
-        if self.port is None:
+        port = self.port
+        if port is None:
             return False
         try:
-            return self._listed(self.port) and self.owner_checker(self.port, self.adb)
+            return self._listed(port) and self.owner_checker(port, self.adb)
         except RetryLater:
             return False
 
@@ -981,6 +986,7 @@ class RuntimeSource:
 
 WORKER_STOP_BUDGET = 6.0   # one shared deadline for the worker and every lane, not 6 s each
 LANE_JOIN_BUDGET = 5.0
+WINDOW_STOP_JOIN_BUDGET = 30.0  # includes USB forward checks and removal after worker stop
 
 
 def join_within(threads, budget, skip=None, clock=time.monotonic):
@@ -1114,6 +1120,7 @@ class Companion:
         self.link_probe_result = None
         self.window_stop_thread: threading.Thread | None = None
         self.window_stop_done: threading.Event | None = None
+        self.window_stop_timed_out = False
 
     def permission(self) -> bool:
         if self.headless:
@@ -1786,7 +1793,7 @@ class Companion:
             self.session_pc = None
             self.status.set("Error: Phone service unavailable. Check the phone; retrying.")
             self._schedule_retry()
-        if not getattr(self, "headless", False) and self.running:
+        if not self.headless and self.running:
             self._refresh_main_window()
             self.root.after(1000, self.tick)
 
@@ -1801,6 +1808,8 @@ class Companion:
 
     def retry(self) -> None:
         """A deliberate retry after the owner clears the phone's lockout."""
+        if not self.running:
+            return
         self.blocked_until_detach = False
         self.next_try = 0
         self.retry_delay = 3
@@ -1808,6 +1817,8 @@ class Companion:
 
     def remove_model_copies(self) -> None:
         """Remove marked cache downloads after the owner confirms the path."""
+        if not self.running:
+            return
         from gpu_link_autosetup import model_cache_is_inside_data_dir, remove_model_copies
 
         models_dir = self.args.models_dir
@@ -1834,7 +1845,7 @@ class Companion:
         print("GPU Link: " + message, flush=True)
 
     def stop(self) -> None:
-        if not self.running and not self.headless:
+        if not self.running:
             return
         self.running = False
         if hasattr(self, "wake"):
@@ -1847,6 +1858,8 @@ class Companion:
             return
         self.online = False
         self.status.set("Stopping.")
+        for button in self.main_window["action_buttons"]:
+            button.configure(state="disabled")
         done = threading.Event()
         self.window_stop_done = done
 
@@ -1877,7 +1890,12 @@ class Companion:
         self.window_stop_thread.join(0)
         self.status.set("Stopped." if self.cleanup_ok else
                         "Error: Stop was incomplete. Check the USB link and model server.")
-        self.root.destroy()
+        if self.cleanup_ok:
+            self.root.destroy()
+        else:
+            self.main_window["action_buttons"][-1].configure(
+                text="Close window", command=self.root.destroy, state="normal")
+            self.root.protocol("WM_DELETE_WINDOW", self.root.destroy)
 
     def _cleanup_done(self) -> bool:
         return ((self.worker is None or not self.worker.is_alive())
@@ -1896,8 +1914,14 @@ class Companion:
                 self.root.after(0, self.tick)
                 self.root.mainloop()
         finally:
-            stop_done = getattr(self, "window_stop_done", None)
-            if stop_done is None or not stop_done.is_set():
+            stop_thread = getattr(self, "window_stop_thread", None)
+            if stop_thread is not None:
+                stop_thread.join(WINDOW_STOP_JOIN_BUDGET)
+                if stop_thread.is_alive():
+                    # Let the one cleanup owner finish; a second pass would race it.
+                    self.window_stop_timed_out = True
+                    self.cleanup_ok = False
+            else:
                 self._cancel_preflight()
                 if self.preflight_thread is not None:
                     self.preflight_thread.join(2)
@@ -2148,7 +2172,7 @@ def main(argv=None, runtime=None, data_dir=None, models_dir=None) -> int:
         finally:
             for sig, previous in old_handlers.items():
                 signal.signal(sig, previous)
-        return 0 if app.cleanup_ok else 3
+        return 0 if app.cleanup_ok and getattr(app, "window_stop_timed_out", False) is not True else 3
     finally:
         guard.close()
 

@@ -143,6 +143,7 @@ class MainWindowTests(unittest.TestCase):
         self.assertEqual(window["status_label"].options["font"], "B5")
         self.assertEqual([button.options["text"] for button in tk.buttons], [
             "Try again", "Remove model copies", "Stop GPU Link"])
+        self.assertEqual(window["action_buttons"], tk.buttons)
         self.assertTrue(all(button.grid_options["sticky"] == "ew" for button in tk.buttons))
         self.assertIn("<Configure>", window["status_frame"].bindings)
         window["status_frame"].bindings["<Configure>"](SimpleNamespace(width=600))
@@ -232,11 +233,30 @@ class MainWindowTests(unittest.TestCase):
                 self.assertFalse(root.destroyed)
         finally:
             release.set()
-            app.link_probe_thread.join(2)
-            app.window_stop_thread.join(2)
+            if app.link_probe_thread is not None:
+                app.link_probe_thread.join(2)
+            if app.window_stop_thread is not None:
+                app.window_stop_thread.join(2)
         root.scheduled[-1][1]()
         self.assertTrue(root.destroyed)
         self.assertEqual(app.status.get(), "Stopped.")
+
+    def test_stopping_disables_actions_and_ignores_late_commands(self):
+        app, root, tk = self.window_app()
+        with patch.object(link, "_confirm_remove_model_copies") as confirm:
+            app.stop()
+            self.assertEqual([button.options["state"] for button in tk.buttons],
+                             ["disabled", "disabled", "disabled"])
+            self.assertEqual(app.status.get(), "Stopping.")
+            app.retry()
+            app.remove_model_copies()
+            app.stop()
+        confirm.assert_not_called()
+        self.assertEqual(app.status.get(), "Stopping.")
+        self.assertEqual(app.main_window["link_state"].get(), "USB-C\nStopping")
+        app.window_stop_thread.join(2)
+        root.scheduled[-1][1]()
+        self.assertTrue(root.destroyed)
 
     def test_slow_usb_cleanup_does_not_hold_the_stop_button(self):
         app, root, tk = self.window_app()
@@ -275,8 +295,79 @@ class MainWindowTests(unittest.TestCase):
         remove.assert_called_once_with()
         self.assertTrue(app.cleanup_ok)
 
-    def test_incomplete_window_stop_keeps_the_failure_result(self):
+    def test_early_window_exit_waits_for_the_stop_owner(self):
         app, root, _ = self.window_app()
+        app.bridge.port = 18767
+        entered, release, in_mainloop = threading.Event(), threading.Event(), threading.Event()
+        calls = []
+        failures = []
+        run_thread = None
+
+        def slow_remove():
+            calls.append(threading.current_thread().name)
+            entered.set()
+            release.wait(2)
+            app.bridge.port = None
+
+        def run_app():
+            try:
+                app.run()
+            except BaseException as error:
+                failures.append(error)
+
+        try:
+            with patch.object(app.bridge, "remove_own_forward", side_effect=slow_remove), \
+                    patch.object(root, "mainloop", side_effect=in_mainloop.set):
+                app.stop()
+                self.assertTrue(entered.wait(1))
+                run_thread = threading.Thread(target=run_app)
+                run_thread.start()
+                self.assertTrue(in_mainloop.wait(1))
+                run_thread.join(0.05)
+                self.assertTrue(run_thread.is_alive())
+                self.assertEqual(calls, ["opos-link-stop"])
+                release.set()
+                run_thread.join(2)
+                self.assertFalse(run_thread.is_alive())
+        finally:
+            release.set()
+            if run_thread is not None:
+                run_thread.join(2)
+            if app.window_stop_thread is not None:
+                app.window_stop_thread.join(2)
+        self.assertEqual(calls, ["opos-link-stop"])
+        self.assertEqual(failures, [])
+        self.assertTrue(app.cleanup_ok)
+
+    def test_early_window_exit_does_not_race_after_stop_wait_times_out(self):
+        app, root, _ = self.window_app()
+        app.bridge.port = 18767
+        entered, release = threading.Event(), threading.Event()
+        calls = []
+
+        def slow_remove():
+            calls.append(threading.current_thread().name)
+            entered.set()
+            release.wait(2)
+            app.bridge.port = None
+
+        try:
+            with patch.object(app.bridge, "remove_own_forward", side_effect=slow_remove), \
+                    patch.object(link, "WINDOW_STOP_JOIN_BUDGET", 0.01):
+                app.stop()
+                self.assertTrue(entered.wait(1))
+                app.run()
+                self.assertTrue(app.window_stop_timed_out)
+                self.assertFalse(app.cleanup_ok)
+                self.assertEqual(calls, ["opos-link-stop"])
+        finally:
+            release.set()
+            if app.window_stop_thread is not None:
+                app.window_stop_thread.join(2)
+        self.assertEqual(calls, ["opos-link-stop"])
+
+    def test_incomplete_window_stop_keeps_the_failure_result(self):
+        app, root, tk = self.window_app()
         app.bridge.port = 18767
         with patch.object(app.bridge, "remove_own_forward") as remove:
             app.stop()
@@ -285,9 +376,17 @@ class MainWindowTests(unittest.TestCase):
             self.assertFalse(app.cleanup_ok)
             self.assertEqual(app.status.get(),
                              "Error: Stop was incomplete. Check the USB link and model server.")
+            self.assertFalse(root.destroyed)
+            self.assertEqual(app.main_window["link_state"].get(), "USB-C\nNeeds attention")
+            self.assertEqual(app.main_window["status_label"].options["fg"], link.DIALOG_ERROR)
+            self.assertEqual([button.options["state"] for button in tk.buttons],
+                             ["disabled", "disabled", "normal"])
+            self.assertEqual(tk.buttons[-1].options["text"], "Close window")
             app.run()
         remove.assert_called_once_with()
         self.assertFalse(app.cleanup_ok)
+        tk.buttons[-1].options["command"]()
+        self.assertTrue(root.destroyed)
 
     def test_slow_forward_check_is_read_once_off_the_window_thread(self):
         app, root, _ = self.window_app()
