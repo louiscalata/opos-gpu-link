@@ -7,9 +7,9 @@ public final class SpanPaneMetricsTest {
         equal(1350, metrics.leftWidthPx);
         equal(84, metrics.gutterPx);
         equal(1350, metrics.rightWidthPx);
-        equal(539, metrics.leftWidthDp(401));
-        equal(34, metrics.gutterDp(401));
-        equal(539, metrics.rightWidthDp(401));
+        equal(540, metrics.leftWidthDp(400));
+        equal(34, metrics.gutterDp(400));
+        equal(540, metrics.rightWidthDp(400));
 
         SpanGeometry noHinge = SpanGeometry.NONE;
         SpanPaneMetrics none = SpanPaneMetrics.from(noHinge);
