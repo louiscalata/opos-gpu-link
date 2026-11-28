@@ -784,9 +784,9 @@ button:disabled::after{content:"\u00a0unavailable"}
 #gpu-cable{font-size:24px;font-weight:600;border:1px solid var(--fg);padding:6px 10px}
 #gpu-cable[data-cable=wait]{border:3px solid var(--fg)}
 #gpu-cable[data-cable=out]{border:3px double var(--fg)}
-#pc-extra{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:16px}
-#pc-extra .pane{display:block;grid-row:auto;margin-top:16px}
-#pc-extra .answer{height:30vh;max-height:30vh}
+#phone-extra,#pc-extra{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,180px),1fr));gap:16px}
+#phone-extra .pane,#pc-extra .pane{display:block;grid-row:auto;margin-top:16px}
+#phone-extra .answer,#pc-extra .answer{height:30vh;max-height:30vh}
 [hidden]{display:none!important}
 html[data-pane] main{display:block}
 html[data-pane] #gap{display:none}
@@ -809,9 +809,11 @@ html:not([data-pane]) #gpu-disclosure{grid-row:6}
 html:not([data-pane]) .answer{grid-row:7;height:55vh;max-height:55vh}
 html:not([data-pane]) .stop{grid-row:8;align-self:start}
 html:not([data-pane]) #link-controls{grid-row:9}
-html:not([data-pane]) #pc-extra{grid-column:1 / 4;grid-row:13}
+html:not([data-pane]) #phone-extra{grid-column:1 / 4;grid-row:13}
+html:not([data-pane]) #pc-extra{grid-column:1 / 4;grid-row:14}
 html[data-fanout=true]:not([data-pane]) main{max-width:1800px;grid-template-columns:minmax(200px,1fr) var(--hinge) repeat(4,minmax(180px,1fr))}
 html[data-fanout=true]:not([data-pane]) #pc-extra{grid-column:4 / 7;grid-row:3 / span 9;align-items:start}
+html[data-fanout=true]:not([data-pane]) #phone-extra{grid-column:1 / 7}
 html:not([data-pane]) .nav{grid-column:3;grid-row:12}
 }
 @media(prefers-reduced-motion:reduce){main{transition:none;animation:none}}
@@ -833,6 +835,7 @@ _LIST = """
 <div id="phone-answer" class="answer" tabindex="0" role="region" aria-label="Phone answer"></div>
 <button id="phone-stop" class="stop" type="button" hidden>Stop phone answer</button>
 </section>
+<div id="phone-extra" role="region" aria-label="Additional phone models"></div>
 """
 _THUMB = """
 <section id="gpu-pane" class="pane" aria-labelledby="gpu-title">
@@ -852,7 +855,7 @@ _THUMB = """
 <button id="forget" type="button" hidden>Forget this computer</button>
 </div>
 </section>
-<div id="pc-extra" aria-label="Additional model lanes"></div>
+<div id="pc-extra" role="region" aria-label="Additional computer models"></div>
 """
 _SCRIPT = r"""
 function G(id){return document.getElementById(id)}
@@ -880,7 +883,7 @@ if(pane==='gpu'){
 if(pane==='phone')G('list').appendChild(G('home').parentNode);
 var token=document.querySelector('meta[name=opos-token]').content;
 var stale=false;
-var boot=null,rev=-1,current=null,timer=null,busy=false,queue=[],last=-Infinity,open=false,pendingCode=null,presetKey=null;
+var boot=null,rev=-1,current=null,timer=null,busy=false,askQueued=false,queue=[],last=-Infinity,open=false,pendingCode=null,presetKey=null;
 var OPEN=['queued','waiting','loading','answering','paused'];
 var ERRORS={no_model:'No model is available on this phone.',stream_error:'The phone model could not finish the answer.',
  too_long:'The answer reached the storage limit.',restart:'The phone restarted before the answer finished.',
@@ -970,20 +973,26 @@ function drawPane(name,p){
  G(name+'-stop').onclick=function(){send({action:'cancel',id:a.id})};
 }
 function drawPCModels(s){
- var root=G('pc-extra'),items=(s.models||[]).filter(function(m){return m.kind==='pc'&&/^g[1-3]$/.test(m.pane)||m.kind==='phone'&&/^m[1-4]$/.test(m.pane)});
- var keep=items.map(function(m){return m.pane});
- Array.from(root.children).forEach(function(e){if(keep.indexOf(e.dataset.pane)<0)e.remove()});
+ var items=(s.models||[]).filter(function(m){return (pane===null||pane==='phone'&&m.kind==='phone'||pane==='gpu'&&m.kind==='pc')&&
+  (m.kind==='pc'&&/^g[1-3]$/.test(m.pane)||m.kind==='phone'&&/^m[1-4]$/.test(m.pane))});
+ ['phone','pc'].forEach(function(kind){
+  var root=G(kind+'-extra'),keep=items.filter(function(m){return m.kind===kind}).map(function(m){return m.pane});
+  Array.from(root.children).forEach(function(e){if(keep.indexOf(e.dataset.pane)<0)e.remove()});
+  root.hidden=!keep.length;
+ });
  items.forEach(function(m){
-  var id=m.pane,card=G(id+'-pane');
+  var id=m.pane,root=G(m.kind+'-extra'),card=G(id+'-pane');
   if(!card){
    card=document.createElement('section');card.id=id+'-pane';card.className='pane';card.dataset.pane=id;
+   card.setAttribute('aria-labelledby',id+'-title');
    [['h2','title'],['p','model'],['p','speed'],['p','state'],['div','answer'],['button','stop']].forEach(function(pair){
     var e=document.createElement(pair[0]);e.id=id+'-'+pair[1];
-    if(pair[1]==='answer'){e.className='answer';e.tabIndex=0;e.setAttribute('role','region');e.setAttribute('aria-label',id+' answer')}
-    if(pair[1]==='stop'){e.className='stop';e.type='button';e.textContent='Stop '+id+' answer'}
+    if(pair[1]==='answer'){e.className='answer';e.tabIndex=0;e.setAttribute('role','region')}
+    if(pair[1]==='speed'){e.className='speed';e.setAttribute('role','status')}
+    if(pair[1]==='stop'){e.className='stop';e.type='button'}
     card.appendChild(e)});
-   root.appendChild(card);
   }
+  if(card.parentNode!==root)root.appendChild(card);
   var a=m.answer,open=!!(a&&OPEN.indexOf(a.state)>=0),
    state=m.kind==='pc'?'Waiting for the '+noun():'Waiting for the phone model';
   if(a){
@@ -997,7 +1006,10 @@ function drawPCModels(s){
    else if(a.state==='answering')state='Answering';
   }else if(m.ready)state='Ready';
   if(!a&&!m.ready&&m.kind==='phone')state='No model is available on this phone.';
-  text(id+'-title',m.label||id);text(id+'-model',[m.model,m.maker,whereWords(m.where)].filter(Boolean).join(' · '));
+  var title=a&&a.model||m.label||m.model||'Model';
+  text(id+'-title',title);text(id+'-model',[a&&a.model&&a.model!==(m.label||m.model)?'':m.maker,whereWords(m.where)].filter(Boolean).join(' · '));
+  G(id+'-answer').setAttribute('aria-label',title+' answer');
+  text(id+'-stop','Stop '+title+' answer');
   text(id+'-speed',a&&a.tps!=null?a.tps+' tokens per second · this run':
    m.live_speed!=null&&a&&a.state==='answering'?'about '+m.live_speed+
    (m.kind==='phone'?' pieces':' tokens')+' per second · this run':state);
@@ -1020,17 +1032,22 @@ function answering(){
  return targets().some(function(n){var p=current[n]||(current.models||[]).find(function(m){return m.pane===n}),a=p&&p.answer;return a&&OPEN.indexOf(a.state)>=0});
 }
 function noticeStands(){return targets().indexOf('gpu')>=0&&!!current.gpu.link.storage_notice}
-function askingBusy(){return answering()||noticeStands()}
+function askingBusy(){return askQueued||answering()||noticeStands()}
 function buttons(){
- var disabled=!current||!targets().length||askingBusy();G('ask').disabled=disabled;
- text('ask',pane==='gpu'?'Ask '+noun()+' GPU models':pane==='phone'||!current.gpu.link?'Ask the phone model':'Ask all ready models');
+ var count=targets().length,disabled=stale||!current||!count||askingBusy();G('ask').disabled=disabled;
+ var many=count!==1;
+ text('ask',pane==='gpu'?'Ask '+noun()+' GPU model'+(many?'s':''):
+  pane==='phone'||!current||!current.gpu.link?'Ask the phone model'+(many?'s':''):
+  'Ask all ready models');
  Array.from(G('presets').children).forEach(function(b){b.disabled=disabled});
 }
 function draw(s){
- if(s.locked){current=null;open=false;G('controls').hidden=true;G('enrol').hidden=true;
+ if(s.locked){current=null;open=false;askQueued=false;G('controls').hidden=true;G('enrol').hidden=true;
   ['phone','gpu'].forEach(function(n){text(n+'-answer','');line(n+'-state','');
    line(n+'-model','');text(n+'-speed','Unlock the phone to use AI mode.');G(n+'-stop').hidden=true});
-  G('pc-extra').textContent='';document.documentElement.setAttribute('data-fanout','false');text('enrol-text','');line('gpu-cable','');
+  G('phone-extra').textContent='';G('phone-extra').hidden=true;
+  G('pc-extra').textContent='';G('pc-extra').hidden=true;
+  document.documentElement.setAttribute('data-fanout','false');text('enrol-text','');line('gpu-cable','');
   G('allow').hidden=true;G('forget').hidden=true;G('reopen').hidden=true;return;
  }
  if(!s.phone||!s.gpu)return;
@@ -1079,18 +1096,20 @@ function request(){
  Promise.race([response,deadline]).then(function(result){
    var r=result,s=result.snapshot;
    if(r.status===403&&s&&s.error==='forbidden'){
-    stale=true;text('err','This page is out of date. Reload it, then try again.');return}
-   if(r.status===403&&s&&s.error==='locked'){queue=[];text('err','');draw({locked:true});return}
+    stale=true;queue=[];askQueued=false;buttons();text('err','This page is out of date. Reload it, then try again.');return}
+   if(r.status===403&&s&&s.error==='locked'){queue=[];askQueued=false;text('err','');draw({locked:true});return}
    if(r.status!==200){text('err',s.error||'AI mode could not update.');return}
    text('err','');draw(s);
   }).catch(function(){text('err',timedOut?'The phone did not answer.':'AI mode could not update.');
-  }).finally(function(){clearTimeout(timeout);busy=false;schedule()});
+ }).finally(function(){clearTimeout(timeout);busy=false;if(body&&body.action==='ask'){askQueued=false;buttons()}schedule()});
 }
 function send(body){if(document.hidden)return;queue.push(body);schedule()}
 function ask(){
- if(!current||!targets().length)return;
+ if(document.hidden||stale||!current||!targets().length)return;
+ if(askQueued)return;
  if(answering()){text('err','Wait for this answer, or stop it.');return}
  if(noticeStands()){text('err',current.gpu.link.storage_notice);return}
+ askQueued=true;buttons();
  send({action:'ask',question:G('question').value,panes:targets()});
 }
 G('ask').onclick=ask;
