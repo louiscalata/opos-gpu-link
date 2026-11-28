@@ -176,6 +176,8 @@ def _status_is_error(message: str) -> bool:
 
 def _main_window_tone(online: bool, message: str) -> tuple[str, str, str]:
     """Return link words, link ink, and status ink from known runtime state."""
+    if message == "Stopping.":
+        return "USB-C\nStopping", DIALOG_INK, DIALOG_INK
     if online:
         return ("USB-C\nConnected", DIALOG_SUCCESS,
                 DIALOG_ERROR if _status_is_error(message) else DIALOG_INK)
@@ -1107,6 +1109,11 @@ class Companion:
         self.retry_delay = 3
         self.extra_checked: set[str] = set()
         self.extra_checked_lock = threading.Lock()
+        self.link_probe_thread: threading.Thread | None = None
+        self.link_probe_done: threading.Event | None = None
+        self.link_probe_result = None
+        self.window_stop_thread: threading.Thread | None = None
+        self.window_stop_done: threading.Event | None = None
 
     def permission(self) -> bool:
         if self.headless:
@@ -1475,8 +1482,9 @@ class Companion:
                 self.worker = None
                 self.worker_stop = None
 
-    def _connect(self) -> None:
-        if self.session_pc is not None and self.bridge.forward_present():
+    def _connect(self, forward_ok: bool | None = None) -> None:
+        if self.session_pc is not None and (
+                forward_ok if forward_ok is not None else self.bridge.forward_present()):
             if not model_server_listening(self.args.server):
                 raise RetryLater("Error: Model server unavailable. Start it; GPU Link will retry.")
             self._start_preflight()
@@ -1603,7 +1611,7 @@ class Companion:
         self.next_try = self.clock() + self.retry_delay
         self.retry_delay = min(10, self.retry_delay * 2)  # a replug must feel instant
 
-    def _finish_preflight(self, present: bool) -> None:
+    def _finish_preflight(self, present: bool, forward_ok: bool | None = None) -> None:
         if self.preflight_thread is None or self.preflight_done is None or not self.preflight_done.is_set():
             return
         self.preflight_thread.join(0)
@@ -1613,7 +1621,9 @@ class Companion:
         self.preflight_cancel = None
         if not present or not self.running or self.session_pc is None:
             return
-        if success and self.bridge.forward_present():
+        if forward_ok is None:
+            forward_ok = self.bridge.forward_present()
+        if success and forward_ok:
             self._start_worker(self.session_pc)
             if self.running:
                 self.online = True
@@ -1624,7 +1634,7 @@ class Companion:
                                 if not self.session_launch_failed else
                                 "Ready. Open GPU Link from the phone notification.")
             return
-        if not self.bridge.forward_present():
+        if not forward_ok:
             # The forward disappeared while the one-token check ran, whether it
             # returned true or false. Blame the link, not the model route.
             self._link_lost_while_warming()
@@ -1632,6 +1642,38 @@ class Companion:
         self.preflight_link_losses = 0  # only consecutive link losses back off
         self.status.set("Error: Model check failed. Check the model server and selected model; retrying.")
         self._schedule_retry()
+
+    def _window_liveness(self):
+        """Check the phone and model server off Tk's thread, one probe at a time."""
+        if self.link_probe_thread is None:
+            online = self.online
+            check_forward = online or self.preflight_thread is not None or self.session_pc is not None
+            done = threading.Event()
+            self.link_probe_done = done
+            self.link_probe_result = None
+
+            def probe():
+                try:
+                    present = self.bridge.authorized()
+                    forward_ok = present and check_forward and self.bridge.forward_present()
+                    server_ok = online and forward_ok and model_server_listening(self.args.server)
+                    self.link_probe_result = (present, forward_ok, server_ok, None)
+                except Exception as error:
+                    self.link_probe_result = (False, False, False, error)
+                finally:
+                    done.set()
+
+            self.link_probe_thread = threading.Thread(target=probe, name="opos-link-probe", daemon=True)
+            self.link_probe_thread.start()
+            return None
+        if not self.link_probe_done.is_set():
+            return None
+        self.link_probe_thread.join(0)
+        result = self.link_probe_result
+        self.link_probe_thread = None
+        self.link_probe_done = None
+        self.link_probe_result = None
+        return result
 
     def tick(self) -> None:
         if not self.running:
@@ -1654,11 +1696,18 @@ class Companion:
             else:
                 self.status.set(event)
         try:
+            probe = None if self.headless else self._window_liveness()
+            if not self.headless and probe is None:
+                self._refresh_main_window()
+                self.root.after(100, self.tick)
+                return
+            if probe is not None and probe[3] is not None:
+                raise probe[3]
             now = self.clock()
             if (self.granted and not getattr(self.args, "always_allow", False)
                     and self.detached_at is not None and now - self.detached_at >= 120):
                 self.granted = False
-            present = self.bridge.authorized()
+            present = probe[0] if probe is not None else self.bridge.authorized()
             if present:
                 self.detached_at = None
             else:
@@ -1673,13 +1722,15 @@ class Companion:
                 self.retry_delay = 3
             if (present and not self.online and self.preflight_thread is not None
                     and self.preflight_cancel is not None and not self.preflight_cancel.is_set()
-                    and not self.bridge.forward_present()):
+                    and not (probe[1] if probe is not None else self.bridge.forward_present())):
                 # Lost USB forward during warmup (phone still listed). Run once
                 # per interruption so later ticks do not keep postponing next_try.
                 self._cancel_preflight()
                 self._link_lost_while_warming()
-            forward_ok = present and self.bridge.forward_present() if self.online else False
-            server_ok = model_server_listening(self.args.server) if forward_ok else False
+            forward_ok = self.online and present and (
+                probe[1] if probe is not None else self.bridge.forward_present())
+            server_ok = forward_ok and (
+                probe[2] if probe is not None else model_server_listening(self.args.server))
             worker_ok = self._workers_alive()
             if self.online and not (present and forward_ok and server_ok and worker_ok):
                 self._stop_worker()
@@ -1698,7 +1749,7 @@ class Companion:
                     self.status.set("Answer stopped. Retrying.")
                 self.next_try = self.clock() + 2
                 self.retry_delay = 3
-            self._finish_preflight(present)
+            self._finish_preflight(present, probe[1] if probe is not None else None)
             if not present:
                 if self.granted and self.detached_at is None:
                     self.detached_at = self.clock()
@@ -1709,7 +1760,7 @@ class Companion:
                     lane.is_alive() for lane in getattr(self, "lane_workers", []))):
                     self.status.set("Waiting for the previous answer to stop.")
                 else:
-                    self._connect()
+                    self._connect(probe[1] if probe is not None else None)
         except GrantDeclined as error:
             self._stop_worker()
             self.bridge.remove_own_forward()
@@ -1735,7 +1786,7 @@ class Companion:
             self.session_pc = None
             self.status.set("Error: Phone service unavailable. Check the phone; retrying.")
             self._schedule_retry()
-        if not getattr(self, "headless", False):
+        if not getattr(self, "headless", False) and self.running:
             self._refresh_main_window()
             self.root.after(1000, self.tick)
 
@@ -1783,20 +1834,50 @@ class Companion:
         print("GPU Link: " + message, flush=True)
 
     def stop(self) -> None:
+        if not self.running and not self.headless:
+            return
         self.running = False
         if hasattr(self, "wake"):
             self.wake.set()
         self._cancel_preflight()
+        if self.headless:
+            self._stop_connections()
+            self.status.set("Stopped." if self.cleanup_ok else
+                            "Error: Stop was incomplete. Check the USB link and model server.")
+            return
+        self.online = False
+        self.status.set("Stopping.")
+        done = threading.Event()
+        self.window_stop_done = done
+
+        def cleanup():
+            try:
+                self._stop_connections()
+            except Exception:
+                self.cleanup_ok = False
+            finally:
+                done.set()
+
+        self.window_stop_thread = threading.Thread(target=cleanup, name="opos-link-stop", daemon=True)
+        self.window_stop_thread.start()
+        self.root.after(100, self._finish_window_stop)
+
+    def _stop_connections(self) -> None:
         if self.preflight_thread is not None:
             self.preflight_thread.join(2)
         self._stop_worker()
         self.bridge.remove_own_forward()
         self.session_pc = None
         self.cleanup_ok = self._cleanup_done()
+
+    def _finish_window_stop(self) -> None:
+        if not self.window_stop_done.is_set():
+            self.root.after(100, self._finish_window_stop)
+            return
+        self.window_stop_thread.join(0)
         self.status.set("Stopped." if self.cleanup_ok else
                         "Error: Stop was incomplete. Check the USB link and model server.")
-        if not self.headless:
-            self.root.destroy()
+        self.root.destroy()
 
     def _cleanup_done(self) -> bool:
         return ((self.worker is None or not self.worker.is_alive())
@@ -1815,15 +1896,17 @@ class Companion:
                 self.root.after(0, self.tick)
                 self.root.mainloop()
         finally:
-            self._cancel_preflight()
-            if self.preflight_thread is not None:
-                self.preflight_thread.join(2)
-            self._stop_worker()
-            self.bridge.remove_own_forward()
-            self.cleanup_ok = self._cleanup_done()
-            if self.headless and not self.running:
-                self.status.set("Stopped." if self.cleanup_ok else
-                                "Error: Stop was incomplete. Check the USB link and model server.")
+            stop_done = getattr(self, "window_stop_done", None)
+            if stop_done is None or not stop_done.is_set():
+                self._cancel_preflight()
+                if self.preflight_thread is not None:
+                    self.preflight_thread.join(2)
+                self._stop_worker()
+                self.bridge.remove_own_forward()
+                self.cleanup_ok = self._cleanup_done()
+                if self.headless and not self.running:
+                    self.status.set("Stopped." if self.cleanup_ok else
+                                    "Error: Stop was incomplete. Check the USB link and model server.")
 
 
 def arguments(argv=None):

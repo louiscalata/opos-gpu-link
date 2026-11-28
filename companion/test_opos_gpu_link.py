@@ -1374,6 +1374,7 @@ class CompanionTests(unittest.TestCase):
         app = link.Companion.__new__(link.Companion)
         app.args = SimpleNamespace(server="http://127.0.0.1:9001/v1/chat/completions")
         app.running = True
+        app.headless = True
         app.clock = lambda: now[0]
         app.events = queue.SimpleQueue()
         app.status = SimpleNamespace(set=lambda message: None)
