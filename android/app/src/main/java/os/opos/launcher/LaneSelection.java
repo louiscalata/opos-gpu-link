@@ -34,15 +34,8 @@ final class LaneSelection {
                     || Boolean.TRUE.equals(ready.get(pane));
             if (enabled) result.add(pane);
         }
-        // A disconnected snapshot may have no ready lane. Keep one selectable lane on.
-        if (result.isEmpty()) {
-            for (String pane : available) {
-                if (PaneKeys.valid(pane)) {
-                    result.add(pane);
-                    break;
-                }
-            }
-        }
+        // A chosen model can disappear from the next snapshot. Respect saved OFF choices;
+        // never silently run another model in its place.
         return result;
     }
 

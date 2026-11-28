@@ -1320,7 +1320,7 @@ public final class MainActivity extends Activity {
     }
 
     private void arrangeArticles() {
-        if (answers == null || timingCard == null || paneOrder.isEmpty()) return;
+        if (answers == null || timingCard == null) return;
         answers.removeAllViews();
         leftColumn.removeAllViews();
         rightColumn.removeAllViews();
@@ -4235,7 +4235,8 @@ public final class MainActivity extends Activity {
         JSONArray panes = new JSONArray();
         for (String pane : PaneKeys.readyPanes(ordered, eligible)) panes.put(pane);
         if (panes.length() == 0) {
-            error.setText(R.string.connect_to_send);
+            error.setText(selected.isEmpty()
+                    ? R.string.turn_on_model_to_send : R.string.connect_to_send);
             return false;
         }
         JSONObject body = action("ask");

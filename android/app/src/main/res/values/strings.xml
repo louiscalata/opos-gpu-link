@@ -171,6 +171,7 @@
     <string name="pc_paused">Paused · resumes when the PC is back</string>
     <string name="pc_getting_ready">Getting the PC GPU ready…</string>
     <string name="connect_to_send">Wait for a model, then tap Send.</string>
+    <string name="turn_on_model_to_send">Turn on a model, then tap Send.</string>
     <string name="reconnect">Reconnect</string>
     <string name="stopping">Stopping…</string>
     <string name="lane_retry">Retry</string>

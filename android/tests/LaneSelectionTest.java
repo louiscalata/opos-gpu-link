@@ -29,8 +29,17 @@ public final class LaneSelectionTest {
         equal(Arrays.asList("phone", "g1"), selection.selected(panes, ready));
         ready.put("g1", true);
         equal(Arrays.asList("phone", "g1"), selection.eligible(panes, ready));
+        check(selection.set(panes, ready, "phone", false));
+        equal(Arrays.asList("g1"), selection.eligible(panes, ready));
         ready.put("m1", true);
-        equal(Arrays.asList("phone", "m1", "g1"), selection.selected(panes, ready));
+        equal(Arrays.asList("m1", "g1"), selection.selected(panes, ready));
+        check(selection.set(panes, ready, "g1", false));
+        // If the only chosen model disappears, the saved OFF lead must stay off.
+        List<String> remaining = Arrays.asList("phone", "gpu");
+        equal(List.of(), selection.selected(remaining, ready));
+        equal(List.of(), selection.eligible(remaining, ready));
+        check(selection.set(remaining, ready, "phone", true));
+        equal(Arrays.asList("phone"), selection.eligible(remaining, ready));
         check(!selection.set(panes, ready, "m5", true));
         Map<String, Boolean> noneReady = new HashMap<>();
         equal(Arrays.asList("phone", "gpu"), new LaneSelection(new LaneSelection.Store() {
