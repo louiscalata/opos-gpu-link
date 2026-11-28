@@ -261,6 +261,19 @@ class ActionTests(Base):
         self.assertEqual(data["gpu"]["answer"]["question"], "Again?")
         self.assertEqual(self.answers.get(ident)["state"], "cancelled")
 
+    def test_safe_retry_on_gpu_still_replaces_the_answer(self):
+        api = self.api()
+        self.enrolled()
+        _, data = api.post({"action": "ask", "question": "Again?", "panes": ["gpu"]})
+        ident = data["gpu"]["answer"]["id"]
+
+        status, data = api.post({"action": "retry", "pane": "gpu", "id": ident, "safe": 1})
+
+        self.assertEqual(status, 200)
+        self.assertNotEqual(data["gpu"]["answer"]["id"], ident)
+        self.assertEqual(data["gpu"]["answer"]["question"], "Again?")
+        self.assertEqual(self.answers.get(ident)["state"], "cancelled")
+
     def test_allow_deny_forget_and_reopen(self):
         api = self.api()
         self.assertEqual(self.pc.enrol().status, 202)
@@ -315,6 +328,37 @@ class PhoneLaneTests(Base):
         path, body = llama.requests[0]
         self.assertEqual((path, body["model"], body["stream"], body["messages"][-1]["content"]),
                          ("/v1/chat/completions", "tiny.gguf", True, "Sky?"))
+
+    def test_safe_retry_changes_only_the_phone_completion_payload(self):
+        llama = FakeLlama()
+        self.addCleanup(llama.close)
+        api = self.api(link_api.PhoneModel(llama.url, "tiny.gguf"))
+        status, data = api.post({"action": "ask", "question": "Sky?", "panes": ["phone"]})
+        self.assertEqual(status, 200)
+        ident = data["phone"]["answer"]["id"]
+        wait_for(lambda: self.answers.get(ident)["state"] == "done")
+        normal_body = {"model": "tiny.gguf", "stream": True, "max_tokens": 4096,
+                       "messages": [{"role": "user", "content": "Sky?"}]}
+        self.assertEqual(llama.requests[-1][1], normal_body)
+
+        with mock.patch.object(link_api.secrets, "randbits", side_effect=(101, 202)):
+            for seed in (101, 202):
+                status, data = api.post({"action": "retry", "pane": "phone", "id": ident, "safe": 1})
+                self.assertEqual(status, 200)
+                ident = data["phone"]["answer"]["id"]
+                wait_for(lambda: self.answers.get(ident)["state"] == "done")
+                self.assertEqual(llama.requests[-1][1],
+                                 {**normal_body, "seed": seed, "temperature": 0.1, "repeat_penalty": 1.1})
+
+        for safe in (None, "1"):
+            body = {"action": "retry", "pane": "phone", "id": ident}
+            if safe is not None:
+                body["safe"] = safe
+            status, data = api.post(body)
+            self.assertEqual(status, 200)
+            ident = data["phone"]["answer"]["id"]
+            wait_for(lambda: self.answers.get(ident)["state"] == "done")
+            self.assertEqual(llama.requests[-1][1], normal_body)
 
     def test_cancel_stops_a_phone_answer(self):
         llama = FakeLlama(hold=threading.Event())

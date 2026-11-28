@@ -24,6 +24,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.graphics.Color;
 import android.graphics.Insets;
+import android.graphics.Paint;
 import android.graphics.Rect;
 import android.os.BatteryManager;
 import android.os.Build;
@@ -182,7 +183,7 @@ public final class MainActivity extends Activity {
     private LinearLayout mastheadBlock;
     private int expandedMastheadHeightPx;
     private LinearLayout columns;
-    private LinearLayout timingCard, notesCard, notesDock, notesTab, bottomDock;
+    private LinearLayout timingCard, notesCard, notesDock, notesTabRow, notesTab, bottomDock;
     private List<NewspaperSummary.Lane> tonightLanes;
     /** Race headline under the TONIGHT rows ("Fastest so far: MacBook · 28.4 s"). */
     private TextView tonightLeader;
@@ -507,6 +508,7 @@ public final class MainActivity extends Activity {
         compactLayout = layoutMode == CoverScreenPolicy.Mode.COMPACT || coverMode;
         typography.useCover(coverMode);
         typography.defaults(screen);
+        applyComposerRowHeight(false);
         applyDeviceBandMode();
         if (landscapeLayout) {
             detach(heatMeter);
@@ -514,7 +516,6 @@ public final class MainActivity extends Activity {
             header.addView(heatMeter, header.indexOfChild(info), new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
             arrangeLandscapeTopRow();
-            applyComposerRowHeight(false);
             lastCollapseFraction = -1f;
             setHeaderCollapse(0);
         }
@@ -615,17 +616,18 @@ public final class MainActivity extends Activity {
         }
     }
 
-    /** Cover-only chrome: smaller masthead, no dateline, shorter composer. */
+    /** Cover-only chrome: smaller masthead and no dateline. */
     private void applyCoverChrome() {
         typography.display(bigMasthead, CoverScreenPolicy.MASTHEAD_SP);
         if (mastheadBlock.getChildCount() > 1) mastheadBlock.getChildAt(1).setVisibility(View.GONE);
-        applyComposerRowHeight(false);
     }
 
     private void applyComposerRowHeight(boolean keyboardVisible) {
         int rowHeight = dp(coverMode ? CoverScreenPolicy.composerRowDp(keyboardVisible)
                 : CoverLayoutPolicy.composerRowHeightDp(
                         compactLayout, keyboardVisible, landscapeLayout));
+        boolean largeFontInner = NewspaperLayoutDecision.stackedHeader(
+                getResources().getConfiguration().fontScale, compactLayout, landscapeLayout);
         LinearLayout composer = findViewById(R.id.composer);
         LinearLayout row = findViewById(R.id.input_row);
         if (composer != null) {
@@ -646,15 +648,19 @@ public final class MainActivity extends Activity {
                 ? (LinearLayout.LayoutParams) prompt.getLayoutParams()
                 : new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
         promptParams.width = 0;
-        promptParams.height = rowHeight;
+        promptParams.height = largeFontInner ? LinearLayout.LayoutParams.WRAP_CONTENT : rowHeight;
         promptParams.weight = 1;
         promptParams.topMargin = 0;
         promptParams.bottomMargin = 0;
         promptParams.leftMargin = 0;
         promptParams.rightMargin = 0;
-        prompt.setMinHeight(rowHeight);
         prompt.setPadding(dp(12), dp(10), dp(12), dp(10));
         prompt.setIncludeFontPadding(true);
+        Paint.FontMetricsInt font = prompt.getPaint().getFontMetricsInt();
+        prompt.setMinHeight(largeFontInner
+                ? NewspaperLayoutDecision.composerMinHeightPx(rowHeight, font.top, font.bottom,
+                        prompt.getPaddingTop(), prompt.getPaddingBottom())
+                : rowHeight);
         prompt.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
         prompt.setBackground(panelDrawable(palette.stroke()));
         prompt.setHintTextColor(themeColor(R.color.you_asked_label));
@@ -949,8 +955,9 @@ public final class MainActivity extends Activity {
         answers.setOrientation(LinearLayout.VERTICAL);
         TextView title = findViewById(R.id.title);
         smallMasthead = title;
-        title.setText(getString(R.string.app_name) + " ⌄");
-        title.setContentDescription(getString(R.string.app_name) + ", menu");
+        title.setText(getString(R.string.masthead_menu_title, getString(R.string.app_name)));
+        title.setContentDescription(getString(R.string.masthead_menu_description,
+                getString(R.string.app_name)));
         title.setFocusable(true);
         title.setOnClickListener(view -> toggleMenu());
         title.setAccessibilityDelegate(mastheadButtonRole());
@@ -990,8 +997,11 @@ public final class MainActivity extends Activity {
                         LinearLayout.LayoutParams.WRAP_CONTENT));
         info.setLayoutParams(new LinearLayout.LayoutParams(dp(52), dp(48)));
         header.setPadding(dp(12), dp(2), dp(12), dp(4));
-        bigMasthead = displayText(getString(R.string.app_name) + " ⌄", MASTHEAD_DISPLAY_SP);
-        bigMasthead.setContentDescription(getString(R.string.app_name) + ", menu");
+        bigMasthead = displayText(
+                getString(R.string.masthead_menu_title, getString(R.string.app_name)),
+                MASTHEAD_DISPLAY_SP);
+        bigMasthead.setContentDescription(getString(R.string.masthead_menu_description,
+                getString(R.string.app_name)));
         bigMasthead.setFocusable(true);
         bigMasthead.setOnClickListener(view -> toggleMenu());
         bigMasthead.setAccessibilityDelegate(mastheadButtonRole());
@@ -1027,7 +1037,6 @@ public final class MainActivity extends Activity {
         applyPairingTypography();
         prompt.setMinLines(1);
         prompt.setMaxLines(3);
-        applyComposerRowHeight(false);
         resultsScroll.setOnScrollChangeListener((view, x, y, oldX, oldY) -> {
             coverInteractionMs = SystemClock.uptimeMillis();
             setHeaderCollapse(y);
@@ -1057,9 +1066,7 @@ public final class MainActivity extends Activity {
         rightColumn = new LinearLayout(this);
         rightColumn.setOrientation(LinearLayout.VERTICAL);
         noSelectionCard = box();
-        noSelectionMessage = newspaperText(getString(R.string.turn_on_model_to_send),
-                typography.bodySp(), false, true);
-        typography.body(noSelectionMessage, typography.bodySp());
+        noSelectionMessage = bodyText(getString(R.string.turn_on_model_to_send));
         noSelectionMessage.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         noSelectionCard.addView(noSelectionMessage);
         noSelectionButton = outlineButton(MenuState.MODEL_SELECTION);
@@ -1179,9 +1186,13 @@ public final class MainActivity extends Activity {
         list.setOrientation(LinearLayout.VERTICAL);
         list.setPadding(dp(1), dp(1), dp(1), dp(1));
         list.setBackgroundResource(R.drawable.newspaper_panel);
+        int[] menuLabels = {
+                R.string.model_selection_title, R.string.history_title,
+                R.string.settings, R.string.quit_action
+        };
         for (int i = 0; i < MenuState.ENTRIES.size(); i++) {
             final int index = i;
-            TextView item = bodyText(MenuState.ENTRIES.get(i));
+            TextView item = bodyText(getString(menuLabels[i]));
             item.setGravity(Gravity.CENTER_VERTICAL);
             item.setPadding(dp(16), 0, dp(16), 0);
             item.setBackgroundColor(themeColor(R.color.newspaper_paper));
@@ -2600,7 +2611,8 @@ public final class MainActivity extends Activity {
             String named = computerLabel(pending);
             // The pending computer may not be the one already paired: name it by its own label.
             String pendingNoun = ComputerWords.noun(named);
-            String label = named.isEmpty() ? "the " + pendingNoun : named;
+            String label = named.isEmpty()
+                    ? getString(R.string.pairing_unnamed_computer, pendingNoun) : named;
             TextView pairingHeader = findViewById(R.id.pairing_header);
             setIfChanged(pairingHeader,
                     ComputerWords.apply(getString(R.string.pairing_title), pendingNoun));
@@ -3300,7 +3312,7 @@ public final class MainActivity extends Activity {
                     lastSubmittedQuestion, tonightTiming.getText().toString(),
                     tonightCount.getText().toString(), lanes, anyInterrupted, sourceId));
         } catch (IllegalArgumentException failure) {
-            error.setText("Could not save this question to History.");
+            error.setText(R.string.history_save_failed);
         }
         if (pendingRefreshQuestion.equals(lastSubmittedQuestion)) {
             pendingRefreshSourceId = "";
@@ -3408,11 +3420,29 @@ public final class MainActivity extends Activity {
         deviceBand.setContentDescription(DeviceLayoutPolicy.description(
                 devicePhoneName.getText().toString(),
                 ComputerWords.title(ComputerWords.current()), deviceLinkState));
-        applyDeviceBandMode();
     }
 
     private void applyDeviceBandMode() {
         if (deviceBand == null) return;
+        boolean largeFontInner = NewspaperLayoutDecision.stackedHeader(
+                getResources().getConfiguration().fontScale, compactLayout, landscapeLayout);
+        if (largeFontInner) {
+            deviceBand.setOrientation(LinearLayout.VERTICAL);
+            devicePhone.setLayoutParams(new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+            LinearLayout.LayoutParams linkParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            linkParams.topMargin = dp(4);
+            linkParams.bottomMargin = dp(4);
+            deviceLink.setLayoutParams(linkParams);
+            deviceComputer.setLayoutParams(new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+            for (TextView label : new TextView[]{devicePhoneKicker, devicePhoneName,
+                    deviceComputerKicker, deviceComputerName, deviceLink}) {
+                label.setSingleLine(true);
+                label.setEllipsize(TextUtils.TruncateAt.END);
+            }
+        }
         devicePhoneKicker.setVisibility(coverMode ? View.GONE : View.VISIBLE);
         deviceComputerKicker.setVisibility(coverMode ? View.GONE : View.VISIBLE);
         for (LinearLayout panel : new LinearLayout[]{devicePhone, deviceComputer}) {
@@ -3641,7 +3671,9 @@ public final class MainActivity extends Activity {
         } else {
             frame = DesignLab.schematic(labTick,
                     DesignLab.link(cableConnected, hasVisiblePcWork()),
-                    ComputerWords.title(ComputerWords.current()), coverMode ? "Phone" : "This phone", width);
+                    ComputerWords.title(ComputerWords.current()),
+                    getString(coverMode ? R.string.device_phone_name : R.string.phone_heading),
+                    width);
         }
         labView.setTextColor(themeColor(R.color.newspaper_ink));
         setIfChanged(labView, frame);
@@ -5140,15 +5172,15 @@ public final class MainActivity extends Activity {
             }
         });
         LinearLayout root = pageRoot();
-        root.addView(pageBar(MenuState.MODEL_SELECTION, "Close", view -> dialog.dismiss()));
+        root.addView(pageBar(getString(R.string.model_selection_title),
+                getString(R.string.close), view -> dialog.dismiss()));
         View rule = new View(this);
         rule.setBackgroundColor(themeColor(R.color.newspaper_stroke));
         LinearLayout.LayoutParams ruleParams = new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(1));
         ruleParams.topMargin = dp(12);
         root.addView(rule, ruleParams);
-        TextView note = bodyText(
-                "Phone models answer one at a time. Computer models can answer together.");
+        TextView note = bodyText(getString(R.string.model_selection_note));
         note.setPadding(0, dp(14), 0, dp(10));
         root.addView(note);
         modelSelectionNotice = stateText("");
@@ -5208,8 +5240,8 @@ public final class MainActivity extends Activity {
         if (Double.isFinite(fileMb) && fileMb >= 0) {
             if (details.length() > 0) details.append(" · ");
             details.append(fileMb == Math.rint(fileMb)
-                    ? String.format(Locale.US, "%.0f MB", fileMb)
-                    : String.format(Locale.US, "%.1f MB", fileMb));
+                    ? String.format(Locale.US, getString(R.string.model_size_whole_mb), fileMb)
+                    : String.format(Locale.US, getString(R.string.model_size_decimal_mb), fileMb));
         }
         return details.toString();
     }
@@ -5300,7 +5332,7 @@ public final class MainActivity extends Activity {
             modelLabels.clear();
             modelMetaViews.clear();
             modelRows.removeAllViews();
-            addModelSection("This phone");
+            addModelSection(getString(R.string.phone_heading));
             for (String pane : grouped) {
                 if (PaneKeys.pc(pane)) continue;
                 addModelRow(pane);
@@ -5321,11 +5353,11 @@ public final class MainActivity extends Activity {
             TextView hint = modelReadyHints.get(pane);
             if (hint != null) setIfChanged(hint, reachable && !offline
                     && view != null && view.optBoolean("ready")
-                    ? getString(R.string.ready_to_ask) : "Not ready");
+                    ? getString(R.string.ready_to_ask) : getString(R.string.model_not_ready));
             TextView toggle = modelToggles.get(pane);
             if (toggle == null) continue;
             boolean on = laneSelection.isOn(available, ready, pane);
-            setIfChanged(toggle, on ? "ON" : "OFF");
+            setIfChanged(toggle, getString(on ? R.string.model_on : R.string.model_off));
             toggle.setTextColor(parseHex(palette.selectionText(on)));
             GradientDrawable toggleBackground = new GradientDrawable();
             toggleBackground.setColor(parseHex(palette.selectionFill(on)));
@@ -5693,9 +5725,11 @@ public final class MainActivity extends Activity {
         pcLabelStatic(dialog.getWindow().getDecorView(), new int[][]{
                 {R.id.info_forget_pc, R.string.forget_pc},
                 {R.id.info_replace_pc_steps, R.string.info_replace_pc_steps}});
-        pcLabelled(dialog.findViewById(R.id.info_pc_label_text), "PC");
-        pcLabelled(dialog.findViewById(R.id.info_pc_id_label_text), "PC ID");
-        pcLabelled(dialog.findViewById(R.id.info_pc_status_label_text), "PC status");
+        pcLabelled(dialog.findViewById(R.id.info_pc_label_text), getString(R.string.pc));
+        pcLabelled(dialog.findViewById(R.id.info_pc_id_label_text),
+                getString(R.string.info_pc_dynamic_id_label));
+        pcLabelled(dialog.findViewById(R.id.info_pc_status_label_text),
+                getString(R.string.info_pc_dynamic_status_label));
         typography.defaults(dialog.getWindow().getDecorView());
         applyPaletteToDialog(dialog);
         typography.headline(dialog.findViewById(R.id.info_page_title), typography.headingSp());
@@ -6468,8 +6502,8 @@ public final class MainActivity extends Activity {
     }
 
     private void setSummaryHeadingCue(boolean expanded) {
-        String title = "SUMMARY";
-        String cue = expanded ? " · Close" : " · Open";
+        String title = getString(R.string.summary_label);
+        String cue = getString(expanded ? R.string.summary_cue_close : R.string.summary_cue_open);
         SpannableStringBuilder heading = new SpannableStringBuilder(title + cue);
         heading.setSpan(new TypefaceSpan(typography.interMedium), title.length(), heading.length(),
                 Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
@@ -6586,15 +6620,18 @@ public final class MainActivity extends Activity {
         FrameLayout stage = findViewById(R.id.results_stage);
         if (stage == null || notesCard == null) return;
         if (notesDock == null) {
+            boolean largeFontInner = NewspaperLayoutDecision.stackedHeader(
+                    getResources().getConfiguration().fontScale, compactLayout, landscapeLayout);
             notesDock = new LinearLayout(this);
             notesDock.setOrientation(LinearLayout.VERTICAL);
-            LinearLayout tabRow = new LinearLayout(this);
-            tabRow.setOrientation(LinearLayout.HORIZONTAL);
-            tabRow.setGravity(Gravity.CENTER_HORIZONTAL);
+            notesTabRow = new LinearLayout(this);
+            notesTabRow.setOrientation(LinearLayout.HORIZONTAL);
+            notesTabRow.setGravity(Gravity.CENTER_HORIZONTAL);
             notesTab = new LinearLayout(this);
             notesTab.setOrientation(LinearLayout.HORIZONTAL);
             notesTab.setGravity(Gravity.CENTER);
             notesTab.setPadding(dp(18), dp(8), dp(18), dp(6));
+            if (largeFontInner) notesTab.setMinimumHeight(dp(NotesSheet.TAB_DP));
             notesTab.setClickable(true);
             notesTab.setFocusable(true);
             notesTab.setId(View.generateViewId());
@@ -6604,11 +6641,13 @@ public final class MainActivity extends Activity {
             notesTabLabel = labelText(NotesSheet.tabLabel(0));
             typography.kicker(notesTabLabel);
             notesTab.addView(notesTabLabel);
-            tabRow.addView(notesTab, new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT, dp(NotesSheet.TAB_DP)));
+            notesTabRow.addView(notesTab, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    largeFontInner ? LinearLayout.LayoutParams.WRAP_CONTENT : dp(NotesSheet.TAB_DP)));
             // A clear strip above the tab makes it a 48 dp touch target without a bigger tab.
-            tabRow.setPadding(0, dp(NotesSheet.TAB_SLOP_DP), 0, 0);
-            tabRow.addOnLayoutChangeListener((view, l, t, r, b, ol, ot, or, ob) -> {
+            notesTabRow.setPadding(0, dp(NotesSheet.TAB_SLOP_DP), 0, 0);
+            if (largeFontInner) notesTabRow.setMinimumHeight(dp(NotesSheet.TAB_TOUCH_DP));
+            notesTabRow.addOnLayoutChangeListener((view, l, t, r, b, ol, ot, or, ob) -> {
                 Rect hit = new Rect();
                 notesTab.getHitRect(hit);
                 hit.top = 0;
@@ -6620,9 +6659,15 @@ public final class MainActivity extends Activity {
                 if (hit.right > r - l) hit.offset((r - l) - hit.right, 0);
                 hit.left = Math.max(0, hit.left);
                 view.setTouchDelegate(new TouchDelegate(hit, notesTab));
+                if (largeFontInner && b - t != ob - ot) {
+                    view.post(() -> applyNotesSheetHeight(NotesSheet.height(notesSheetState,
+                            notesCollapsedH(), notesHalfH(), notesFullH())));
+                }
             });
-            notesDock.addView(tabRow, new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, dp(NotesSheet.TAB_TOUCH_DP)));
+            notesDock.addView(notesTabRow, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    largeFontInner ? LinearLayout.LayoutParams.WRAP_CONTENT
+                            : dp(NotesSheet.TAB_TOUCH_DP)));
             detach(notesCard);
             notesCard.setLayoutTransition(null);
             notesCard.setMinimumHeight(0);
@@ -6734,7 +6779,8 @@ public final class MainActivity extends Activity {
     };
 
     private int notesCollapsedH() {
-        return dp(NotesSheet.collapsedTabHeightDp(landscapeLayout));
+        return NotesSheet.collapsedTabHeightPx(landscapeLayout,
+                notesTabRow == null ? 0 : notesTabRow.getHeight(), dp(NotesSheet.TAB_TOUCH_DP));
     }
 
     private ViewGroup notesOverlayHost() {
