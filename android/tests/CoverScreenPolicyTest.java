@@ -182,30 +182,51 @@ public final class CoverScreenPolicyTest {
     }
 
     private static void space() {
-        // F3's 720 px cover leaves 368 px after the system bars and pinned dock.
-        // Masthead, Info/Settings, and the full composer need about 362 px.
-        CoverScreenPolicy.Chrome offline = CoverScreenPolicy.chromeForSpace(368, 362, 46, 50);
-        check(!offline.heat);
-        check(!offline.statusDetail);
-        // At the boundaries, keep status detail ahead of the lower-priority heat line.
-        CoverScreenPolicy.Chrome statusOnly = CoverScreenPolicy.chromeForSpace(408, 362, 46, 50);
-        check(statusOnly.statusDetail);
-        check(!statusOnly.heat);
-        CoverScreenPolicy.Chrome almost = CoverScreenPolicy.chromeForSpace(457, 362, 46, 50);
-        check(almost.statusDetail);
+        // Synthetic space budgets include the action row and the first status line.
+        int essential = 120;
+        int secondLine = 24;
+        int heatLine = 30;
+        CoverScreenPolicy.Chrome tight = CoverScreenPolicy.chromeForSpace(
+                130, essential, secondLine, heatLine);
+        eq(1, tight.statusLines);
+        check(!tight.heat);
+
+        // A second line appears first; heat follows only when both fit.
+        CoverScreenPolicy.Chrome second = CoverScreenPolicy.chromeForSpace(
+                144, essential, secondLine, heatLine);
+        eq(2, second.statusLines);
+        check(!second.heat);
+        CoverScreenPolicy.Chrome almost = CoverScreenPolicy.chromeForSpace(
+                173, essential, secondLine, heatLine);
+        eq(2, almost.statusLines);
         check(!almost.heat);
-        CoverScreenPolicy.Chrome roomy = CoverScreenPolicy.chromeForSpace(458, 362, 46, 50);
-        check(roomy.statusDetail);
+        CoverScreenPolicy.Chrome roomy = CoverScreenPolicy.chromeForSpace(
+                174, essential, secondLine, heatLine);
+        eq(2, roomy.statusLines);
         check(roomy.heat);
-        CoverScreenPolicy.Chrome noReading = CoverScreenPolicy.chromeForSpace(412, 362, 46, 0);
-        check(noReading.statusDetail);
+
+        // The decision has no memory of a previous compact layout: detail and heat recover.
+        CoverScreenPolicy.Chrome tightAgain = CoverScreenPolicy.chromeForSpace(
+                130, essential, secondLine, heatLine);
+        eq(1, tightAgain.statusLines);
+        check(!tightAgain.heat);
+        CoverScreenPolicy.Chrome recovered = CoverScreenPolicy.chromeForSpace(
+                174, essential, secondLine, heatLine);
+        eq(2, recovered.statusLines);
+        check(recovered.heat);
+
+        CoverScreenPolicy.Chrome noReading = CoverScreenPolicy.chromeForSpace(
+                144, essential, secondLine, 0);
+        eq(2, noReading.statusLines);
         check(!noReading.heat);
-        CoverScreenPolicy.Chrome tallStatus = CoverScreenPolicy.chromeForSpace(412, 362, 70, 30);
-        check(!tallStatus.statusDetail);
+        CoverScreenPolicy.Chrome oneLineText = CoverScreenPolicy.chromeForSpace(
+                150, essential, 0, heatLine);
+        eq(1, oneLineText.statusLines);
+        check(oneLineText.heat);
+        CoverScreenPolicy.Chrome tallStatus = CoverScreenPolicy.chromeForSpace(
+                144, essential, 50, heatLine);
+        eq(1, tallStatus.statusLines);
         check(!tallStatus.heat);
-        CoverScreenPolicy.Chrome noStatus = CoverScreenPolicy.chromeForSpace(412, 362, 0, 50);
-        check(!noStatus.statusDetail);
-        check(noStatus.heat);
     }
 
     private static Map<String, String> states(String... pairs) {

@@ -24,6 +24,7 @@ import android.graphics.drawable.GradientDrawable;
 import android.graphics.drawable.StateListDrawable;
 import android.graphics.Color;
 import android.graphics.Insets;
+import android.graphics.Paint;
 import android.graphics.Rect;
 import android.os.BatteryManager;
 import android.os.Build;
@@ -100,6 +101,12 @@ public final class MainActivity extends Activity {
     private static final int BACK_ISSUE_TIMING_MIN_DP = 140;
     private static final int BACK_ISSUE_ARCHIVE_MIN_DP = 200;
     private static final int BACK_ISSUE_SUMMARY_MIN_DP = 100;
+    // The newspaper masthead is a display mark, larger than card headings.
+    private static final int MASTHEAD_DISPLAY_SP = 34;
+    // The collapsed masthead remains a display mark within the narrow header.
+    private static final int COLLAPSED_MASTHEAD_SP = 20;
+    // Elapsed time is the card's display number, kept large for a quick comparison.
+    private static final int ELAPSED_DISPLAY_SP = 28;
     private static final String PREF_UNRESOLVED_ASK = "ask_post_unresolved";
     private static volatile boolean resumed;
     /** Kept only across a layout-family recreate, so a fold does not blank the newspaper. */
@@ -118,6 +125,7 @@ public final class MainActivity extends Activity {
     private UiSettings uiSettings;
     private UiPalette palette = new UiPalette(UiPalette.Theme.DARK);
     private Dialog settingsDialog;
+    private View settingsPage;
     private Runnable pendingNotesDrag;
     private float notesDragDownX, notesDragDownY;
     private boolean notesDragActive;
@@ -173,7 +181,7 @@ public final class MainActivity extends Activity {
     private LinearLayout mastheadBlock;
     private int expandedMastheadHeightPx;
     private LinearLayout columns;
-    private LinearLayout timingCard, notesCard, notesDock, notesTab, bottomDock;
+    private LinearLayout timingCard, notesCard, notesDock, notesTabRow, notesTab, bottomDock;
     private List<NewspaperSummary.Lane> tonightLanes;
     /** Race headline under the TONIGHT rows ("Fastest so far: MacBook · 28.4 s"). */
     private TextView tonightLeader;
@@ -215,7 +223,7 @@ public final class MainActivity extends Activity {
     private float notesSheetDownY;
     private int notesSheetStartHeight;
     private VelocityTracker notesSheetVelocity;
-    private TextView smallMasthead, compactLaneStatus;
+    private TextView smallMasthead, dateline, compactLaneStatus;
     private EditText prompt;
     private LinedNotesEditText notes;
     private Button send, stop, retry, reconnect, resetAsk, info, settings, allow, deny, reopen;
@@ -230,7 +238,8 @@ public final class MainActivity extends Activity {
     private int lastPairingProblem;
     private TextView phoneState, phoneAnswer, gpuHeading, gpuState, gpuAnswer;
     private LinearLayout tonightRows;
-    private TextView tonightCount, tonightProvenance, tonightTiming, summaryHeading, summaryText,
+    private TextView tonightKicker, tonightCount, tonightProvenance, tonightTiming,
+            summaryHeading, summaryText,
             expandedState, expandedAnswer,
             expandedStatus, expandedTitle, expandedByline;
     private ScrollView expandedScroll;
@@ -497,6 +506,7 @@ public final class MainActivity extends Activity {
         compactLayout = layoutMode == CoverScreenPolicy.Mode.COMPACT || coverMode;
         typography.useCover(coverMode);
         typography.defaults(screen);
+        applyComposerRowHeight(false);
         applyDeviceBandMode();
         if (landscapeLayout) {
             detach(heatMeter);
@@ -504,7 +514,6 @@ public final class MainActivity extends Activity {
             header.addView(heatMeter, header.indexOfChild(info), new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.WRAP_CONTENT, LinearLayout.LayoutParams.WRAP_CONTENT));
             arrangeLandscapeTopRow();
-            applyComposerRowHeight(false);
             lastCollapseFraction = -1f;
             setHeaderCollapse(0);
         }
@@ -512,7 +521,7 @@ public final class MainActivity extends Activity {
             LinearLayout root = (LinearLayout) screen;
             ((ViewGroup) status.getParent()).removeView(status);
             status.setPadding(dp(12), dp(2), dp(12), dp(2));
-            status.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
+            typography.state(status);
             status.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
             status.setSingleLine(false);
             status.setMaxLines(2);
@@ -523,7 +532,7 @@ public final class MainActivity extends Activity {
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT));
             if (!coverMode) {
-                compactLaneStatus = newspaperText("", 13, false, false);
+                compactLaneStatus = stateText("");
                 typography.tabular(compactLaneStatus);
                 compactLaneStatus.setPadding(dp(12), 0, dp(12), dp(2));
                 compactLaneStatus.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
@@ -605,10 +614,13 @@ public final class MainActivity extends Activity {
         }
     }
 
-    /** Cover-only chrome: smaller masthead, no dateline, shorter composer. */
+    /** Cover-only chrome: smaller masthead and no dateline. */
     private void applyCoverChrome() {
         typography.display(bigMasthead, CoverScreenPolicy.MASTHEAD_SP);
         if (mastheadBlock.getChildCount() > 1) mastheadBlock.getChildAt(1).setVisibility(View.GONE);
+        status.setMinLines(1);
+        status.setMaxLines(2);
+        status.setEllipsize(TextUtils.TruncateAt.END);
         applyComposerRowHeight(false);
         screen.getViewTreeObserver().addOnGlobalLayoutListener(this::applyCoverSpacePolicy);
     }
@@ -627,17 +639,21 @@ public final class MainActivity extends Activity {
             essential += Math.max(child.getHeight(), child.getMeasuredHeight());
         }
         int available = screen.getHeight() - screen.getPaddingTop() - screen.getPaddingBottom();
-        int statusHeight = coverTextHeight(status, Math.max(1, status.getMaxLines()));
+        int oneLineStatus = coverTextHeight(status, 1);
+        int statusExtra = Math.max(0, coverTextHeight(status, 2) - oneLineStatus);
         int heatHeight = HeatMeter.known(heatStatus) ? coverTextHeight(heatMeter, 1) : 0;
         CoverScreenPolicy.Chrome chrome = CoverScreenPolicy.chromeForSpace(
-                available, essential, statusHeight, heatHeight);
-        status.setVisibility(chrome.statusDetail ? View.VISIBLE : View.GONE);
+                available, essential + oneLineStatus, statusExtra, heatHeight);
+        status.setVisibility(View.VISIBLE);
+        if (status.getMaxLines() != chrome.statusLines) status.setMaxLines(chrome.statusLines);
         heatMeter.setVisibility(chrome.heat ? View.VISIBLE : View.GONE);
     }
 
     private int coverTextHeight(TextView view, int maxLines) {
         CharSequence text = view.getText();
-        if (TextUtils.isEmpty(text)) return 0;
+        if (TextUtils.isEmpty(text)) {
+            return view.getLineHeight() + view.getPaddingTop() + view.getPaddingBottom();
+        }
         int width = view.getWidth() > 0 ? view.getWidth()
                 : screen.getWidth() - screen.getPaddingLeft() - screen.getPaddingRight();
         int textWidth = Math.max(1, width - view.getPaddingLeft() - view.getPaddingRight());
@@ -648,8 +664,7 @@ public final class MainActivity extends Activity {
                 .setLineSpacing(view.getLineSpacingExtra(), view.getLineSpacingMultiplier())
                 .setMaxLines(maxLines)
                 .build();
-        return Math.max(lines.getHeight() + view.getPaddingTop() + view.getPaddingBottom(),
-                Math.max(view.getHeight(), view.getMeasuredHeight()));
+        return lines.getHeight() + view.getPaddingTop() + view.getPaddingBottom();
     }
 
     private void reserveCoverActionRow(int rowHeight) {
@@ -667,6 +682,8 @@ public final class MainActivity extends Activity {
         int rowHeight = dp(coverMode ? CoverScreenPolicy.composerRowDp(keyboardVisible)
                 : CoverLayoutPolicy.composerRowHeightDp(
                         compactLayout, keyboardVisible, landscapeLayout));
+        boolean largeFontInner = NewspaperLayoutDecision.stackedHeader(
+                getResources().getConfiguration().fontScale, compactLayout, landscapeLayout);
         LinearLayout composer = findViewById(R.id.composer);
         LinearLayout row = findViewById(R.id.input_row);
         if (composer != null) {
@@ -687,15 +704,19 @@ public final class MainActivity extends Activity {
                 ? (LinearLayout.LayoutParams) prompt.getLayoutParams()
                 : new LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1);
         promptParams.width = 0;
-        promptParams.height = rowHeight;
+        promptParams.height = largeFontInner ? LinearLayout.LayoutParams.WRAP_CONTENT : rowHeight;
         promptParams.weight = 1;
         promptParams.topMargin = 0;
         promptParams.bottomMargin = 0;
         promptParams.leftMargin = 0;
         promptParams.rightMargin = 0;
-        prompt.setMinHeight(rowHeight);
         prompt.setPadding(dp(12), dp(10), dp(12), dp(10));
         prompt.setIncludeFontPadding(true);
+        Paint.FontMetricsInt font = prompt.getPaint().getFontMetricsInt();
+        prompt.setMinHeight(largeFontInner
+                ? NewspaperLayoutDecision.composerMinHeightPx(rowHeight, font.top, font.bottom,
+                        prompt.getPaddingTop(), prompt.getPaddingBottom())
+                : rowHeight);
         prompt.setGravity(Gravity.CENTER_VERTICAL | Gravity.START);
         prompt.setBackground(panelDrawable(palette.stroke()));
         prompt.setHintTextColor(themeColor(R.color.you_asked_label));
@@ -796,8 +817,7 @@ public final class MainActivity extends Activity {
                     LaneCardLayout.gapDp(i));
         }
         if (coverMore == null) {
-            coverMore = newspaperText("", 13, false, false);
-            typography.byline(coverMore);
+            coverMore = bylineText("");
             coverMore.setPadding(dp(4), dp(8), dp(4), dp(4));
         }
         detach(coverMore);
@@ -895,14 +915,53 @@ public final class MainActivity extends Activity {
         }
     }
 
-    private TextView newspaperText(String text, int sizeSp, boolean bold, boolean serif) {
+    private TextView newspaperText(String text) {
         TextView view = new TextView(this);
         view.setText(text);
         view.setTextColor(themeColor(R.color.newspaper_ink));
-        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp);
-        if (serif && bold) typography.headline(view, sizeSp);
-        else if (serif) view.setTypeface(typography.face(TypeConfig.body().face));
-        else view.setTypeface(bold ? typography.interSemibold : typography.interMedium);
+        return view;
+    }
+
+    private TextView headingText(String text) {
+        TextView view = newspaperText(text);
+        typography.headline(view, typography.headingSp());
+        return view;
+    }
+
+    private TextView labelText(String text) {
+        TextView view = newspaperText(text);
+        typography.kicker(view);
+        return view;
+    }
+
+    private TextView stateText(String text) {
+        TextView view = newspaperText(text);
+        typography.state(view);
+        return view;
+    }
+
+    private TextView bylineText(String text) {
+        TextView view = newspaperText(text);
+        typography.byline(view);
+        return view;
+    }
+
+    private TextView bodyText(String text) {
+        TextView view = newspaperText(text);
+        typography.body(view, typography.bodySp());
+        return view;
+    }
+
+    private TextView displayText(String text, int sizeSp) {
+        TextView view = newspaperText(text);
+        typography.display(view, sizeSp);
+        return view;
+    }
+
+    private TextView elapsedText(String text) {
+        TextView view = newspaperText(text);
+        typography.headline(view, ELAPSED_DISPLAY_SP);
+        typography.tabular(view);
         return view;
     }
 
@@ -959,7 +1018,7 @@ public final class MainActivity extends Activity {
         title.setFocusable(true);
         title.setOnClickListener(view -> toggleMenu());
         title.setAccessibilityDelegate(mastheadButtonRole());
-        typography.display(title, 20);
+        typography.display(title, COLLAPSED_MASTHEAD_SP);
         title.setSingleLine(true);
         title.setEllipsize(TextUtils.TruncateAt.END);
         title.setMinHeight(dp(48));
@@ -968,14 +1027,13 @@ public final class MainActivity extends Activity {
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1.6f));
         ((ViewGroup) status.getParent()).removeView(status);
         status.setPadding(dp(4), 0, dp(4), 0);
-        status.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
-        status.setTypeface(typography.interMedium);
+        typography.state(status);
         status.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
         status.setSingleLine(true);
         status.setEllipsize(TextUtils.TruncateAt.END);
         header.addView(status, 1, new LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1f));
-        heatMeter = newspaperText("", 13, false, false);
+        heatMeter = bodyText("");
         heatMeter.setSingleLine(true);
         heatMeter.setEllipsize(TextUtils.TruncateAt.END);
         heatMeter.setGravity(Gravity.END | Gravity.CENTER_VERTICAL);
@@ -987,7 +1045,7 @@ public final class MainActivity extends Activity {
         root.addView(heatMeter, root.indexOfChild(header) + 1,
                 new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
                         LinearLayout.LayoutParams.WRAP_CONTENT));
-        batteryNotice = newspaperText("", TypeConfig.body().sizeSp, false, true);
+        batteryNotice = bodyText("");
         batteryNotice.setPadding(dp(12), 0, dp(12), dp(4));
         batteryNotice.setVisibility(View.GONE);
         batteryNotice.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
@@ -996,8 +1054,7 @@ public final class MainActivity extends Activity {
                         LinearLayout.LayoutParams.WRAP_CONTENT));
         info.setLayoutParams(new LinearLayout.LayoutParams(dp(52), dp(48)));
         header.setPadding(dp(12), dp(2), dp(12), dp(4));
-        bigMasthead = newspaperText(getString(R.string.app_name) + " ⌄", 34, true, true);
-        typography.display(bigMasthead, 34);
+        bigMasthead = displayText(getString(R.string.app_name) + " ⌄", MASTHEAD_DISPLAY_SP);
         bigMasthead.setContentDescription(getString(R.string.app_name) + ", menu");
         bigMasthead.setFocusable(true);
         bigMasthead.setOnClickListener(view -> toggleMenu());
@@ -1008,9 +1065,8 @@ public final class MainActivity extends Activity {
         mastheadBlock.setOrientation(LinearLayout.VERTICAL);
         mastheadBlock.setPadding(dp(12), 0, dp(12), 0);
         mastheadBlock.addView(bigMasthead);
-        TextView dateline = newspaperText(Dateline.format(LocalDate.now()), 12, false, false);
+        dateline = stateText(Dateline.format(LocalDate.now()));
         pcLabelled(dateline, Dateline.format(LocalDate.now(), ComputerWords.PC));
-        dateline.setLetterSpacing(0.08f);
         mastheadBlock.addView(dateline);
         View mastheadRule = new View(this);
         mastheadRule.setBackgroundColor(themeColor(R.color.newspaper_stroke));
@@ -1035,7 +1091,6 @@ public final class MainActivity extends Activity {
         applyPairingTypography();
         prompt.setMinLines(1);
         prompt.setMaxLines(3);
-        applyComposerRowHeight(false);
         resultsScroll.setOnScrollChangeListener((view, x, y, oldX, oldY) -> {
             coverInteractionMs = SystemClock.uptimeMillis();
             setHeaderCollapse(y);
@@ -1065,17 +1120,15 @@ public final class MainActivity extends Activity {
         rightColumn = new LinearLayout(this);
         rightColumn.setOrientation(LinearLayout.VERTICAL);
         timingCard = box();
-        TextView tonightKicker = newspaperText(getString(R.string.tonight_label), 12, true, false);
-        typography.kicker(tonightKicker);
+        tonightKicker = labelText(getString(R.string.tonight_label));
         timingCard.addView(tonightKicker);
-        tonightCount = newspaperText(getString(R.string.tonight_initial_time), 28, true, false);
-        typography.tabular(tonightCount);
+        tonightCount = elapsedText(getString(R.string.tonight_initial_time));
         timingCard.addView(tonightCount);
-        tonightProvenance = newspaperText("", 13, false, false);
+        tonightProvenance = stateText("");
         typography.tabular(tonightProvenance);
         timingCard.addView(tonightProvenance);
         // tonightTiming keeps the plain text for History; tonightRows is what the card shows.
-        tonightTiming = newspaperText("", LaneCardLayout.LABEL_SP, false, false);
+        tonightTiming = stateText("");
         tonightTiming.setVisibility(View.GONE);
         timingCard.addView(tonightTiming);
         tonightRows = new LinearLayout(this);
@@ -1083,7 +1136,7 @@ public final class MainActivity extends Activity {
         tonightRows.setPadding(0, dp(6), 0, 0);
         timingCard.addView(tonightRows, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
-        tonightLeader = newspaperText("", 21, true, false);
+        tonightLeader = headingText("");
         typography.tabular(tonightLeader);
         tonightLeader.setPadding(0, dp(6), 0, 0);
         tonightLeader.setVisibility(View.GONE);
@@ -1093,9 +1146,7 @@ public final class MainActivity extends Activity {
         notes = new LinedNotesEditText(this);
         notes.setTextColor(themeColor(R.color.newspaper_ink));
         notes.setHintTextColor(themeColor(R.color.you_asked_label));
-        notes.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-        notes.setLineSpacing(0f, 1.6f);
-        notes.setTypeface(typography.smTextRegular);
+        typography.body(notes, typography.bodySp());
         notes.setHint(NotesCompact.EMPTY_HINT);
         notes.setGravity(Gravity.TOP | Gravity.START);
         notes.setBackgroundColor(themeColor(R.color.newspaper_paper));
@@ -1114,11 +1165,9 @@ public final class MainActivity extends Activity {
         notesCard.setOnDragListener(notesTargetListener());
         applyNotesCompact();
         summaryCard = box();
-        summaryHeading = newspaperText(getString(R.string.summary_label), typography.headingSp(), true, true);
+        summaryHeading = headingText(getString(R.string.summary_label));
         summaryCard.addView(summaryHeading);
-        summaryText = newspaperText(getString(R.string.summary_empty),
-                typography.bodySp(), false, true);
-        typography.body(summaryText, typography.bodySp());
+        summaryText = bodyText(getString(R.string.summary_empty));
         summaryCard.addView(summaryText, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         resultsScroll.post(() -> {
@@ -1182,7 +1231,7 @@ public final class MainActivity extends Activity {
         list.setBackgroundResource(R.drawable.newspaper_panel);
         for (int i = 0; i < MenuState.ENTRIES.size(); i++) {
             final int index = i;
-            TextView item = newspaperText(MenuState.ENTRIES.get(i), 18, false, true);
+            TextView item = bodyText(MenuState.ENTRIES.get(i));
             item.setGravity(Gravity.CENTER_VERTICAL);
             item.setPadding(dp(16), 0, dp(16), 0);
             item.setBackgroundColor(themeColor(R.color.newspaper_paper));
@@ -1241,17 +1290,17 @@ public final class MainActivity extends Activity {
         typography.headline(heading, typography.headingSp());
         typography.state(stateView);
         typography.tabular(stateView);
-        TextView kicker = newspaperText(PaneKeys.kicker(pane), typography.labelSp(), true, false);
+        TextView kicker = labelText(PaneKeys.kicker(pane));
         if (PaneKeys.pc(pane)) pcLabelled(kicker, PaneKeys.kicker(pane, ComputerWords.PC));
         typography.kicker(kicker);
         card.addView(kicker, 0);
-        TextView byline = newspaperText("", typography.labelSp(), false, false);
+        TextView byline = bylineText("");
         typography.byline(byline);
         byline.setIncludeFontPadding(true);
         byline.setPadding(0, dp(2), 0, dp(2));
         byline.setTextColor(themeColor(R.color.newspaper_ink));
         card.addView(byline, 2);
-        TextView speed = newspaperText("", typography.labelSp(), false, false);
+        TextView speed = stateText("");
         typography.state(speed);
         speed.setVisibility(View.GONE);
         card.addView(speed, 4);
@@ -1330,10 +1379,10 @@ public final class MainActivity extends Activity {
     private PaneViews createExtraArticle(String pane) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        TextView heading = newspaperText(PaneKeys.fallbackLabel(pane), 19, true, true);
-        TextView stateView = newspaperText(getString(R.string.checking), 13, true, false);
+        TextView heading = headingText(PaneKeys.fallbackLabel(pane));
+        TextView stateView = stateText(getString(R.string.checking));
         stateView.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-        TextView answerView = newspaperText("", 17, false, true);
+        TextView answerView = bodyText("");
         answerView.setTextIsSelectable(true);
         card.addView(heading);
         card.addView(stateView);
@@ -1570,33 +1619,28 @@ public final class MainActivity extends Activity {
         padForSystemBars(page);
         LinearLayout bar = new LinearLayout(this);
         bar.setGravity(Gravity.CENTER_VERTICAL);
-        expandedTitle = newspaperText(article.heading.getText().toString(), 26, true, true);
+        expandedTitle = headingText(article.heading.getText().toString());
         bar.addView(expandedTitle, new LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1));
         Button close = new Button(this);
         close.setText(R.string.close);
         close.setAllCaps(false);
-        close.setTypeface(typography.interSemibold);
-        close.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
+        typography.body(close, typography.bodySp());
         close.setTextColor(themeColor(R.color.newspaper_ink));
         close.setBackgroundResource(R.drawable.newspaper_outline);
         close.setOnClickListener(view -> dialog.dismiss());
         bar.addView(close, new LinearLayout.LayoutParams(dp(72), dp(48)));
         page.addView(bar);
-        expandedStatus = newspaperText(status.getText().toString(), 13, true, false);
-        expandedStatus.setTypeface(typography.interMedium);
+        expandedStatus = stateText(status.getText().toString());
         page.addView(expandedStatus);
-        expandedByline = newspaperText(article.byline.getText().toString(), 13, false, false);
-        typography.byline(expandedByline);
+        expandedByline = bylineText(article.byline.getText().toString());
         page.addView(expandedByline);
-        expandedState = newspaperText(article.state.getText().toString(), 13, true, false);
-        typography.state(expandedState);
+        expandedState = stateText(article.state.getText().toString());
         typography.tabular(expandedState);
         page.addView(expandedState);
         expandedScroll = new ScrollView(this);
         expandedFollow = new NewspaperLayoutDecision.FollowTail();
-        expandedAnswer = newspaperText("", 20, false, true);
-        typography.body(expandedAnswer, 20);
+        expandedAnswer = bodyText("");
         expandedAnswer.setTextIsSelectable(true);
         expandedScroll.addView(expandedAnswer);
         expandedScroll.setOnScrollChangeListener((view, x, y, oldX, oldY) -> {
@@ -1657,10 +1701,10 @@ public final class MainActivity extends Activity {
         if (window != null && reduceMotionEnabled) window.setWindowAnimations(0);
         dialog.show();
         if (window != null) {
-            window.setBackgroundDrawableResource(R.color.newspaper_paper);
             window.setLayout(WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.MATCH_PARENT);
         }
+        applyPaletteToDialog(dialog);
     }
 
     private void updateExpanded(PaneViews article) {
@@ -3394,11 +3438,29 @@ public final class MainActivity extends Activity {
         deviceBand.setContentDescription(DeviceLayoutPolicy.description(
                 devicePhoneName.getText().toString(),
                 ComputerWords.title(ComputerWords.current()), deviceLinkState));
-        applyDeviceBandMode();
     }
 
     private void applyDeviceBandMode() {
         if (deviceBand == null) return;
+        boolean largeFontInner = NewspaperLayoutDecision.stackedHeader(
+                getResources().getConfiguration().fontScale, compactLayout, landscapeLayout);
+        if (largeFontInner) {
+            deviceBand.setOrientation(LinearLayout.VERTICAL);
+            devicePhone.setLayoutParams(new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+            LinearLayout.LayoutParams linkParams = new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT);
+            linkParams.topMargin = dp(4);
+            linkParams.bottomMargin = dp(4);
+            deviceLink.setLayoutParams(linkParams);
+            deviceComputer.setLayoutParams(new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
+            for (TextView label : new TextView[]{devicePhoneKicker, devicePhoneName,
+                    deviceComputerKicker, deviceComputerName, deviceLink}) {
+                label.setSingleLine(true);
+                label.setEllipsize(TextUtils.TruncateAt.END);
+            }
+        }
         devicePhoneKicker.setVisibility(coverMode ? View.GONE : View.VISIBLE);
         deviceComputerKicker.setVisibility(coverMode ? View.GONE : View.VISIBLE);
         for (LinearLayout panel : new LinearLayout[]{devicePhone, deviceComputer}) {
@@ -3467,8 +3529,8 @@ public final class MainActivity extends Activity {
         cableBanner.setPadding(dp(12), dp(8), dp(12), dp(8));
         cableBanner.setVisibility(View.GONE);
         cableBanner.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-        cableBannerTitle = newspaperText("", 16, true, false);
-        cableBannerBody = newspaperText(LinkBanner.BODY, 13, false, false);
+        cableBannerTitle = headingText("");
+        cableBannerBody = bodyText(LinkBanner.BODY);
         // TalkBack reads the banner once, from its description, not each line again.
         cableBannerTitle.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
         cableBannerBody.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
@@ -3555,9 +3617,7 @@ public final class MainActivity extends Activity {
             return;
         }
         boolean compactHeat = coverMode || compactLayout;
-        heatMeter.setTypeface(typography.interSemibold);
-        heatMeter.setTextSize(TypedValue.COMPLEX_UNIT_SP,
-                compactHeat ? HeatMeter.TEXT_SP_COMPACT : HeatMeter.TEXT_SP);
+        typography.body(heatMeter, typography.bodySp());
         setIfChanged(heatMeter, HeatMeter.label(status, compactHeat));
         heatMeter.setTextColor(parseHex(palette.colorForTone(HeatMeter.tone(status))));
         heatMeter.setContentDescription(HeatMeter.description(status));
@@ -3763,7 +3823,7 @@ public final class MainActivity extends Activity {
         for (int rowIndex = 0; rowIndex < rows.size(); rowIndex++) {
             TonightRows.Row row = rows.get(rowIndex);
             if (row.note()) {
-                TextView note = newspaperText(row.label, 12, false, false);
+                TextView note = stateText(row.label);
                 typography.tabular(note);
                 note.setPadding(0, dp(2), 0, dp(2));
                 applyTone(note);
@@ -3776,9 +3836,9 @@ public final class MainActivity extends Activity {
             line.setOrientation(LinearLayout.HORIZONTAL);
             line.setGravity(Gravity.BOTTOM);
             line.setPadding(0, dp(3), 0, dp(3));
-            TextView label = newspaperText(row.label, 14, false, false);
+            TextView label = bodyText(row.label);
             label.setSingleLine(false);
-            TextView value = newspaperText(row.value, 14, true, false);
+            TextView value = bodyText(row.value);
             typography.tabular(value);
             value.setGravity(Gravity.END);
             value.setMinWidth(dp(56));
@@ -3868,7 +3928,7 @@ public final class MainActivity extends Activity {
         root.addView(pageBar(getString(R.string.summary_title), getString(R.string.close),
                 view -> dialog.dismiss()));
         ScrollView scroll = new ScrollView(this);
-        fullSummaryText = newspaperText("", typography.bodySp(), false, true);
+        fullSummaryText = bodyText("");
         fullSummaryText.setTextIsSelectable(true);
         fullSummaryText.setPadding(0, dp(12), 0, dp(16));
         scroll.addView(fullSummaryText);
@@ -3876,7 +3936,6 @@ public final class MainActivity extends Activity {
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
         paintSummaryReport(fullSummaryText, summaryText == null ? "" : summaryText.getText().toString());
         showFullPage(dialog, root);
-        applyPaletteToDialog(dialog);
     }
 
     /** A string resource with "PC" replaced by the paired computer's noun (MacBook, Mac or PC). */
@@ -4045,7 +4104,7 @@ public final class MainActivity extends Activity {
     }
 
     private int questionSizeSp() {
-        return landscapeLayout ? TypeConfig.header().sizeSp : QuestionHeadline.baseSp(coverMode);
+        return landscapeLayout ? typography.headingSp() : QuestionHeadline.baseSp(coverMode);
     }
 
     private int questionMinLines() {
@@ -4118,7 +4177,6 @@ public final class MainActivity extends Activity {
 
     private void applyQuestionType(TextView view, int sizeSp) {
         typography.headline(view, sizeSp);
-        view.setTextSize(TypedValue.COMPLEX_UNIT_SP, sizeSp);
         typography.applyLineHeight(view, sizeSp, QuestionHeadline.LEADING);
     }
 
@@ -5082,8 +5140,7 @@ public final class MainActivity extends Activity {
         Button button = new Button(this);
         button.setText(label);
         button.setAllCaps(false);
-        button.setTextSize(TypedValue.COMPLEX_UNIT_SP, 16);
-        button.setTypeface(typography.interSemibold);
+        typography.body(button, typography.bodySp());
         styleChromeOutline(button);
         button.setMinHeight(dp(48));
         button.setMinimumHeight(dp(48));
@@ -5093,7 +5150,7 @@ public final class MainActivity extends Activity {
     private LinearLayout pageBar(String title, String closeLabel, View.OnClickListener close) {
         LinearLayout bar = new LinearLayout(this);
         bar.setGravity(Gravity.CENTER_VERTICAL);
-        TextView heading = newspaperText(title, typography.headingSp(), true, true);
+        TextView heading = headingText(title);
         heading.setAccessibilityHeading(true);
         bar.addView(heading, new LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1));
@@ -5110,10 +5167,10 @@ public final class MainActivity extends Activity {
         if (window != null) window.setWindowAnimations(0);
         dialog.show();
         if (window != null) {
-            window.setBackgroundDrawableResource(R.color.newspaper_paper);
             window.setLayout(WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.MATCH_PARENT);
         }
+        applyPaletteToDialog(dialog);
     }
 
     private void showModelSelection() {
@@ -5140,12 +5197,11 @@ public final class MainActivity extends Activity {
                 LinearLayout.LayoutParams.MATCH_PARENT, dp(1));
         ruleParams.topMargin = dp(12);
         root.addView(rule, ruleParams);
-        TextView note = newspaperText(
-                "Phone models answer one at a time. Computer models can answer together.",
-                15, false, false);
+        TextView note = bodyText(
+                "Phone models answer one at a time. Computer models can answer together.");
         note.setPadding(0, dp(14), 0, dp(10));
         root.addView(note);
-        modelSelectionNotice = newspaperText("", 14, true, false);
+        modelSelectionNotice = stateText("");
         root.addView(modelSelectionNotice);
         ScrollView scroll = new ScrollView(this);
         modelRows = new LinearLayout(this);
@@ -5213,7 +5269,7 @@ public final class MainActivity extends Activity {
     }
 
     private void addModelSection(String heading) {
-        TextView section = newspaperText(heading, 24, true, true);
+        TextView section = headingText(heading);
         section.setAccessibilityHeading(true);
         section.setPadding(0, dp(18), 0, dp(8));
         modelRows.addView(section);
@@ -5230,19 +5286,19 @@ public final class MainActivity extends Activity {
         row.setPadding(0, dp(14), 0, dp(14));
         LinearLayout details = new LinearLayout(this);
         details.setOrientation(LinearLayout.VERTICAL);
-        TextView title = newspaperText(modelLabel(pane, view), 21, true, true);
+        TextView title = headingText(modelLabel(pane, view));
         details.addView(title);
         modelLabels.put(pane, title);
-        TextView meta = newspaperText(modelDetails(pane, view), 13, false, false);
+        TextView meta = stateText(modelDetails(pane, view));
         typography.tabular(meta);
         details.addView(meta);
         modelMetaViews.put(pane, meta);
-        TextView ready = newspaperText("", 13, true, false);
+        TextView ready = stateText("");
         details.addView(ready);
         modelReadyHints.put(pane, ready);
         row.addView(details, new LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1));
-        TextView toggle = newspaperText("", 14, true, false);
+        TextView toggle = bodyText("");
         toggle.setGravity(Gravity.CENTER);
         toggle.setFocusable(true);
         toggle.setAccessibilityDelegate(new View.AccessibilityDelegate() {
@@ -5320,9 +5376,11 @@ public final class MainActivity extends Activity {
             if (toggle == null) continue;
             boolean on = laneSelection.isOn(available, ready, pane);
             setIfChanged(toggle, on ? "ON" : "OFF");
-            toggle.setTextColor(on ? themeColor(R.color.newspaper_paper) : themeColor(R.color.newspaper_ink));
-            toggle.setBackgroundResource(on ? R.drawable.newspaper_primary
-                    : R.drawable.newspaper_outline);
+            toggle.setTextColor(parseHex(palette.selectionText(on)));
+            GradientDrawable toggleBackground = new GradientDrawable();
+            toggleBackground.setColor(parseHex(palette.selectionFill(on)));
+            if (!on) toggleBackground.setStroke(cardStrokePx(), themeColor(R.color.newspaper_stroke));
+            toggle.setBackground(toggleBackground);
             toggle.setTag(R.id.model_toggle_selected, on);
             toggle.setContentDescription(modelLabel(pane, view));
         }
@@ -5347,7 +5405,7 @@ public final class MainActivity extends Activity {
         root.addView(pageBar(getString(R.string.history_title), getString(R.string.close),
                 view -> dialog.dismiss()));
         // Palette and typography follow the current theme.
-        TextView note = newspaperText(getString(R.string.history_subtitle), 14, false, false);
+        TextView note = bodyText(getString(R.string.history_subtitle));
         note.setPadding(0, dp(10), 0, dp(10));
         root.addView(note);
         View rule = new View(this);
@@ -5377,7 +5435,6 @@ public final class MainActivity extends Activity {
         clearParams.topMargin = dp(10);
         root.addView(clear, clearParams);
         showFullPage(dialog, root);
-        applyPaletteToDialog(dialog);
         fillHistoryRows();
     }
 
@@ -5386,7 +5443,7 @@ public final class MainActivity extends Activity {
         historyRows.removeAllViews();
         List<HistoryStore.Issue> issues = historyStore.list();
         if (issues.isEmpty()) {
-            TextView empty = newspaperText(getString(R.string.history_empty), 18, false, true);
+            TextView empty = bodyText(getString(R.string.history_empty));
             empty.setPadding(0, dp(24), 0, 0);
             historyRows.addView(empty);
             return;
@@ -5404,16 +5461,15 @@ public final class MainActivity extends Activity {
                             issueDate(issue.askedAtMs))
                     : getString(R.string.history_open_description,
                             savedHeadline, issueDate(issue.askedAtMs)));
-            TextView date = newspaperText(issueDate(issue.askedAtMs), 13, true, false);
+            TextView date = stateText(issueDate(issue.askedAtMs));
             typography.tabular(date);
             row.addView(date);
-            TextView headline = newspaperText(mapped.headline, 23, true, true);
+            TextView headline = headingText(mapped.headline);
             setQuestionHeadline(headline, mapped.headline);
             row.addView(headline);
-            row.addView(newspaperText(getString(R.string.history_answered_by, mapped.answeredBy),
-                    13, false, false));
+            row.addView(stateText(getString(R.string.history_answered_by, mapped.answeredBy)));
             if (!issue.sourceId.isEmpty()) {
-                TextView link = newspaperText(getString(R.string.history_linked_refresh), 13, false, false);
+                TextView link = stateText(getString(R.string.history_linked_refresh));
                 link.setTextColor(themeColor(R.color.you_asked_label));
                 row.addView(link);
             }
@@ -5445,31 +5501,24 @@ public final class MainActivity extends Activity {
         // A saved answer keeps the noun of the computer that wrote it, when known.
         String laneWhere = PaneKeys.archivedWhere(lane.where);
         String laneComputer = PaneKeys.archivedComputer(lane.where);
-        TextView kicker = newspaperText(PaneKeys.kicker(lane.pane, laneComputer),
-                LaneCardLayout.LABEL_SP, true, false);
-        typography.kicker(kicker);
+        TextView kicker = labelText(PaneKeys.kicker(lane.pane, laneComputer));
         card.addView(kicker);
-        card.addView(newspaperText(HistoryDisplay.label(lane), LaneCardLayout.headingSp(PaneKeys.extra(lane.pane),
-                "gpu".equals(lane.pane)), true, true));
+        card.addView(headingText(HistoryDisplay.label(lane)));
         String savedMaker = HistoryDisplay.maker(lane);
         String byline = savedMaker.isEmpty() ? laneWhere
                 : laneWhere.isEmpty() ? savedMaker : savedMaker + " · " + laneWhere;
-        TextView bylineView = newspaperText(byline, LaneCardLayout.LABEL_SP, false, false);
-        typography.byline(bylineView);
+        TextView bylineView = bylineText(byline);
         card.addView(bylineView);
-        TextView stateView = newspaperText(lane.state, LaneCardLayout.LABEL_SP, true, false);
-        typography.state(stateView);
+        TextView stateView = stateText(lane.state);
         typography.tabular(stateView);
         applyTone(stateView);
         card.addView(stateView);
         if (lane.truncated) {
-            TextView excerpt = newspaperText(getString(R.string.history_answer_shortened),
-                    LaneCardLayout.LABEL_SP, true, false);
+            TextView excerpt = stateText(getString(R.string.history_answer_shortened));
             typography.tabular(excerpt);
             card.addView(excerpt);
         }
-        TextView answer = newspaperText("", LaneCardLayout.BODY_SP_FULL, false, true);
-        typography.body(answer, LaneCardLayout.BODY_SP_FULL);
+        TextView answer = bodyText("");
         answer.setTextIsSelectable(true);
         setMarkdownAnswer(answer, AnswerDisplay.text(lane.pane, lane.text));
         LinearLayout.LayoutParams bodyParams = new LinearLayout.LayoutParams(
@@ -5498,18 +5547,17 @@ public final class MainActivity extends Activity {
         ScrollView scroll = new ScrollView(this);
         LinearLayout page = new LinearLayout(this);
         page.setOrientation(LinearLayout.VERTICAL);
-        TextView date = newspaperText(getString(R.string.history_back_issue_date,
-                        issueDate(saved.askedAtMs)),
-                13, true, false);
+        TextView date = stateText(getString(R.string.history_back_issue_date,
+                        issueDate(saved.askedAtMs)));
         typography.tabular(date);
         date.setPadding(0, dp(10), 0, 0);
         page.addView(date);
-        TextView headline = newspaperText(issue.headline, 26, true, true);
+        TextView headline = headingText(issue.headline);
         setQuestionHeadline(headline, issue.headline);
         headline.setPadding(0, dp(6), 0, dp(10));
         page.addView(headline);
         if (!saved.sourceId.isEmpty()) {
-            TextView linked = newspaperText(getString(R.string.history_linked_refresh), 13, false, false);
+            TextView linked = stateText(getString(R.string.history_linked_refresh));
             linked.setTextColor(themeColor(R.color.you_asked_label));
             page.addView(linked);
         }
@@ -5526,14 +5574,12 @@ public final class MainActivity extends Activity {
         page.addView(refresh, refreshParams);
         addThenVersusNow(page, saved);
         LinearLayout timing = savedBox();
-        TextView timingKicker = newspaperText(getString(R.string.tonight_label), 12, true, false);
-        typography.kicker(timingKicker);
+        TextView timingKicker = labelText(getString(R.string.tonight_label));
         timing.addView(timingKicker);
-        TextView timingCount = newspaperText(issue.elapsed, 28, true, false);
-        typography.tabular(timingCount);
+        TextView timingCount = elapsedText(issue.elapsed);
         timing.addView(timingCount);
         if (!issue.elapsedLabel.isEmpty()) {
-            timing.addView(newspaperText(issue.elapsedLabel, 13, false, false));
+            timing.addView(stateText(issue.elapsedLabel));
         }
         LinearLayout timingRows = new LinearLayout(this);
         timingRows.setOrientation(LinearLayout.VERTICAL);
@@ -5566,12 +5612,11 @@ public final class MainActivity extends Activity {
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT));
             LinearLayout archive = savedBox();
-            archive.addView(newspaperText(getString(R.string.history_archive_label), 21, true, true));
-            TextView archiveDate = newspaperText(issueDate(saved.askedAtMs), 15, false, false);
+            archive.addView(headingText(getString(R.string.history_archive_label)));
+            TextView archiveDate = bodyText(issueDate(saved.askedAtMs));
             typography.tabular(archiveDate);
             archive.addView(archiveDate);
-            archive.addView(newspaperText(getString(R.string.history_answered_by, issue.answeredBy),
-                    15, false, false));
+            archive.addView(bodyText(getString(R.string.history_answered_by, issue.answeredBy)));
             putWrapCard(left, archive, BACK_ISSUE_ARCHIVE_MIN_DP, LaneCardLayout.CARD_GAP_DP);
             for (HistoryStore.Lane lane : issue.lanes) {
                 if ("phone".equals(lane.pane)) {
@@ -5594,9 +5639,8 @@ public final class MainActivity extends Activity {
             }
         }
         LinearLayout summary = savedBox();
-        summary.addView(newspaperText(getString(R.string.summary_label), 21, true, true));
-        TextView summaryLine = newspaperText(getString(R.string.history_answered_by, issue.answeredBy),
-                13, false, false);
+        summary.addView(headingText(getString(R.string.summary_label)));
+        TextView summaryLine = stateText(getString(R.string.history_answered_by, issue.answeredBy));
         typography.tabular(summaryLine);
         summary.addView(summaryLine);
         putWrapCard(page, summary, BACK_ISSUE_SUMMARY_MIN_DP, LaneCardLayout.CARD_GAP_DP);
@@ -5604,7 +5648,6 @@ public final class MainActivity extends Activity {
         root.addView(scroll, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
         showFullPage(dialog, root);
-        applyPaletteToDialog(dialog);
     }
 
     private void refreshHistoryIssue(HistoryStore.Issue saved, Dialog dialog) {
@@ -5633,7 +5676,7 @@ public final class MainActivity extends Activity {
         HistoryStore.Issue nowIssue = saved.sourceId.isEmpty()
                 ? HistoryRefresh.latestRefresh(issues, saved) : saved;
         if (thenIssue == null || nowIssue == null || thenIssue.id.equals(nowIssue.id)) return;
-        TextView heading = newspaperText(getString(R.string.history_then_vs_now), 21, true, true);
+        TextView heading = headingText(getString(R.string.history_then_vs_now));
         heading.setAccessibilityHeading(true);
         heading.setPadding(0, dp(8), 0, dp(8));
         typography.headline(heading, typography.headingSp());
@@ -5650,9 +5693,7 @@ public final class MainActivity extends Activity {
     private LinearLayout thenNowCard(HistoryRefresh.LaneCompare row) {
         LinearLayout card = savedBox();
         // The two saved runs may have used different computers.
-        TextView kicker = newspaperText(PaneKeys.kicker(row.pane, ComputerWords.COMPUTER),
-                typography.labelSp(), true, false);
-        typography.kicker(kicker);
+        TextView kicker = labelText(PaneKeys.kicker(row.pane, ComputerWords.COMPUTER));
         card.addView(kicker);
         card.addView(thenNowBlock(row.pane, getString(R.string.history_then),
                 row.thenLabel,
@@ -5672,21 +5713,18 @@ public final class MainActivity extends Activity {
         LinearLayout block = new LinearLayout(this);
         block.setOrientation(LinearLayout.VERTICAL);
         block.setPadding(0, dp(8), 0, 0);
-        TextView label = newspaperText(heading, typography.labelSp(), true, false);
-        typography.kicker(label);
+        TextView label = labelText(heading);
         label.setAccessibilityHeading(true);
         block.addView(label);
         if (modelLabel != null && !modelLabel.isEmpty()) {
-            block.addView(newspaperText(modelLabel, typography.headingSp(), true, true));
+            block.addView(headingText(modelLabel));
         }
-        TextView stateView = newspaperText(state, typography.labelSp(), true, false);
-        typography.state(stateView);
+        TextView stateView = stateText(state);
         typography.tabular(stateView);
         stateView.setTextColor(parseHex(palette.colorForTone(tone)));
         block.addView(stateView);
         if (!body.isEmpty()) {
-            TextView answer = newspaperText("", typography.bodySp(), false, true);
-            typography.body(answer, typography.bodySp());
+            TextView answer = bodyText("");
             answer.setTextIsSelectable(true);
             setMarkdownAnswer(answer, AnswerDisplay.text(pane, body));
             block.addView(answer);
@@ -5765,6 +5803,7 @@ public final class MainActivity extends Activity {
             window.setLayout(WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.MATCH_PARENT);
         }
+        applyPaletteToDialog(dialog);
     }
 
     private String trustedPcLabel() {
@@ -5833,6 +5872,7 @@ public final class MainActivity extends Activity {
         handler.removeCallbacks(poll);
         info.findViewById(R.id.info_forget_pc).setEnabled(false);
         setIfChanged(info.findViewById(R.id.info_forget_error), "");
+        styleInfoError(info);
         updateButtons();
         network.execute(() -> {
             try {
@@ -5852,6 +5892,7 @@ public final class MainActivity extends Activity {
                             ? failure.getMessage() : getString(R.string.action_failed);
                     if (info.isShowing()) {
                         setIfChanged(info.findViewById(R.id.info_forget_error), message);
+                        styleInfoError(info);
                         JSONObject gpu = snapshot == null ? null : snapshot.optJSONObject("gpu");
                         updateInfoPcRows(info, gpu, pcConnection(gpu));
                     } else setIfChanged(error, message);
@@ -5907,8 +5948,8 @@ public final class MainActivity extends Activity {
         renderLinkBanner(pcConnection(gpu) == Connection.CONNECTED, hasVisiblePcWork());
     }
 
-    private void applySystemBars() {
-        Window window = getWindow();
+    private void applySystemBars(Window window) {
+        if (window == null) return;
         int paper = themeColor(R.color.newspaper_paper);
         window.setStatusBarColor(paper);
         window.setNavigationBarColor(paper);
@@ -5917,7 +5958,7 @@ public final class MainActivity extends Activity {
             if (controller != null) {
                 int light = android.view.WindowInsetsController.APPEARANCE_LIGHT_STATUS_BARS
                         | android.view.WindowInsetsController.APPEARANCE_LIGHT_NAVIGATION_BARS;
-                controller.setSystemBarsAppearance(palette.light() ? light : 0, light);
+                controller.setSystemBarsAppearance(palette.darkSystemBarIcons() ? light : 0, light);
             }
         } else {
             View decor = window.getDecorView();
@@ -5926,7 +5967,8 @@ public final class MainActivity extends Activity {
             if (Build.VERSION.SDK_INT >= 26) {
                 lightFlags |= View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR;
             }
-            decor.setSystemUiVisibility(palette.light() ? flags | lightFlags : flags & ~lightFlags);
+            decor.setSystemUiVisibility(palette.darkSystemBarIcons()
+                    ? flags | lightFlags : flags & ~lightFlags);
         }
     }
 
@@ -5999,6 +6041,13 @@ public final class MainActivity extends Activity {
         error.setTextColor(parseHex(has ? palette.error() : palette.ink()));
     }
 
+    private void styleInfoError(Dialog dialog) {
+        TextView line = dialog.findViewById(R.id.info_forget_error);
+        if (line == null) return;
+        boolean hasError = line.getText() != null && line.getText().length() > 0;
+        line.setTextColor(parseHex(hasError ? palette.error() : palette.ink()));
+    }
+
     private void styleErrorButton(Button button, boolean errorState) {
         if (button == null) return;
         styleButton(button, parseHex(errorState ? palette.error() : palette.ink()),
@@ -6012,12 +6061,15 @@ public final class MainActivity extends Activity {
     }
 
     private void applyPaletteToPage() {
-        applySystemBars();
+        applySystemBars(getWindow());
         int paper = themeColor(R.color.newspaper_paper);
         int ink = themeColor(R.color.newspaper_ink);
         int label = themeColor(R.color.you_asked_label);
+        View root = findViewById(R.id.root);
+        if (root != null) root.setBackgroundColor(paper);
         if (screen != null) screen.setBackgroundColor(paper);
         recolorChrome(screen, paper, ink, label);
+        if (pairingClosed != null) pairingClosed.setBackground(panelDrawable(palette.stroke()));
         if (pairing != null) {
             pairing.setBackgroundColor(paper);
             recolorChrome(pairing, paper, ink, label);
@@ -6151,18 +6203,48 @@ public final class MainActivity extends Activity {
 
     private void applyPaletteToDialog(Dialog dialog) {
         if (dialog == null || dialog.getWindow() == null) return;
-        dialog.getWindow().setBackgroundDrawable(new ColorDrawable(themeColor(R.color.newspaper_paper)));
-        dialog.getWindow().setStatusBarColor(themeColor(R.color.newspaper_paper));
-        dialog.getWindow().setNavigationBarColor(themeColor(R.color.newspaper_paper));
-        recolorChrome(dialog.getWindow().getDecorView(),
-                themeColor(R.color.newspaper_paper),
-                themeColor(R.color.newspaper_ink),
+        Window window = dialog.getWindow();
+        int paper = themeColor(R.color.newspaper_paper);
+        int ink = themeColor(R.color.newspaper_ink);
+        window.setBackgroundDrawable(new ColorDrawable(paper));
+        applySystemBars(window);
+        View content = window.findViewById(android.R.id.content);
+        if (content instanceof ViewGroup && ((ViewGroup) content).getChildCount() > 0) {
+            ((ViewGroup) content).getChildAt(0).setBackgroundColor(paper);
+        }
+        View infoPage = dialog.findViewById(R.id.info_page);
+        if (infoPage != null) infoPage.setBackgroundColor(paper);
+        if (dialog == settingsDialog && settingsPage != null) settingsPage.setBackgroundColor(paper);
+        View infoRule = dialog.findViewById(R.id.info_rule);
+        if (infoRule != null) infoRule.setBackgroundColor(ink);
+        recolorChrome(window.getDecorView(), paper, ink,
                 themeColor(R.color.you_asked_label));
+        if (dialog == infoDialog) {
+            applyTone(dialog.findViewById(R.id.info_pc_status));
+            applyTone(dialog.findViewById(R.id.info_pairing));
+            styleInfoError(dialog);
+        }
     }
 
     private void applyTypographyToPage() {
         typography.useChoice(uiSettings.typography());
         typography.useCover(coverMode);
+        if (smallMasthead != null) typography.display(smallMasthead, COLLAPSED_MASTHEAD_SP);
+        if (dateline != null) typography.state(dateline);
+        typography.state(status);
+        if (compactLaneStatus != null) typography.state(compactLaneStatus);
+        if (coverMore != null) typography.byline(coverMore);
+        typography.body(prompt, typography.bodySp());
+        typography.body(send, typography.bodySp());
+        typography.body(stop, typography.bodySp());
+        typography.body(reconnect, typography.bodySp());
+        typography.body(resetAskCopy, typography.bodySp());
+        typography.body(resetAsk, typography.bodySp());
+        typography.body(info, typography.bodySp());
+        typography.body(settings, typography.bodySp());
+        typography.body(error, typography.bodySp());
+        typography.retry(retry);
+        typography.kicker(findViewById(R.id.question_label));
         applyPairingTypography();
         if (deviceBand != null) {
             typography.kicker(devicePhoneKicker);
@@ -6173,12 +6255,28 @@ public final class MainActivity extends Activity {
             deviceLink.setFontFeatureSettings(null);
         }
         if (bigMasthead != null) {
-            typography.display(bigMasthead, coverMode ? CoverScreenPolicy.MASTHEAD_SP : 34);
+            typography.display(bigMasthead, coverMode
+                    ? CoverScreenPolicy.MASTHEAD_SP : MASTHEAD_DISPLAY_SP);
         }
         if (question != null) applyQuestionLayout(question);
         if (notesTabLabel != null) typography.kicker(notesTabLabel);
         if (summaryHeading != null) typography.headline(summaryHeading, typography.headingSp());
         if (summaryText != null) setSummaryReport(summaryText.getText().toString());
+        if (tonightKicker != null) typography.kicker(tonightKicker);
+        if (tonightCount != null) {
+            typography.headline(tonightCount, ELAPSED_DISPLAY_SP);
+            typography.tabular(tonightCount);
+        }
+        if (tonightProvenance != null) typography.state(tonightProvenance);
+        if (tonightTiming != null) typography.state(tonightTiming);
+        if (tonightLeader != null) {
+            typography.headline(tonightLeader, typography.headingSp());
+            typography.tabular(tonightLeader);
+        }
+        if (cableBannerTitle != null) typography.headline(cableBannerTitle, typography.headingSp());
+        if (cableBannerBody != null) typography.body(cableBannerBody, typography.bodySp());
+        if (heatMeter != null) typography.body(heatMeter, typography.bodySp());
+        if (batteryNotice != null) typography.body(batteryNotice, typography.bodySp());
         for (PaneViews pane : paneViews.values()) {
             typography.headline(pane.heading, typography.headingSp());
             typography.kicker(pane.kicker);
@@ -6209,6 +6307,7 @@ public final class MainActivity extends Activity {
         dialog.setOnDismissListener(ignored -> {
             if (settingsDialog == dialog) {
                 settingsDialog = null;
+                settingsPage = null;
                 settingsLabList = null;
             }
         });
@@ -6216,31 +6315,26 @@ public final class MainActivity extends Activity {
         scroll.setFillViewport(true);
         scroll.setClipToPadding(true);
         LinearLayout page = new LinearLayout(this);
+        settingsPage = page;
         page.setOrientation(LinearLayout.VERTICAL);
         int pagePad = dp(coverMode ? 10 : 16);
         page.setPadding(pagePad, pagePad, pagePad, pagePad);
         page.setBackgroundColor(themeColor(R.color.newspaper_paper));
         page.addView(pageBar(getString(R.string.settings), getString(R.string.close),
                 view -> dialog.dismiss()));
-        TextView section = newspaperText(getString(R.string.settings_ui), typography.labelSp(), true, false);
-        typography.kicker(section);
+        TextView section = labelText(getString(R.string.settings_ui));
         section.setPadding(0, dp(coverMode ? 8 : 16), 0, dp(coverMode ? 4 : 8));
         page.addView(section);
         // Theme first so Dark / Light / Follow system are on-screen on a 720x748 cover.
-        TextView themeHeading = newspaperText(getString(R.string.settings_theme),
-                typography.headingSp(), true, true);
-        typography.headline(themeHeading, typography.headingSp());
+        TextView themeHeading = headingText(getString(R.string.settings_theme));
         themeHeading.setPadding(0, dp(coverMode ? 4 : 8), 0, dp(coverMode ? 4 : 8));
         page.addView(themeHeading);
         LinearLayout themeList = new LinearLayout(this);
         themeList.setOrientation(LinearLayout.VERTICAL);
         page.addView(themeList);
-        TextView labHeading = newspaperText(getString(R.string.settings_design_lab),
-                typography.headingSp(), true, true);
-        typography.headline(labHeading, typography.headingSp());
+        TextView labHeading = headingText(getString(R.string.settings_design_lab));
         labHeading.setPadding(0, dp(16), 0, dp(4));
-        TextView labNote = newspaperText(getString(R.string.settings_design_lab_note),
-                typography.labelSp(), false, false);
+        TextView labNote = stateText(getString(R.string.settings_design_lab_note));
         labNote.setTextColor(themeColor(R.color.you_asked_label));
         LinearLayout labList = new LinearLayout(this);
         labList.setOrientation(LinearLayout.VERTICAL);
@@ -6264,6 +6358,7 @@ public final class MainActivity extends Activity {
             window.setLayout(WindowManager.LayoutParams.MATCH_PARENT,
                     WindowManager.LayoutParams.MATCH_PARENT);
         }
+        applyPaletteToDialog(dialog);
     }
 
     private void bindSettingsLists(LinearLayout themeList) {
@@ -6278,6 +6373,10 @@ public final class MainActivity extends Activity {
                 if (!uiSettings.setTheme(choice)) return;
                 applyUi();
                 updateOptionRows(themeList, themes, choice);
+                if (settingsLabList != null) {
+                    updateOptionRows(settingsLabList,
+                            DesignLab.MODES.toArray(new String[0]), uiSettings.designLab());
+                }
                 view.sendAccessibilityEvent(
                         android.view.accessibility.AccessibilityEvent.TYPE_VIEW_SELECTED);
             });
@@ -6315,10 +6414,10 @@ public final class MainActivity extends Activity {
         row.setPadding(pad, pad, pad, pad);
         row.setMinimumHeight(dp(48));
         row.setGravity(Gravity.CENTER_VERTICAL);
-        TextView heading = newspaperText(title, typography.labelSp() + 2, true, false);
+        TextView heading = bodyText(title);
         heading.setTextColor(themeColor(R.color.newspaper_ink));
         row.addView(heading);
-        TextView sub = newspaperText("", typography.labelSp(), false, false);
+        TextView sub = stateText("");
         sub.setTextColor(themeColor(R.color.you_asked_label));
         sub.setPadding(0, dp(2), 0, 0);
         row.addView(sub);
@@ -6531,29 +6630,34 @@ public final class MainActivity extends Activity {
         FrameLayout stage = findViewById(R.id.results_stage);
         if (stage == null || notesCard == null) return;
         if (notesDock == null) {
+            boolean largeFontInner = NewspaperLayoutDecision.stackedHeader(
+                    getResources().getConfiguration().fontScale, compactLayout, landscapeLayout);
             notesDock = new LinearLayout(this);
             notesDock.setOrientation(LinearLayout.VERTICAL);
-            LinearLayout tabRow = new LinearLayout(this);
-            tabRow.setOrientation(LinearLayout.HORIZONTAL);
-            tabRow.setGravity(Gravity.CENTER_HORIZONTAL);
+            notesTabRow = new LinearLayout(this);
+            notesTabRow.setOrientation(LinearLayout.HORIZONTAL);
+            notesTabRow.setGravity(Gravity.CENTER_HORIZONTAL);
             notesTab = new LinearLayout(this);
             notesTab.setOrientation(LinearLayout.HORIZONTAL);
             notesTab.setGravity(Gravity.CENTER);
             notesTab.setPadding(dp(18), dp(8), dp(18), dp(6));
+            if (largeFontInner) notesTab.setMinimumHeight(dp(NotesSheet.TAB_DP));
             notesTab.setClickable(true);
             notesTab.setFocusable(true);
             notesTab.setId(View.generateViewId());
             notesTab.setAccessibilityDelegate(mastheadButtonRole());
             notesTab.setOnClickListener(view -> setNotesSheetState(
                     NotesSheet.onTabTap(notesSheetState), true));
-            notesTabLabel = newspaperText(NotesSheet.tabLabel(0), typography.labelSp(), true, false);
+            notesTabLabel = labelText(NotesSheet.tabLabel(0));
             typography.kicker(notesTabLabel);
             notesTab.addView(notesTabLabel);
-            tabRow.addView(notesTab, new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.WRAP_CONTENT, dp(NotesSheet.TAB_DP)));
+            notesTabRow.addView(notesTab, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.WRAP_CONTENT,
+                    largeFontInner ? LinearLayout.LayoutParams.WRAP_CONTENT : dp(NotesSheet.TAB_DP)));
             // A clear strip above the tab makes it a 48 dp touch target without a bigger tab.
-            tabRow.setPadding(0, dp(NotesSheet.TAB_SLOP_DP), 0, 0);
-            tabRow.addOnLayoutChangeListener((view, l, t, r, b, ol, ot, or, ob) -> {
+            notesTabRow.setPadding(0, dp(NotesSheet.TAB_SLOP_DP), 0, 0);
+            if (largeFontInner) notesTabRow.setMinimumHeight(dp(NotesSheet.TAB_TOUCH_DP));
+            notesTabRow.addOnLayoutChangeListener((view, l, t, r, b, ol, ot, or, ob) -> {
                 Rect hit = new Rect();
                 notesTab.getHitRect(hit);
                 hit.top = 0;
@@ -6565,9 +6669,15 @@ public final class MainActivity extends Activity {
                 if (hit.right > r - l) hit.offset((r - l) - hit.right, 0);
                 hit.left = Math.max(0, hit.left);
                 view.setTouchDelegate(new TouchDelegate(hit, notesTab));
+                if (largeFontInner && b - t != ob - ot) {
+                    view.post(() -> applyNotesSheetHeight(NotesSheet.height(notesSheetState,
+                            notesCollapsedH(), notesHalfH(), notesFullH())));
+                }
             });
-            notesDock.addView(tabRow, new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT, dp(NotesSheet.TAB_TOUCH_DP)));
+            notesDock.addView(notesTabRow, new LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    largeFontInner ? LinearLayout.LayoutParams.WRAP_CONTENT
+                            : dp(NotesSheet.TAB_TOUCH_DP)));
             detach(notesCard);
             notesCard.setLayoutTransition(null);
             notesCard.setMinimumHeight(0);
@@ -6679,7 +6789,8 @@ public final class MainActivity extends Activity {
     };
 
     private int notesCollapsedH() {
-        return dp(NotesSheet.collapsedTabHeightDp(landscapeLayout));
+        return NotesSheet.collapsedTabHeightPx(landscapeLayout,
+                notesTabRow == null ? 0 : notesTabRow.getHeight(), dp(NotesSheet.TAB_TOUCH_DP));
     }
 
     private ViewGroup notesOverlayHost() {

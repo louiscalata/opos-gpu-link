@@ -19,6 +19,7 @@ final class CoverScreenPolicy {
     static final int COMPOSER_ROW_DP = 52;
     static final int KEYBOARD_COMPOSER_ROW_DP = 48;
     static final int MIN_ACTION_ROW_DP = 48;
+    /** The cover masthead is a display mark sized for its short header. */
     static final int MASTHEAD_SP = 24;
 
     private CoverScreenPolicy() {}
@@ -173,22 +174,22 @@ final class CoverScreenPolicy {
     }
 
     static final class Chrome {
-        final boolean statusDetail;
+        final int statusLines;
         final boolean heat;
 
-        Chrome(boolean statusDetail, boolean heat) {
-            this.statusDetail = statusDetail;
+        Chrome(int statusLines, boolean heat) {
+            this.statusLines = statusLines;
             this.heat = heat;
         }
     }
 
-    /** Keep the action row; when the cover is short, remove heat before status detail. */
-    static Chrome chromeForSpace(int availablePx, int essentialPx, int statusPx, int heatPx) {
+    /** The action row and one live status line always stay; a second line takes priority over heat. */
+    static Chrome chromeForSpace(int availablePx, int essentialPx, int statusExtraPx, int heatPx) {
         int free = Math.max(0, availablePx - essentialPx);
-        boolean statusDetail = statusPx > 0 && free >= statusPx;
-        boolean heat = heatPx > 0 && free >= statusPx + heatPx
-                && (statusPx == 0 || statusDetail);
-        return new Chrome(statusDetail, heat);
+        int statusLines = statusExtraPx > 0 && free >= statusExtraPx ? 2 : 1;
+        boolean heat = heatPx > 0 && free >= statusExtraPx + heatPx
+                && (statusExtraPx == 0 || statusLines == 2);
+        return new Chrome(statusLines, heat);
     }
 
     static int mastheadDp(boolean keyboardVisible) {

@@ -15,6 +15,14 @@ final class NewspaperLayoutDecision {
         return fontScale >= 1.5f && !compactLayout && !landscapeLayout;
     }
 
+    /** One complete prompt line plus its padding, with the normal row as a floor. */
+    static int composerMinHeightPx(int rowPx, int fontTopPx, int fontBottomPx,
+                                   int paddingTopPx, int paddingBottomPx) {
+        int linePx = Math.max(0, fontBottomPx - fontTopPx);
+        return Math.max(rowPx, linePx + Math.max(0, paddingTopPx)
+                + Math.max(0, paddingBottomPx));
+    }
+
     static final class ArticleSlot {
         final int column;
         final int heightDp;

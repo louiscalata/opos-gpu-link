@@ -11,6 +11,8 @@ public final class NewspaperLayoutDecisionTest {
         check(NewspaperLayoutDecision.stackedHeader(2f, false, false));
         check(!NewspaperLayoutDecision.stackedHeader(2f, true, false));
         check(!NewspaperLayoutDecision.stackedHeader(2f, false, true));
+        equal(64, NewspaperLayoutDecision.composerMinHeightPx(64, -18, 22, 10, 10));
+        equal(90, NewspaperLayoutDecision.composerMinHeightPx(64, -45, 25, 10, 10));
         for (int count = 1; count <= 6; count++) {
             NewspaperLayoutDecision.ArticleSlot[] mosaic =
                     NewspaperLayoutDecision.articleSlots(count, false);
