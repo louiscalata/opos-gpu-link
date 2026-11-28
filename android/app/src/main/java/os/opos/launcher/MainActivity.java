@@ -5259,17 +5259,18 @@ public final class MainActivity extends Activity {
         });
         dialog.setContentView(R.layout.gpu_link_info);
         pcLabelStatic(dialog.getWindow().getDecorView(), new int[][]{
-                {R.id.info_pc_label_text, R.string.info_pc_label},
-                {R.id.info_pc_id_label_text, R.string.info_pc_id_label},
-                {R.id.info_pc_status_label_text, R.string.info_pc_status_label},
                 {R.id.info_forget_pc, R.string.forget_pc},
                 {R.id.info_replace_pc_steps, R.string.info_replace_pc_steps}});
+        pcLabelled(dialog.findViewById(R.id.info_pc_label_text), "PC");
+        pcLabelled(dialog.findViewById(R.id.info_pc_id_label_text), "PC ID");
+        pcLabelled(dialog.findViewById(R.id.info_pc_status_label_text), "PC status");
         typography.defaults(dialog.getWindow().getDecorView());
         applyPaletteToDialog(dialog);
         typography.headline(dialog.findViewById(R.id.info_page_title), 26);
         dialog.<TextView>findViewById(R.id.info_replace_pc_steps)
                 .setTypeface(typography.smTextRegular);
-        dialog.<TextView>findViewById(R.id.info_about).setTypeface(typography.smTextRegular);
+        typography.body(dialog.findViewById(R.id.info_about), typography.bodySp());
+        typography.body(dialog.findViewById(R.id.info_wireless_note), typography.bodySp());
         JSONObject phone = snapshot == null ? null : snapshot.optJSONObject("phone");
         JSONObject gpu = snapshot == null ? null : snapshot.optJSONObject("gpu");
         String phoneModel = textField(phone, "model");
