@@ -106,6 +106,7 @@ public final class MainActivity extends Activity {
     private final Runnable coverResultsCheck = this::ensureCoverResultsArea;
     private final Map<String, Long> answerStarts = new HashMap<>();
     private final Map<TextView, String> pcLabelledViews = new java.util.WeakHashMap<>();
+    private final Map<TextView, SummaryPaintPolicy.Paint> summaryPaints = new java.util.WeakHashMap<>();
     private Typography typography;
     private UiSettings uiSettings;
     private UiPalette palette = new UiPalette(UiPalette.Theme.DARK);
@@ -240,7 +241,8 @@ public final class MainActivity extends Activity {
     private float lastCollapseFraction = -1f;
     private JSONObject snapshot;
     private Dialog infoDialog;
-    private Dialog modelSelectionDialog, historyDialog, backIssueDialog;
+    private Dialog modelSelectionDialog, historyDialog, backIssueDialog, summaryDialog;
+    private TextView fullSummaryText;
     private Dialog quitProgressDialog;
     private PopupWindow menuPopup;
     private LaneSelection laneSelection;
@@ -679,6 +681,7 @@ public final class MainActivity extends Activity {
 
     private boolean coverUserBusy() {
         if (articleDialog != null && articleDialog.isShowing()) return true;
+        if (summaryDialog != null && summaryDialog.isShowing()) return true;
         boolean touching = false;
         for (PaneViews article : paneViews.values()) touching |= article.touching;
         long now = SystemClock.uptimeMillis();
@@ -1027,10 +1030,11 @@ public final class MainActivity extends Activity {
         notesCard.setOnDragListener(notesTargetListener());
         applyNotesCompact();
         summaryCard = box();
-        summaryHeading = newspaperText("SUMMARY", 18, true, true);
+        summaryHeading = newspaperText("SUMMARY", typography.headingSp(), true, true);
         summaryCard.addView(summaryHeading);
-        summaryText = newspaperText("Ask the models to compare their answers.", 16, false, true);
-        typography.body(summaryText, 16);
+        summaryText = newspaperText("Ask the models to compare their answers.",
+                typography.bodySp(), false, true);
+        typography.body(summaryText, typography.bodySp());
         summaryCard.addView(summaryText, new LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT));
         resultsScroll.post(() -> {
@@ -1677,6 +1681,7 @@ public final class MainActivity extends Activity {
         if (modelSelectionDialog != null) modelSelectionDialog.dismiss();
         if (historyDialog != null) historyDialog.dismiss();
         if (backIssueDialog != null) backIssueDialog.dismiss();
+        if (summaryDialog != null) summaryDialog.dismiss();
         if (infoDialog != null) {
             infoDialog.dismiss();
             infoDialog = null;
@@ -2785,10 +2790,12 @@ public final class MainActivity extends Activity {
 
     private void setWaitingLayout(PaneViews article, boolean waiting) {
         if (!PaneKeys.extra(article.pane)) return;
-        int visibility = waiting ? View.GONE : View.VISIBLE;
-        setVisibilityIfNeeded(article.kicker, visibility);
-        setVisibilityIfNeeded(article.heading, visibility);
-        setVisibilityIfNeeded(article.answer, visibility);
+        setVisibilityIfNeeded(article.kicker, LaneCardLayout.waitingVisible(
+                waiting, LaneCardLayout.Part.KICKER) ? View.VISIBLE : View.GONE);
+        setVisibilityIfNeeded(article.heading, LaneCardLayout.waitingVisible(
+                waiting, LaneCardLayout.Part.HEADING) ? View.VISIBLE : View.GONE);
+        setVisibilityIfNeeded(article.answer, LaneCardLayout.waitingVisible(
+                waiting, LaneCardLayout.Part.ANSWER) ? View.VISIBLE : View.GONE);
     }
 
     private void setLiveSpeed(PaneViews article, String speed) {
@@ -2810,7 +2817,7 @@ public final class MainActivity extends Activity {
             setLiveSpeed(article, "");
             updateExpanded(article);
         }
-        setIfChanged(summaryText, "");
+        setSummaryReport("");
         setTonightTiming("");
         setIfChanged(tonightCount, "—");
         setIfChanged(tonightProvenance, "");
@@ -3700,20 +3707,58 @@ public final class MainActivity extends Activity {
     }
 
     private void setSummaryReport(String report) {
-        if (summaryText == null) return;
-        typography.body(summaryText, 16);
-        SpannableStringBuilder styled = new SpannableStringBuilder(report);
+        paintSummaryReport(summaryText, report);
+        paintSummaryReport(fullSummaryText, report);
+    }
+
+    private void paintSummaryReport(TextView view, String report) {
+        if (view == null) return;
+        String text = report == null ? "" : report;
         int ink = themeColor(R.color.newspaper_ink);
         int error = parseHex(palette.error());
-        styled.setSpan(new ForegroundColorSpan(ink), 0, styled.length(),
-                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-        for (ErrorCopy.Range range : ErrorCopy.lineRanges(report)) {
+        int bodySp = typography.bodySp();
+        if (!SummaryPaintPolicy.needsPaint(summaryPaints.get(view), text, ink, error, bodySp)) return;
+        typography.body(view, bodySp);
+        SpannableStringBuilder styled = new SpannableStringBuilder(text);
+        if (styled.length() > 0) {
+            styled.setSpan(new ForegroundColorSpan(ink), 0, styled.length(),
+                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        }
+        for (ErrorCopy.Range range : ErrorCopy.lineRanges(text)) {
             if (!range.error) continue;
             styled.setSpan(new ForegroundColorSpan(error), range.start, range.end,
                     Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
         }
-        summaryText.setTextColor(ink);
-        summaryText.setText(styled);
+        view.setTextColor(ink);
+        view.setText(styled);
+        summaryPaints.put(view, new SummaryPaintPolicy.Paint(text, ink, error, bodySp));
+    }
+
+    /** The pinned preview can clip a five-model report; this page shows every line. */
+    private void showSummaryPage() {
+        if (summaryDialog != null && summaryDialog.isShowing()) return;
+        if (isFinishing() || isDestroyed()) return;
+        Dialog dialog = new Dialog(this, R.style.NewspaperDialogTheme);
+        summaryDialog = dialog;
+        dialog.setOnDismissListener(ignored -> {
+            if (summaryDialog == dialog) {
+                summaryDialog = null;
+                fullSummaryText = null;
+            }
+        });
+        LinearLayout root = pageRoot();
+        root.addView(pageBar(getString(R.string.summary_title), getString(R.string.close),
+                view -> dialog.dismiss()));
+        ScrollView scroll = new ScrollView(this);
+        fullSummaryText = newspaperText("", typography.bodySp(), false, true);
+        fullSummaryText.setTextIsSelectable(true);
+        fullSummaryText.setPadding(0, dp(12), 0, dp(16));
+        scroll.addView(fullSummaryText);
+        root.addView(scroll, new LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 0, 1));
+        paintSummaryReport(fullSummaryText, summaryText == null ? "" : summaryText.getText().toString());
+        showFullPage(dialog, root);
+        applyPaletteToDialog(dialog);
     }
 
     /** A string resource with "PC" replaced by the paired computer's noun (MacBook, Mac or PC). */
@@ -4843,7 +4888,7 @@ public final class MainActivity extends Activity {
     private LinearLayout pageBar(String title, String closeLabel, View.OnClickListener close) {
         LinearLayout bar = new LinearLayout(this);
         bar.setGravity(Gravity.CENTER_VERTICAL);
-        TextView heading = newspaperText(title, 26, true, true);
+        TextView heading = newspaperText(title, typography.headingSp(), true, true);
         heading.setAccessibilityHeading(true);
         bar.addView(heading, new LinearLayout.LayoutParams(0,
                 LinearLayout.LayoutParams.WRAP_CONTENT, 1));
@@ -5780,6 +5825,7 @@ public final class MainActivity extends Activity {
         if (settings != null) styleChromeOutline(settings);
         if (settingsDialog != null && settingsDialog.isShowing()) applyPaletteToDialog(settingsDialog);
         if (infoDialog != null && infoDialog.isShowing()) applyPaletteToDialog(infoDialog);
+        if (summaryDialog != null && summaryDialog.isShowing()) applyPaletteToDialog(summaryDialog);
     }
 
     private void stylePrimaryButton(Button button) {
@@ -5871,6 +5917,8 @@ public final class MainActivity extends Activity {
         }
         if (question != null) applyQuestionLayout(question);
         if (notesTabLabel != null) typography.kicker(notesTabLabel);
+        if (summaryHeading != null) typography.headline(summaryHeading, typography.headingSp());
+        if (summaryText != null) setSummaryReport(summaryText.getText().toString());
         for (PaneViews pane : paneViews.values()) {
             typography.headline(pane.heading, typography.headingSp());
             typography.kicker(pane.kicker);
@@ -6104,6 +6152,21 @@ public final class MainActivity extends Activity {
         applyBottomDockInsets(insetLeft, insetRight, insetBottom);
     }
 
+    private void setSummaryHeadingCue(boolean expanded) {
+        String title = "SUMMARY";
+        String cue = expanded ? " · Close" : " · Open";
+        SpannableStringBuilder heading = new SpannableStringBuilder(title + cue);
+        heading.setSpan(new TypefaceSpan(typography.interMedium), title.length(), heading.length(),
+                Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        int cuePx = Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP,
+                typography.labelSp(), getResources().getDisplayMetrics()));
+        heading.setSpan(new AbsoluteSizeSpan(cuePx, false), title.length(),
+                heading.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
+        summaryHeading.setText(heading);
+        summaryHeading.setContentDescription(getString(expanded
+                ? R.string.summary_close : R.string.summary_open));
+    }
+
     private void pinSummaryBar() {
         if (summaryCard == null) return;
         if (bottomDock == null) {
@@ -6164,18 +6227,20 @@ public final class MainActivity extends Activity {
                         LinearLayout.LayoutParams.WRAP_CONTENT, dp(NotesSheet.SUMMARY_WIDE_DP)));
                 notes.setAccessibilityTraversalAfter(notesTab.getId());
             }
-            String cue = summaryExpanded ? " · Close" : " · Open";
-            SpannableStringBuilder heading = new SpannableStringBuilder("SUMMARY" + cue);
-            heading.setSpan(new TypefaceSpan(typography.interMedium), 7, heading.length(),
-                    Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            int cuePx = Math.round(TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_SP,
-                    typography.labelSp(), getResources().getDisplayMetrics()));
-            heading.setSpan(new AbsoluteSizeSpan(cuePx, false), 7,
-                    heading.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
-            summaryHeading.setText(heading);
-            summaryHeading.setContentDescription(getString(summaryExpanded
-                    ? R.string.summary_close : R.string.summary_open));
+            setSummaryHeadingCue(summaryExpanded);
             summaryScroll.setVisibility(summaryExpanded ? View.VISIBLE : View.GONE);
+        } else if (NotesSheet.summaryOpensFullPage(landscapeLayout)) {
+            summaryCard.setClickable(true);
+            summaryCard.setFocusable(false);
+            // Keep the preview readable on its own after the open action.
+            summaryCard.setImportantForAccessibility(View.IMPORTANT_FOR_ACCESSIBILITY_NO);
+            summaryCard.setOnClickListener(view -> showSummaryPage());
+            summaryHeading.setFocusable(true);
+            summaryHeading.setMinimumHeight(dp(coverMode ? 0 : 48));
+            summaryHeading.setGravity(Gravity.CENTER_VERTICAL);
+            setSummaryHeadingCue(false);
+            summaryHeading.setAccessibilityDelegate(mastheadButtonRole());
+            summaryHeading.setOnClickListener(view -> showSummaryPage());
         }
         if (summaryText != null) {
             if (landscapeLayout) {

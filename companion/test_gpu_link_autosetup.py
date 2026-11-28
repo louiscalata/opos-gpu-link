@@ -780,7 +780,7 @@ class ExtraLanes(unittest.TestCase):
         self.assertEqual([m["id"] for m in parsed.extra_models], ["opos-gpu-link-2", "opos-gpu-link-3"])
         self.assertEqual([(m["label"], m["maker"]) for m in parsed.extra_models],
                          [("Qwen3 4B", "Qwen (Alibaba)"),
-                          ("LFM2 (comparison baseline)", "Liquid AI")])
+                          ("LFM2 2.6B (baseline)", "Liquid AI")])
         self.assertEqual(parsed.model_servers["opos-gpu-link-3"], "http://127.0.0.1:18092/v1/chat/completions")
         self.assertEqual(parsed.model, "opos-gpu-link")
         with self.assertRaises(SystemExit), patch("sys.stderr", io.StringIO()):
@@ -1037,15 +1037,30 @@ class DataDirAndBundle(unittest.TestCase):
         self.assertEqual(a.maker_of("nvidia_Llama-3.1-Nemotron-Nano-4B-v1.1-Q4_K_M.gguf"), "NVIDIA")
         self.assertEqual(a.maker_of("nvidia_AceInstruct-1.5B-Q4_K_M.gguf"), "NVIDIA")
         self.assertEqual(a.label_of("Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf"), "Nemotron 3.5 Bolt")
-        self.assertEqual(a.label_of("LFM2-1.2B-Q4_K_M.gguf"), "LFM2 (comparison baseline)")
-        self.assertEqual(a.served_model_label("LFM2 2.6B"), "LFM2 (comparison baseline)")
+        self.assertEqual(a.label_of("LFM2-1.2B-Q4_K_M.gguf"), "LFM2 1.2B (baseline)")
+        self.assertEqual(a.served_model_label("LFM2 2.6B"), "LFM2 2.6B (baseline)")
         self.assertEqual(a.display_maker("Nemotron-3.5-Bolt-E4B-Q4_K_M.gguf", "Local"), "NVIDIA")
         self.assertEqual(a.display_maker("LFM2-1.2B-Q4_K_M.gguf", "Local"), "Liquid AI")
         self.assertEqual(a.display_maker("Qwen3-4B-Q4_K_M.gguf", "Qwen"), "Qwen (Alibaba)")
         self.assertEqual(a.display_model_label("Qwen3.5-2B_Q4_K_M.gguf"), "Qwen3.5-2B")
         self.assertEqual(a.display_model_label("Granite-4.1-3B_Q4_K_M.gguf"), "Granite 4.1 3B")
         self.assertEqual(a.display_model_label("Nemotron-3.5-Bolt_Q4_K_M.gguf"), "Nemotron 3.5 Bolt")
-        self.assertEqual(a.display_model_label("LFM2_1.2B.gguf"), "LFM2 (comparison baseline)")
+        self.assertEqual(a.display_model_label("LFM2_1.2B.gguf"), "LFM2 1.2B (baseline)")
+        self.assertEqual(a.display_model_label("LFM2"), "LFM2 (baseline)")
+        self.assertEqual(a.display_model_label("LFM2 2.6B"), "LFM2 2.6B (baseline)")
+        self.assertEqual(a.display_model_label("LFM2 (comparison baseline)"), "LFM2 (baseline)")
+        self.assertEqual(a.display_model_label("LFM2.5"), "LFM2.5")
+        for source, label, maker in (
+            ("LFM2.5B", "LFM2.5B", "Local"),
+            ("LFM2.gguf", "LFM2 (baseline)", "Liquid AI"),
+            ("LFM2-1.2B", "LFM2 1.2B (baseline)", "Liquid AI"),
+        ):
+            with self.subTest(source=source):
+                self.assertEqual(a.display_model_label(source), label)
+                self.assertEqual(a.display_maker(source, "Local"), maker)
+        self.assertEqual(a.display_maker("LiquidAI/LFM2-VL", "Local"), "Liquid AI")
+        self.assertEqual(a.display_maker("Liquid AI LFM2", "Local"), "Liquid AI")
+        self.assertEqual(a.display_maker("LFM2.5", "Local"), "Local")
         fallback = "Qwen3-4B-Q4_K_M.gguf (fallback for Nemotron-3.5-Bolt-E4B)"
         self.assertEqual(a.display_model_label(fallback),
                          "Qwen3-4B-Q4_K_M.gguf (fallback for Nemotron 3.5 Bolt)")
@@ -1426,7 +1441,7 @@ class ServedLeadLabelTests(unittest.TestCase):
             rt = a.start_runtime(SimpleNamespace(), self._existing(
                 {"id": "LFM2-1.2B-Q4_K_M.gguf", "label": "  "}))
         self.assertEqual((rt.lanes[0]["label"], rt.lanes[0]["maker"]),
-                         ("LFM2 (comparison baseline)", "Liquid AI"))
+                         ("LFM2 1.2B (baseline)", "Liquid AI"))
 
     def test_existing_server_sanitizes_non_ascii_and_long_labels(self):
         long_label = "Gemma 4 26B " + ("x" * 80)
@@ -1440,6 +1455,12 @@ class ServedLeadLabelTests(unittest.TestCase):
         self.assertEqual(len(rt.lanes[0]["lead_label"]), 64)
         self.assertTrue(proto.valid_model_label(rt.lanes[0]["lead_label"]))
         self.assertTrue(rt.lanes[0]["lead_label"].startswith("Gemma 4 26B "))
+        with patch.object(a, "say"):
+            rt = a.start_runtime(SimpleNamespace(), self._existing(
+                {"id": "LiquidAI/LFM2-VL-" + "x" * 80}))
+        self.assertTrue(rt.lanes[0]["lead_label"].endswith(" (baseline)"))
+        self.assertTrue(proto.valid_model_label(rt.lanes[0]["lead_label"]))
+        self.assertEqual(rt.lanes[0]["maker"], "Liquid AI")
 
     def test_existing_server_rejects_a_missing_model_id(self):
         with patch.object(a, "say"), self.assertRaises(RuntimeError) as raised:
