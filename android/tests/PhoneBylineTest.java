@@ -6,9 +6,11 @@ public final class PhoneBylineTest {
         equal("Llama 3.2 3B · Meta · on this phone", PhoneByline.text("Meta Llama 3.2 3B", null));
         equal("Nemotron 3 Nano 4B · NVIDIA · on this phone", PhoneByline.text(" NVIDIA Nemotron 3 Nano 4B ", " "));
         equal("Granite 4.0 Micro 3B · IBM", PhoneByline.modelAndMaker("IBM Granite 4.0 Micro 3B"));
-        equal("LFM2 1.2B · Liquid AI", PhoneByline.modelAndMaker("Liquid AI LFM2 1.2B"));
+        equal("LFM2 1.2B (baseline) · Liquid AI", PhoneByline.modelAndMaker("Liquid AI LFM2 1.2B"));
+        equal("Qwen3.5-2B · Qwen (Alibaba)", PhoneByline.modelAndMaker("Qwen3.5-2B"));
+        equal("Granite 4.1 3B · IBM", PhoneByline.modelAndMaker("Granite 4.1 3B"));
         // No known maker first: the name as given.
-        equal("AceInstruct 1.5B · on this phone", PhoneByline.text("AceInstruct 1.5B", "on this phone"));
+        equal("AceInstruct 1.5B · NVIDIA · on this phone", PhoneByline.text("AceInstruct 1.5B", "on this phone"));
         equal("NVIDIAX 2B", PhoneByline.modelAndMaker("NVIDIAX 2B"));
         equal("NVIDIA", PhoneByline.modelAndMaker("NVIDIA"));
         // No model known: only the place.
@@ -36,7 +38,7 @@ public final class PhoneBylineTest {
                 PhoneByline.forCard(" Meta Llama 3.2 1B ", "Meta Llama 3.2 1B", true, false, "on this phone"));
         equal("Llama 3.2 3B · Meta · on this phone",
                 PhoneByline.forCard("Meta Llama 3.2 3B", "   ", true, true, "on this phone"));
-        equal("Qwen 2.5 1.5B", PhoneByline.modelAndMaker("Qwen 2.5 1.5B"));
+        equal("Qwen 2.5 1.5B · Qwen (Alibaba)", PhoneByline.modelAndMaker("Qwen 2.5 1.5B"));
         equal("on this phone", PhoneByline.text("   ", "on this phone"));
         equal("Llama 3.2 1B · Meta · on this computer", PhoneByline.text("Meta Llama 3.2 1B", "on this computer"));
         System.out.println("PhoneBylineTest: OK");
