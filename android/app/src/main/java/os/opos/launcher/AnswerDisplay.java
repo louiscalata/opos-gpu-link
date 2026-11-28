@@ -6,6 +6,6 @@ final class AnswerDisplay {
 
     static String text(String pane, String source) {
         String value = source == null ? "" : source;
-        return PaneKeys.pc(pane) ? value : value.stripLeading();
+        return PaneKeys.pc(pane) ? value : LeadingWhitespace.strip(value);
     }
 }

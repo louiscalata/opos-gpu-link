@@ -7,7 +7,10 @@ public final class AnswerDisplayTest {
         equal("CUDA cores, and more", AnswerDisplay.text("phone", " CUDA cores, and more"));
         equal("A GPU, and more", AnswerDisplay.text("m2", "\n\t A GPU, and more"));
         equal("first  second\n", AnswerDisplay.text("m3", "  first  second\n"));
-        equal("LFM2", AnswerDisplay.text("m4", "\u2003LFM2"));
+        equal("LFM2 1.2B", AnswerDisplay.text("m3", "\u2003LFM2 1.2B"));
+        equal("Granite 4.1 3B", AnswerDisplay.text("m4", "\u2003Granite 4.1 3B"));
+        equal("answer", AnswerDisplay.text("m1", "\u2003\tanswer"));
+        equal("\u200banswer", AnswerDisplay.text("m1", " \u200banswer"));
         // Repeated streamed snapshots remain clean without changing later spacing.
         equal("", AnswerDisplay.text("phone", " "));
         equal("CUDA", AnswerDisplay.text("phone", " CUDA"));
