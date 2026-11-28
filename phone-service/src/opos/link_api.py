@@ -103,14 +103,18 @@ class PhoneModel:
         self.model = model.strip()
         self.label = (label or self.model)[:64]
 
-    def stream(self, question: str, call: "PhoneCall", timeout: float = 120.0):
+    def stream(self, question: str, call: "PhoneCall", timeout: float = 120.0,
+               safe_seed: int | None = None):
         """Yield text pieces from a streamed chat completion and return its finish reason.
 
         Raises NoModel when the server cannot be reached, StreamError for anything but a
         complete event stream. ``call`` holds the connection so a cancel can close it.
         """
-        body = json.dumps({"model": self.model, "stream": True, "max_tokens": 4096,
-                           "messages": [{"role": "user", "content": question}]}).encode("utf-8")
+        payload = {"model": self.model, "stream": True, "max_tokens": 4096,
+                   "messages": [{"role": "user", "content": question}]}
+        if safe_seed is not None:
+            payload.update(seed=safe_seed, temperature=0.1, repeat_penalty=1.1)
+        body = json.dumps(payload).encode("utf-8")
         connection = http.client.HTTPConnection(self.host, self.port, timeout=timeout)
         call.attach(connection)
         try:
@@ -195,8 +199,10 @@ class PhoneCall:
 class PhoneWorker:
     """Answer one phone-lane question in its own thread."""
 
-    def __init__(self, answers: ai_answers.AnswerStore, ident: str, model: PhoneModel) -> None:
+    def __init__(self, answers: ai_answers.AnswerStore, ident: str, model: PhoneModel,
+                 safe: bool = False) -> None:
         self.answers, self.ident, self.model = answers, ident, model
+        self.safe_seed: int | None = secrets.randbits(31) if safe else None
         self.call = PhoneCall()
         self.cancelled = self.call.cancelled
         self.live_speed: int | None = None
@@ -223,7 +229,8 @@ class PhoneWorker:
             answer = self.answers.begin(self.ident)
             self.answers.note(self.ident, model=self.model.label, where="on this phone")
             offset, pending, last, first, pieces = 0, b"", float("-inf"), None, 0
-            stream = self.model.stream(answer["question"], self.call)
+            options = {"safe_seed": self.safe_seed} if self.safe_seed is not None else {}
+            stream = self.model.stream(answer["question"], self.call, **options)
             finish = "stop"
             while True:
                 try:
@@ -378,7 +385,7 @@ class LinkApi:
             raise ValueError("GPU Link is off." if panes == ["gpu"] else "No selected model is available.")
         return chosen
 
-    def ask(self, data: dict) -> None:
+    def ask(self, data: dict, *, safe: bool = False) -> None:
         question = data.get("question")
         if not isinstance(question, str) or not ai_answers.clean(question).strip():
             raise ValueError("Enter a question.")
@@ -407,7 +414,7 @@ class LinkApi:
             raise
         for answer in stored:
             if answer["pane"] == "phone" and self.phone is not None:
-                job = PhoneWorker(answers, answer["id"], self.phone)
+                job = PhoneWorker(answers, answer["id"], self.phone, safe=safe)
                 self.workers[job.ident] = job
                 try:
                     job.start()
@@ -490,7 +497,7 @@ class LinkApi:
                 self.cancel(latest["id"])
             except ai_answers.StateError:
                 pass  # it finished meanwhile; ask again all the same
-        self.ask({"question": latest["question"], "panes": [pane]})
+        self.ask({"question": latest["question"], "panes": [pane]}, safe=data.get("safe") == 1)
 
     def link_action(self, action: str, data: dict) -> None:
         link = self._link()
