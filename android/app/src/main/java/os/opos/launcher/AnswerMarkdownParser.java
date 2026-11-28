@@ -88,7 +88,8 @@ final class AnswerMarkdownParser {
     private AnswerMarkdownParser() {}
 
     static Result parse(String raw) {
-        String source = (raw == null ? "" : raw).replace("\r\n", "\n").replace('\r', '\n');
+        String source = LeadingWhitespace.stripAnswerStart(
+                (raw == null ? "" : raw).replace("\r\n", "\n").replace('\r', '\n'));
         StringBuilder blockText = new StringBuilder(source.length());
         List<LineFormat> lines = new ArrayList<>();
         String[] sourceLines = source.split("\n", -1);

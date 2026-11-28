@@ -64,6 +64,30 @@ public final class AnswerMarkdownParserTest {
         equal(2, indented.lists.get(0).indent);
         equal(4, indented.lists.get(2).indent);
 
+        AnswerMarkdownParser.Result cleanStart = AnswerMarkdownParser.parse(
+                " \n   answer\n  - nested item\n    2) next item");
+        equal("answer\n  • nested item\n    2) next item", cleanStart.text);
+        equal(2, cleanStart.lists.size());
+        listItem(cleanStart, 0, "  • ", cleanStart.text.indexOf("  • "));
+        listItem(cleanStart, 1, "    2) ", cleanStart.text.indexOf("    2) "));
+        equal(2, cleanStart.lists.get(0).indent);
+        equal(4, cleanStart.lists.get(1).indent);
+        equal("", AnswerMarkdownParser.parse(" \t\n").text);
+        AnswerMarkdownParser.Result firstList = AnswerMarkdownParser.parse(
+                "\n  - first\n    - second");
+        equal("  • first\n    • second", firstList.text);
+        listItem(firstList, 0, "  • ", 0);
+        listItem(firstList, 1, "    • ", firstList.text.indexOf("    • "));
+        AnswerMarkdownParser.Result oneSpace = AnswerMarkdownParser.parse("\n 1. first");
+        equal("1. first", oneSpace.text);
+        equal(1, oneSpace.lists.size());
+        listItem(oneSpace, 0, "1. ", 0);
+        AnswerMarkdownParser.Result firstCode = AnswerMarkdownParser.parse(
+                AnswerDisplay.text("gpu", "\r\n    if ready:\n        run()"));
+        equal("    if ready:\n        run()", firstCode.text);
+        equal("\tif ready:\n\t\trun()", AnswerMarkdownParser.parse(
+                "\n\tif ready:\n\t\trun()").text);
+
         AnswerMarkdownParser.Result gemma = AnswerMarkdownParser.parse(
                 "1. Install drivers\n * Download the latest NVIDIA drivers.\n\n2. Configure ...");
         equal("1. Install drivers\n • Download the latest NVIDIA drivers.\n\n2. Configure ...",
@@ -187,6 +211,10 @@ public final class AnswerMarkdownParserTest {
                 "   ```\n**literal**\n   ```");
         equal("**literal**", indentedFence.text);
         mark(indentedFence, "**literal**", AnswerMarkdownParser.CODE);
+        AnswerMarkdownParser.Result firstFence = AnswerMarkdownParser.parse(
+                "\n   ```\n    if ready:\n   ```");
+        equal("    if ready:", firstFence.text);
+        mark(firstFence, "    if ready:", AnswerMarkdownParser.CODE);
         AnswerMarkdownParser.Result openFence = AnswerMarkdownParser.parse(
                 "```js\n**still literal**\n> no quote");
         equal("**still literal**\n> no quote", openFence.text);
