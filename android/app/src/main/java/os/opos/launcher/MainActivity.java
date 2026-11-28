@@ -95,6 +95,8 @@ public final class MainActivity extends Activity {
     private static final long LINK_STATUS_HOLD_MS = 3500;
     private static final String PREF_UNRESOLVED_ASK = "ask_post_unresolved";
     private static volatile boolean resumed;
+    /** Kept only across a layout-family recreate, so a fold does not blank the newspaper. */
+    private static JSONObject foldSnapshot;
     private final Handler handler = new Handler(Looper.getMainLooper());
     private final ExecutorService network = Executors.newSingleThreadExecutor();
     private final AiClient client = new AiClient();
@@ -241,6 +243,7 @@ public final class MainActivity extends Activity {
     private final Map<String, TextView> modelLabels = new HashMap<>();
     private final Map<String, TextView> modelMetaViews = new HashMap<>();
     private boolean displayPinned, quitting;
+    private boolean foldRestored;
     private String archivedIssueId = "";
     private String pendingRefreshSourceId = "";
     private String pendingRefreshQuestion = "";
@@ -410,7 +413,26 @@ public final class MainActivity extends Activity {
             if (event == null || event.getAction() == KeyEvent.ACTION_DOWN) askModels();
             return true;
         });
-        showWaiting();
+        JSONObject carried = foldSnapshot;
+        foldSnapshot = null;
+        if (carried != null) {
+            cableConnected = LinkWatcherService.cableConnected(this);
+            reachable = true;
+            showSnapshot(carried);
+            reachable = false;
+            for (PaneViews article : paneViews.values()) {
+                if (open(answerOf(carried, article.pane)) && !isPausedDateline(article)) {
+                    setLaneState(article.state, article.card, getString(R.string.checking));
+                }
+            }
+            updateCompactLaneStatus();
+            setMainStatus(getString(R.string.checking_connection));
+            renderLinkBanner(false, hasVisiblePcWork());
+            updateButtons();
+            foldRestored = true;
+        } else {
+            showWaiting();
+        }
     }
 
     private void applyInsets() {
@@ -448,17 +470,23 @@ public final class MainActivity extends Activity {
             status.setPadding(dp(12), dp(2), dp(12), dp(2));
             status.setTextSize(TypedValue.COMPLEX_UNIT_SP, 13);
             status.setGravity(Gravity.START | Gravity.CENTER_VERTICAL);
+            status.setSingleLine(false);
+            status.setMaxLines(2);
+            status.setEllipsize(TextUtils.TruncateAt.END);
+            status.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
             int afterHeader = root.indexOfChild(header) + 1;
             root.addView(status, afterHeader, new LinearLayout.LayoutParams(
                     LinearLayout.LayoutParams.MATCH_PARENT,
                     LinearLayout.LayoutParams.WRAP_CONTENT));
-            compactLaneStatus = newspaperText("", 13, false, false);
-            typography.tabular(compactLaneStatus);
-            compactLaneStatus.setPadding(dp(12), 0, dp(12), dp(2));
-            compactLaneStatus.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
-            root.addView(compactLaneStatus, afterHeader + 1, new LinearLayout.LayoutParams(
-                    LinearLayout.LayoutParams.MATCH_PARENT,
-                    LinearLayout.LayoutParams.WRAP_CONTENT));
+            if (!coverMode) {
+                compactLaneStatus = newspaperText("", 13, false, false);
+                typography.tabular(compactLaneStatus);
+                compactLaneStatus.setPadding(dp(12), 0, dp(12), dp(2));
+                compactLaneStatus.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
+                root.addView(compactLaneStatus, afterHeader + 1,
+                        new LinearLayout.LayoutParams(LinearLayout.LayoutParams.MATCH_PARENT,
+                                LinearLayout.LayoutParams.WRAP_CONTENT));
+            }
             updateCompactLaneStatus();
             resultsScroll.addOnLayoutChangeListener((view, left, top, right, bottom,
                     oldLeft, oldTop, oldRight, oldBottom) -> {
@@ -497,6 +525,7 @@ public final class MainActivity extends Activity {
         super.onConfigurationChanged(newConfig);
         if (recreating) return;
         if (CoverScreenPolicy.needsRecreate(layoutMode, currentLayoutMode(newConfig))) {
+            foldSnapshot = pairingPending ? null : snapshot;
             recreating = true;
             recreate();
         } else {
@@ -584,7 +613,8 @@ public final class MainActivity extends Activity {
         Map<String, String> states = new HashMap<>();
         for (String pane : paneOrder) {
             PaneViews article = paneViews.get(pane);
-            if (article != null) states.put(pane, article.lastRenderedState);
+            if (article != null) states.put(pane,
+                    CoverScreenPolicy.visibleState(article.state.getText().toString()));
         }
         return states;
     }
@@ -1485,7 +1515,14 @@ public final class MainActivity extends Activity {
         showBattery(battery);
         awaitingReplugSnapshot = false;
         LinkWatcherService.start(this);
-        showWaiting();
+        if (foldRestored) {
+            foldRestored = false;
+            renderLinkBanner(false, hasVisiblePcWork());
+            setMainStatus(getString(R.string.checking_connection));
+            updateButtons();
+        } else {
+            showWaiting();
+        }
         schedule(0);
     }
 
@@ -1553,6 +1590,7 @@ public final class MainActivity extends Activity {
     @Override
     protected void onDestroy() {
         handler.removeCallbacks(poll);
+        if (isFinishing()) foldSnapshot = null;
         if (quitting) network.shutdown();
         else network.shutdownNow();
         if (menuPopup != null) menuPopup.dismiss();
@@ -3717,22 +3755,23 @@ public final class MainActivity extends Activity {
     }
 
     private void updateCompactLaneStatus() {
-        if (compactLaneStatus == null) return;
-        Map<String, String> states = new HashMap<>();
-        for (String pane : paneOrder) {
-            PaneViews article = paneViews.get(pane);
-            if (article != null) states.put(pane, article.state.getText().toString());
+        if (compactLaneStatus != null) {
+            Map<String, String> states = new HashMap<>();
+            for (String pane : paneOrder) {
+                PaneViews article = paneViews.get(pane);
+                if (article != null) states.put(pane, article.state.getText().toString());
+            }
+            String notAsked = getString(R.string.not_asked_this_time);
+            String checking = getString(R.string.checking);
+            String phone = CompactHeaderStatus.selectedState(
+                    paneOrder, states, false, notAsked, checking);
+            String pc = CompactHeaderStatus.selectedState(
+                    paneOrder, states, true, notAsked, checking);
+            setIfChanged(compactLaneStatus, CompactHeaderStatus.line(
+                    getString(R.string.phone_heading), phone,
+                    pcWords(R.string.gpu_heading), pc,
+                    pcWords(R.string.gpu_paused)));
         }
-        String notAsked = getString(R.string.not_asked_this_time);
-        String checking = getString(R.string.checking);
-        String phone = CompactHeaderStatus.selectedState(
-                paneOrder, states, false, notAsked, checking);
-        String pc = CompactHeaderStatus.selectedState(
-                paneOrder, states, true, notAsked, checking);
-        setIfChanged(compactLaneStatus, CompactHeaderStatus.line(
-                getString(R.string.phone_heading), phone,
-                pcWords(R.string.gpu_heading), pc,
-                pcWords(R.string.gpu_paused)));
         refreshCover();
     }
 

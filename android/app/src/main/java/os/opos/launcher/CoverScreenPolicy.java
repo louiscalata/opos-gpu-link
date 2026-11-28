@@ -3,6 +3,7 @@ package os.opos.launcher;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 /**
@@ -16,7 +17,7 @@ final class CoverScreenPolicy {
     static final int MAX_PANES = 3;
     static final int MASTHEAD_DP = 40;
     static final int COMPOSER_ROW_DP = 52;
-    static final int KEYBOARD_COMPOSER_ROW_DP = 44;
+    static final int KEYBOARD_COMPOSER_ROW_DP = 48;
     static final int MIN_PANE_DP = 150;
     static final int MAX_PANE_DP = 230;
     static final int SUMMARY_DP = 180;
@@ -116,6 +117,23 @@ final class CoverScreenPolicy {
 
     static String moreLabel(int hidden) {
         return hidden == 0 ? "" : "+" + hidden + " more models hidden";
+    }
+
+    /** Derive the cover badge from the words on the card, including offline and waiting paths. */
+    static String visibleState(String words) {
+        if (words == null) return "";
+        String state = words.trim().toLowerCase(Locale.US);
+        if (UiPalette.tone(state) == UiPalette.Tone.ERROR) return "failed";
+        if (state.startsWith("paused")) return "paused";
+        if (state.startsWith("streaming") || state.startsWith("answering")) return "answering";
+        if (state.startsWith("done")) return "done";
+        if (state.startsWith("stopped")) return "cancelled";
+        if (state.startsWith("thinking") || state.startsWith("checking")
+                || state.startsWith("waiting") || state.startsWith("loading")
+                || state.startsWith("queued")) {
+            return "waiting";
+        }
+        return "";
     }
 
     /** Short status word for the pane kicker. Empty means the pane has nothing to flag. */
