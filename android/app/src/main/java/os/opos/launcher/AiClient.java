@@ -83,7 +83,7 @@ final class AiClient {
             InputStream stream = status >= 400 ? connection.getErrorStream() : connection.getInputStream();
             String response = read(stream);
             if (status != 200) {
-                String message = "The phone could not update AI mode.";
+                String message = "The phone could not complete that action.";
                 try {
                     message = new JSONObject(response).optString("error", message);
                 } catch (JSONException ignored) {

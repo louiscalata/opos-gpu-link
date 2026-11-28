@@ -1198,7 +1198,7 @@ public final class MainActivity extends Activity {
     private PaneViews createExtraArticle(String pane) {
         LinearLayout card = new LinearLayout(this);
         card.setOrientation(LinearLayout.VERTICAL);
-        TextView heading = newspaperText(pane.toUpperCase(Locale.US), 19, true, true);
+        TextView heading = newspaperText(PaneKeys.fallbackLabel(pane), 19, true, true);
         TextView stateView = newspaperText(getString(R.string.checking), 13, true, false);
         stateView.setAccessibilityLiveRegion(View.ACCESSIBILITY_LIVE_REGION_POLITE);
         TextView answerView = newspaperText("", 17, false, true);
@@ -2173,7 +2173,7 @@ public final class MainActivity extends Activity {
         if (view == null) return;
         String slotLabel = ModelDisplay.firstNonBlank(textField(model, "label"),
                 textField(model, "model"));
-        if (slotLabel.isEmpty()) slotLabel = pane;
+        if (slotLabel.isEmpty()) slotLabel = PaneKeys.fallbackLabel(pane);
         // Only an answer the card actually shows names it; a hidden older answer must not.
         String answered = answerShown(pane, model == null ? null : model.optJSONObject("answer"))
                 ? answeredModel(model) : "";
@@ -4371,7 +4371,7 @@ public final class MainActivity extends Activity {
     private void confirmQuit() {
         showAlert(new AlertDialog.Builder(this, R.style.LinkDialogTheme)
                 .setTitle("Quit OPOS GPU Link?")
-                .setMessage("Quit OPOS GPU Link? Answers in progress will stop.")
+                .setMessage("Answers in progress will stop.")
                 .setNegativeButton(R.string.not_now, null)
                 .setPositiveButton("Quit", (dialog, which) -> quitActivity()));
     }
@@ -4447,9 +4447,9 @@ public final class MainActivity extends Activity {
                     schedule(0);
                     showAlert(new AlertDialog.Builder(this, R.style.LinkDialogTheme)
                             .setTitle("Answers may still be running")
-                            .setMessage("The phone service did not confirm Stop for every answer.")
+                            .setMessage("The phone could not confirm that every answer stopped.")
                             .setPositiveButton("Try again", (dialog, which) -> quitActivity())
-                            .setNegativeButton("Close UI", (dialog, which) -> finishAndRemoveTask()));
+                            .setNegativeButton("Close app", (dialog, which) -> finishAndRemoveTask()));
                 } else finishAndRemoveTask();
             });
         });
@@ -4880,7 +4880,7 @@ public final class MainActivity extends Activity {
         ruleParams.topMargin = dp(12);
         root.addView(rule, ruleParams);
         TextView note = newspaperText(
-                ComputerWords.apply("On-device models run one after another to save memory. PC models run together."),
+                "Phone models answer one at a time. Computer models can answer together.",
                 15, false, false);
         note.setPadding(0, dp(14), 0, dp(10));
         root.addView(note);
@@ -4915,7 +4915,7 @@ public final class MainActivity extends Activity {
         if ("gpu".equals(pane)) return leadTitle(view);
         String label = ModelDisplay.firstNonBlank(textField(view, "label"),
                 textField(view, "model"));
-        return label.isEmpty() ? pane.toUpperCase(Locale.US) : ModelDisplay.label(label);
+        return label.isEmpty() ? PaneKeys.fallbackLabel(pane) : ModelDisplay.label(label);
     }
 
     private String modelDetails(String pane, JSONObject view) {
@@ -4993,10 +4993,10 @@ public final class MainActivity extends Activity {
             Map<String, Boolean> readyNow = readyPanes(snapshot);
             boolean next = !laneSelection.isOn(available, readyNow, pane);
             if (!laneSelection.set(available, readyNow, pane, next)) {
-                setIfChanged(modelSelectionNotice, "At least one lane must stay on.");
+                setIfChanged(modelSelectionNotice, "Keep at least one model on.");
                 return;
             }
-            setIfChanged(modelSelectionNotice, "Changes take effect on the next Send.");
+            setIfChanged(modelSelectionNotice, "Your choices apply to the next question.");
             updateModelSelectionRows();
             if (!displayPinned && snapshot != null) syncModelViews(snapshot);
             updateButtons();
@@ -5027,7 +5027,7 @@ public final class MainActivity extends Activity {
                 if (PaneKeys.pc(pane)) continue;
                 addModelRow(pane);
             }
-            addModelSection(PaneKeys.kicker("gpu"));
+            addModelSection(getString(R.string.gpu_heading_neutral));
             for (String pane : grouped) {
                 if (PaneKeys.pc(pane)) addModelRow(pane);
             }
@@ -5169,17 +5169,16 @@ public final class MainActivity extends Activity {
     private LinearLayout savedArticle(HistoryStore.Lane lane) {
         LinearLayout card = savedBox();
         // A saved answer keeps the noun of the computer that wrote it, when known.
-        String laneWhere = lane.where == null ? "" : lane.where.trim();
-        String laneComputer = laneWhere.isEmpty() || "unknown".equalsIgnoreCase(laneWhere)
-                || "on the PC's GPU".equals(laneWhere)
-                ? ComputerWords.current() : ComputerWords.noun(laneWhere);
+        String laneWhere = PaneKeys.archivedWhere(lane.where);
+        String laneComputer = PaneKeys.archivedComputer(lane.where);
         TextView kicker = newspaperText(PaneKeys.kicker(lane.pane, laneComputer),
                 LaneCardLayout.LABEL_SP, true, false);
         typography.kicker(kicker);
         card.addView(kicker);
         card.addView(newspaperText(lane.label, LaneCardLayout.headingSp(PaneKeys.extra(lane.pane),
                 "gpu".equals(lane.pane)), true, true));
-        String byline = lane.maker.isEmpty() ? lane.where : lane.maker + " · " + lane.where;
+        String byline = lane.maker.isEmpty() ? laneWhere
+                : laneWhere.isEmpty() ? lane.maker : lane.maker + " · " + laneWhere;
         TextView bylineView = newspaperText(byline, LaneCardLayout.LABEL_SP, false, false);
         typography.byline(bylineView);
         card.addView(bylineView);
@@ -5189,7 +5188,7 @@ public final class MainActivity extends Activity {
         applyTone(stateView);
         card.addView(stateView);
         if (lane.truncated) {
-            TextView excerpt = newspaperText("Saved excerpt · local 200 KB limit",
+            TextView excerpt = newspaperText("This saved answer was shortened.",
                     LaneCardLayout.LABEL_SP, true, false);
             typography.tabular(excerpt);
             card.addView(excerpt);

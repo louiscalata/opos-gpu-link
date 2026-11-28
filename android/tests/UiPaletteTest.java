@@ -40,6 +40,9 @@ public final class UiPaletteTest {
         equal(UiPalette.Tone.ERROR, UiPalette.tone("Failed"));
         equal(UiPalette.Tone.ERROR, UiPalette.tone("Garbled — Retry"));
         equal(UiPalette.Tone.ERROR, UiPalette.tone("Stuck — Retry"));
+        equal(UiPalette.Tone.ERROR, UiPalette.tone("Could not read answer · Retry"));
+        equal(UiPalette.Tone.ERROR, UiPalette.tone("Taking too long · Retry"));
+        check(ErrorCopy.errorLine("Taking too long · Retry"), "retry is an error line");
         equal(UiPalette.Tone.PAUSED, UiPalette.tone("Paused — will continue when the Mac is back"));
         equal(UiPalette.Tone.NEUTRAL, UiPalette.tone("USB cable disconnected · Waiting for the computer"));
         equal(UiPalette.Tone.ERROR, UiPalette.tone("USB cable disconnected · Phone failed"));

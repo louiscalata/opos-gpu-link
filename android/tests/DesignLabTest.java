@@ -12,8 +12,8 @@ public final class DesignLabTest {
         check(DesignLab.parseMode("belts").equals(DesignLab.BELTS));
 
         equal("Off (default)", DesignLab.caption(DesignLab.OFF));
-        equal("Link schematic", DesignLab.caption(DesignLab.SCHEMATIC));
-        equal("Factory belts", DesignLab.caption(DesignLab.BELTS));
+        equal("Connection diagram", DesignLab.caption(DesignLab.SCHEMATIC));
+        equal("Answer progress", DesignLab.caption(DesignLab.BELTS));
 
         check(DesignLab.link(Boolean.FALSE, true) == DesignLab.Link.PAUSED);
         check(DesignLab.link(Boolean.TRUE, true) == DesignLab.Link.LIVE);
